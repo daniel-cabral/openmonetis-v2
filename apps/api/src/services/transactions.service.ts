@@ -14,6 +14,9 @@ import {
   emptyDueDateRulesReader,
   resolveDueDate,
 } from "@openmonetis/domain/due-date-rules";
+import { decodeImportText } from "@openmonetis/domain/import-csv";
+import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
+import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
 import {
   getNextRecurringOccurrenceDate,
   getRecurringDueDate,
@@ -43,6 +46,7 @@ import {
   deriveTransactionPeriod,
   deriveTransactionPostingDate,
   deriveTransactionPostingPeriod,
+  getImportedDescriptionKey,
   getPeriodEndDate,
   getPeriodFromDate,
   InsufficientTransferBalanceError,
@@ -67,6 +71,7 @@ import type {
   BulkTagTransactionsInput,
   BulkTripTransactionsInput,
   CreateTransactionRefundInput,
+  DetectTransactionImportInput,
   ExportTransactionsQuery,
   ImportTransactionsInput,
   InstallmentOptionsQuery,
@@ -94,6 +99,27 @@ import { createTransactionsExport } from "../utils/transactions-export";
 import type { AttachmentsService } from "./attachments.service";
 
 type TransactionsRepositoryModule = typeof import("../repositories/transactions.repository");
+
+const importFileMaxBytes = 5 * 1024 * 1024;
+// Compound File Binary header: legacy Excel 97-2003 (.xls), which ExcelJS cannot read.
+const legacyExcelSignature = Buffer.from([0xd0, 0xcf, 0x11, 0xe0]);
+
+function sha256Hex(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function readImportFileContent(contentBase64: string) {
+  const content = Buffer.from(contentBase64, "base64");
+  if (!content.length || content.length > importFileMaxBytes) {
+    throw badRequest("Statement file is too large", "IMPORT_FILE_TOO_LARGE");
+  }
+  return content;
+}
+
+// Merchant-aware key first, legacy key second, so mappings stored before FR-015 still match (FR-016).
+function importMemoryKeys(name: string) {
+  return [getImportedDescriptionKey(name), normalizeImportedDescriptionKey(name)];
+}
 
 export type TransactionsServiceDependencies = Pick<
   TransactionsRepositoryModule,
@@ -701,18 +727,55 @@ export function createTransactionsService(
     });
   }
 
-  async function previewTransactionImport(input: PreviewTransactionImportInput, userId: string) {
-    const content = Buffer.from(input.contentBase64, "base64");
-    if (!content.length || content.length > 5 * 1024 * 1024) {
-      throw badRequest("Statement file is too large", "IMPORT_FILE_TOO_LARGE");
+  async function resolveCsvImport(input: PreviewTransactionImportInput, userId: string) {
+    if (!input.profileId || !input.destinationType || !input.destinationId) {
+      throw badRequest("CSV files need a profile and a destination", "IMPORT_PROFILE_REQUIRED");
+    }
+    const profile = findImportProfile(input.profileId);
+    if (!profile) throw badRequest("Import profile not found", "IMPORT_PROFILE_NOT_FOUND");
+    if (profile.destinationType !== input.destinationType) {
+      throw badRequest(
+        "Destination does not match the import profile",
+        "IMPORT_DESTINATION_MISMATCH",
+      );
     }
 
+    const destination = { type: input.destinationType, id: input.destinationId };
+    if (destination.type === "account") {
+      const account = await findAccountByIdForUser(destination.id, userId);
+      if (!account || account.isArchived) throw notFound("Account not found", "ACCOUNT_NOT_FOUND");
+    } else {
+      const card = await findCardByIdForUser(destination.id, userId);
+      if (!card || card.status === "inactive") throw notFound("Card not found", "CARD_NOT_FOUND");
+    }
+    return { profile, destination };
+  }
+
+  async function detectTransactionImport(input: DetectTransactionImportInput) {
     const extension = input.fileName.split(".").at(-1)?.toLowerCase();
+    if (extension !== "csv") {
+      throw badRequest("Statement format is not supported", "IMPORT_FORMAT_NOT_SUPPORTED");
+    }
+    return detectImportProfile(decodeImportText(readImportFileContent(input.contentBase64)));
+  }
+
+  async function previewTransactionImport(input: PreviewTransactionImportInput, userId: string) {
+    const content = readImportFileContent(input.contentBase64);
+    const extension = input.fileName.split(".").at(-1)?.toLowerCase();
+    const csvImport = extension === "csv" ? await resolveCsvImport(input, userId) : null;
     let statement: ImportedStatement;
     try {
-      if (extension === "ofx" || extension === "qfx") {
+      if (csvImport) {
+        statement = csvImport.profile.parse(decodeImportText(content));
+      } else if (extension === "ofx" || extension === "qfx") {
         statement = parseOfxStatement(new TextDecoder("windows-1252").decode(content));
-      } else if (extension === "xlsx") {
+      } else if (extension === "xlsx" || extension === "xls") {
+        if (extension === "xls" && content.subarray(0, 4).equals(legacyExcelSignature)) {
+          throw badRequest(
+            "Legacy Excel 97-2003 files are not supported",
+            "IMPORT_XLS_BINARY_NOT_SUPPORTED",
+          );
+        }
         statement = await parseSpreadsheetStatement(content);
       } else {
         throw badRequest("Statement format is not supported", "IMPORT_FORMAT_NOT_SUPPORTED");
@@ -725,20 +788,32 @@ export function createTransactionsService(
       throw badRequest("Statement has too many transactions", "IMPORT_TOO_MANY_ROWS");
     }
 
-    const sourceFingerprint = createHash("sha256").update(statement.sourceReference).digest("hex");
-    const externalIds = statement.transactions.flatMap((transaction) =>
+    // CSV lines have no issuer identifier: their identity is a hash of the row payload (FR-010, FR-012).
+    const rowIdentities = csvImport
+      ? buildImportRowIdentityPayloads({
+          kind: csvImport.profile.kind,
+          source: statement.sourceName,
+          accountIdentification: statement.accountIdentification,
+          destination: csvImport.destination,
+          rows: statement.transactions,
+        }).map(sha256Hex)
+      : statement.transactions.map((transaction) => transaction.externalId);
+    const transactions = statement.transactions.map((transaction, index) => ({
+      ...transaction,
+      externalId: rowIdentities[index] ?? null,
+    }));
+    const sourceFingerprint = csvImport
+      ? sha256Hex(`csv:${csvImport.profile.id}:${statement.accountIdentification ?? ""}`)
+      : sha256Hex(statement.sourceReference);
+    const externalIds = transactions.flatMap((transaction) =>
       transaction.externalId ? [transaction.externalId] : [],
     );
-    const descriptionKeys = [
-      ...new Set(
-        statement.transactions.map((transaction) =>
-          normalizeImportedDescriptionKey(transaction.name),
-        ),
-      ),
+    const memoryKeys = [
+      ...new Set(transactions.flatMap((transaction) => importMemoryKeys(transaction.name))),
     ];
     const [duplicateIds, categoryMappings] = await Promise.all([
       listImportedExternalIdsForUser(userId, sourceFingerprint, externalIds),
-      listImportCategoryMappingsForUser(userId, descriptionKeys),
+      listImportCategoryMappingsForUser(userId, memoryKeys),
     ]);
     const duplicates = new Set(duplicateIds);
     const categoryMappingsByDescription = new Map(
@@ -751,16 +826,21 @@ export function createTransactionsService(
       accountNumber: statement.accountNumber,
       period: statement.period,
       isCreditCard: statement.isCreditCard,
-      transactions: statement.transactions.map((transaction) => ({
-        ...transaction,
-        isDuplicate: transaction.externalId ? duplicates.has(transaction.externalId) : false,
-        suggestedCategoryId:
-          categoryMappingsByDescription.get(normalizeImportedDescriptionKey(transaction.name))
-            ?.categoryType === transaction.type
-            ? (categoryMappingsByDescription.get(normalizeImportedDescriptionKey(transaction.name))
-                ?.categoryId as string)
-            : null,
-      })),
+      profileId: statement.profileId,
+      accountIdentification: statement.accountIdentification,
+      invalidLines: statement.invalidLines,
+      transactions: transactions.map((transaction) => {
+        const mapping = importMemoryKeys(transaction.name)
+          .map((key) => categoryMappingsByDescription.get(key))
+          .find((candidate) => candidate !== undefined);
+        return {
+          ...transaction,
+          isDuplicate: transaction.externalId ? duplicates.has(transaction.externalId) : false,
+          suggestedCategoryId:
+            mapping?.categoryType === transaction.type ? (mapping.categoryId as string) : null,
+          importable: transaction.lineKind === null || transaction.lineKind === "purchase",
+        };
+      }),
     };
   }
 
@@ -788,6 +868,12 @@ export function createTransactionsService(
   }
 
   async function importTransactions(input: ImportTransactionsInput, userId: string) {
+    if (input.rows.some((row) => row.lineKind === "credit" || row.lineKind === "invoice-payment")) {
+      throw badRequest(
+        "Credit and invoice payment lines are not importable",
+        "IMPORT_ROW_NOT_IMPORTABLE",
+      );
+    }
     const personIds = [...new Set(input.rows.map((row) => row.personId))];
     const categoryIds = [...new Set(input.rows.map((row) => row.categoryId))];
     const [ownedPeople, ownedCategories, account, card] = await Promise.all([
@@ -876,10 +962,10 @@ export function createTransactionsService(
     const mappings = [
       ...new Map(
         input.rows.map((row) => [
-          normalizeImportedDescriptionKey(row.name),
+          getImportedDescriptionKey(row.name),
           {
             userId,
-            descriptionKey: normalizeImportedDescriptionKey(row.name),
+            descriptionKey: getImportedDescriptionKey(row.name),
             categoryId: row.categoryId,
           },
         ]),
@@ -933,6 +1019,7 @@ export function createTransactionsService(
       transactions.push({
         externalId: null,
         purchaseDate,
+        postedDate: null,
         amount,
         name,
         type: normalizeImportedType(
@@ -942,6 +1029,12 @@ export function createTransactionsService(
         categoryName: categoryColumn
           ? String(readSpreadsheetValue(row.getCell(categoryColumn).value) ?? "").trim() || null
           : null,
+        dayBalance: null,
+        installment: null,
+        cardLastDigits: null,
+        holderName: null,
+        fx: null,
+        lineKind: null,
       });
     });
     if (!transactions.length) throw new Error("Spreadsheet has no valid transactions");
@@ -952,7 +1045,10 @@ export function createTransactionsService(
       accountNumber: null,
       period: deriveImportedPeriod(transactions),
       isCreditCard: false,
+      profileId: null,
+      accountIdentification: null,
       transactions,
+      invalidLines: [],
     };
   }
 
@@ -2962,6 +3058,7 @@ export function createTransactionsService(
     deleteTransaction,
     deleteTransactions,
     exportTransactions,
+    detectTransactionImport,
     generateTransactionImportTemplate,
     getTransactionById,
     getRecurringRuleOccurrence,

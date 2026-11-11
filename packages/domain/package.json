@@ -44,7 +44,11 @@
     "./ai-chats": "./src/ai-chats.ts",
     "./ai-data-sharing": "./src/ai-data-sharing.ts",
     "./ai-providers": "./src/ai-providers.ts",
-    "./ai-tools": "./src/ai-tools.ts"
+    "./ai-tools": "./src/ai-tools.ts",
+    "./import-c6": "./src/import-c6.ts",
+    "./import-csv": "./src/import-csv.ts",
+    "./import-profiles": "./src/import-profiles.ts",
+    "./import-row-identity": "./src/import-row-identity.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

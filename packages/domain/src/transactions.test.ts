@@ -12,6 +12,7 @@ import {
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
   deriveTransactionPostingDate,
+  getImportedDescriptionKey,
   getPeriodEndDate,
   InsufficientTransferBalanceError,
   isTransactionSelectionItemSelectable,
@@ -603,4 +604,27 @@ test("bulk categorization requires a matching user category", () => {
     ),
     false,
   );
+});
+
+test("merchant key drops acquirer prefixes, place suffixes and store numbers", () => {
+  assert.equal(
+    getImportedDescriptionKey("PG *ABC SUPERMERCADOS CONTAGEM BRA"),
+    "abc supermercados",
+  );
+  assert.equal(getImportedDescriptionKey("DM*HOSTINGERCOMB   SAO PAULO   BRA"), "hostingercomb");
+  assert.equal(getImportedDescriptionKey("DROGASIL2919"), "drogasil");
+  assert.equal(getImportedDescriptionKey("223 LIV CTBA 23439130"), "liv ctba");
+});
+
+test("merchant key groups one merchant across places and keeps the merchant side of an asterisk", () => {
+  assert.equal(
+    getImportedDescriptionKey("PG *LOJA TESTE   CONTAGEM   BRA"),
+    getImportedDescriptionKey("PG *LOJA TESTE   BETIM   BRA"),
+  );
+  assert.equal(getImportedDescriptionKey("MERCADOLIVRE*MERCADOL"), "mercadolivre");
+  assert.equal(getImportedDescriptionKey("MP *ATACADINHOKID"), "atacadinhokid");
+});
+
+test("merchant key keeps short trailing words when no country marker is present", () => {
+  assert.equal(getImportedDescriptionKey("BAR ESQUINA DA SOPA LT"), "bar esquina da sopa lt");
 });

@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
-import { findCategoryByImportedName } from "./transaction-import-review";
+import { findCategoryByImportedName, isSelectableImportRow } from "./transaction-import-review";
+
+test("import selection leaves out duplicates and lines that are not importable", () => {
+  assert.equal(isSelectableImportRow({ isDuplicate: false, importable: true }), true);
+  assert.equal(isSelectableImportRow({ isDuplicate: true, importable: true }), false);
+  assert.equal(isSelectableImportRow({ isDuplicate: false, importable: false }), false);
+});
 
 test("import matches full category paths and leaves duplicate leaf names for review", () => {
   const root: CategoryOutput = {

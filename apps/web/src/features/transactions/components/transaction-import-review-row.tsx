@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/money-presentation";
 import { cn } from "@/lib/utils";
+import {
+  transactionImportLineKindLabels,
+  transactionImportNonImportableNote,
+} from "../transactions.presentation";
 import type { useTransactionImportReview } from "../useTransactionImportReview";
 import { RowCategorySelect } from "./transaction-import-category-select";
 import { RowSelect } from "./transaction-import-person-select";
@@ -32,7 +36,7 @@ export function TransactionImportReviewRow({
         <Checkbox
           aria-label={`Selecionar ${row.name}`}
           checked={row.selected}
-          disabled={row.isDuplicate}
+          disabled={row.isDuplicate || !row.importable}
           onCheckedChange={(checked) =>
             setRows((current) =>
               current.map((item, itemIndex) =>
@@ -55,6 +59,28 @@ export function TransactionImportReviewRow({
           <Badge className="mt-1" variant="outline">
             Já importado
           </Badge>
+        ) : null}
+        {row.lineKind === "credit" || row.lineKind === "invoice-payment" ? (
+          <span className="mt-1 flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{transactionImportLineKindLabels[row.lineKind]}</Badge>
+            <span className="text-muted-foreground text-xs">
+              {transactionImportNonImportableNote}
+            </span>
+          </span>
+        ) : null}
+        {row.installment || row.fx ? (
+          <p className="px-3 text-muted-foreground text-xs">
+            {[
+              row.installment ? `${row.installment.current}/${row.installment.total}` : null,
+              row.fx
+                ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(
+                    row.fx.amount,
+                  )
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         ) : null}
       </TableCell>
       <TableCell>

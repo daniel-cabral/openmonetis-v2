@@ -8,6 +8,7 @@ import {
   BulkTransactionsOutputSchema,
   BulkTripTransactionsInputSchema,
   CreateTransactionRefundInputSchema,
+  DetectTransactionImportInputSchema,
   ExportTransactionsQuerySchema,
   ImportTransactionsInputSchema,
   InstallmentOptionsOutputSchema,
@@ -27,6 +28,7 @@ import {
   TransactionActionQuerySchema,
   TransactionExportOutputSchema,
   TransactionImportBatchParamsSchema,
+  TransactionImportDetectionSchema,
   TransactionImportPreviewOutputSchema,
   TransactionImportResultSchema,
   TransactionInputSchema,
@@ -94,6 +96,10 @@ const importPreviewResponseSchema = z.object({
   data: TransactionImportPreviewOutputSchema,
   error: z.null(),
 });
+const importDetectionResponseSchema = z.object({
+  data: TransactionImportDetectionSchema,
+  error: z.null(),
+});
 const importResultResponseSchema = z.object({
   data: TransactionImportResultSchema,
   error: z.null(),
@@ -110,6 +116,7 @@ export function createTransactionsRoute(service: TransactionsService) {
     createTransactionRefund,
     deleteTransaction,
     deleteTransactions,
+    detectTransactionImport,
     generateTransactionImportTemplate,
     getTransactionById,
     getRecurringRuleOccurrence,
@@ -319,6 +326,35 @@ export function createTransactionsRoute(service: TransactionsService) {
       },
     }),
     async (c) => c.json(ok(await generateTransactionImportTemplate()), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/imports/detect",
+      tags: ["Transactions"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: DetectTransactionImportInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Import profiles and the profile suggested for a CSV file",
+          content: { "application/json": { schema: importDetectionResponseSchema } },
+        },
+        400: {
+          description: "Invalid statement file",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    async (c) => c.json(ok(await detectTransactionImport(c.req.valid("json"))), 200),
   );
 
   transactionsRoute.openapi(

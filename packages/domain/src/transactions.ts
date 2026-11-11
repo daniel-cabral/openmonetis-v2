@@ -218,10 +218,17 @@ export function calculateExpenseImpact(input: {
 export type ImportedTransaction = {
   externalId: string | null;
   purchaseDate: string;
+  postedDate: string | null;
   amount: number;
   name: string;
   type: "income" | "expense";
   categoryName: string | null;
+  dayBalance: number | null;
+  installment: { current: number; total: number } | null;
+  cardLastDigits: string | null;
+  holderName: string | null;
+  fx: { currency: "USD"; amount: number } | null;
+  lineKind: "purchase" | "credit" | "invoice-payment" | null;
 };
 
 export type ImportedStatement = {
@@ -230,7 +237,10 @@ export type ImportedStatement = {
   accountNumber: string | null;
   period: { from: string; to: string } | null;
   isCreditCard: boolean;
+  profileId: string | null;
+  accountIdentification: string | null;
   transactions: ImportedTransaction[];
+  invalidLines: { lineNumber: number; reason: "invalid_date" | "invalid_amount" }[];
 };
 
 const frequencyMonths: Partial<Record<RecurrenceFrequency, number>> = {
@@ -344,10 +354,17 @@ export function parseOfxStatement(content: string): ImportedStatement {
       {
         externalId: readOfxField(block, "FITID")?.slice(0, 255) ?? null,
         purchaseDate,
+        postedDate: null,
         amount: Math.abs(amount),
         name: name.slice(0, 160),
         type: amount > 0 ? "income" : "expense",
         categoryName: null,
+        dayBalance: null,
+        installment: null,
+        cardLastDigits: null,
+        holderName: null,
+        fx: null,
+        lineKind: null,
       },
     ];
   });
@@ -360,7 +377,10 @@ export function parseOfxStatement(content: string): ImportedStatement {
     accountNumber: maskAccountNumber(accountNumber),
     period: from && to ? { from, to } : deriveImportedPeriod(transactions),
     isCreditCard,
+    profileId: null,
+    accountIdentification: null,
     transactions,
+    invalidLines: [],
   };
 }
 
@@ -398,8 +418,51 @@ export function normalizeImportedType(value: unknown, signedAmount?: number) {
     : ("expense" as const);
 }
 
+// Legacy key: kept only to look up mappings stored before the merchant-aware key (FR-016).
 export function normalizeImportedDescriptionKey(value: string) {
   return value.trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
+}
+
+// Merchant-aware category memory key (FR-015). Acquirer prefixes, place suffixes and
+// store numbers vary between statements of the same merchant, so they are dropped.
+export function getImportedDescriptionKey(value: string) {
+  let key = value.toLowerCase().trim();
+  key = stripImportedPlaceSuffix(key);
+  key = keepImportedMerchantAroundStar(key);
+  key = key.replace(/^\d+\s+/, "");
+  key = key.replace(/(?<=[a-z])\d+$/, "");
+  key = key.replace(/\s+\d+$/, "");
+  return key.replace(/\s+/g, " ").trim();
+}
+
+// Keeps the longer side of "ACQUIRER*MERCHANT": the merchant identifier, not a truncated fragment.
+function keepImportedMerchantAroundStar(value: string) {
+  const starIndex = value.indexOf("*");
+  if (starIndex < 0) return value;
+
+  const left = value.slice(0, starIndex).trim();
+  const right = value.slice(starIndex + 1).trim();
+  if (!left) return right;
+  if (!right) return left;
+  return left.length > right.length ? left : right;
+}
+
+// The city is delimited by the run of spaces that separates it from the merchant. Only applied
+// when the country marker is present, so a merchant ending in a short word keeps its name.
+function stripImportedPlaceSuffix(value: string) {
+  const withoutCountry = value.replace(/\s+(bra|br)$/, "");
+  if (withoutCountry === value) return value;
+
+  const runs = /\s{2,}/g;
+  let cut = -1;
+  let run = runs.exec(withoutCountry);
+  while (run) {
+    cut = run.index;
+    run = runs.exec(withoutCountry);
+  }
+
+  if (cut >= 0) return withoutCountry.slice(0, cut);
+  return withoutCountry.replace(/\s+\S+$/, "");
 }
 
 function readOfxField(block: string, tag: string) {

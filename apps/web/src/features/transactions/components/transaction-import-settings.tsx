@@ -30,6 +30,7 @@ export function TransactionImportSettings({
   accounts,
   cards,
   people,
+  destinationLocked,
 }: {
   selectableCategories: ReturnType<typeof useTransactionImportReview>["selectableCategories"];
   form: ReturnType<typeof useTransactionImportReview>["form"];
@@ -50,6 +51,7 @@ export function TransactionImportSettings({
   accounts: Props["accounts"];
   cards: Props["cards"];
   people: Props["people"];
+  destinationLocked: boolean;
 }) {
   return (
     <form.Subscribe selector={(state) => state.values}>
@@ -79,6 +81,7 @@ export function TransactionImportSettings({
                 accounts={accounts}
                 cards={cards}
                 isCard={isCard}
+                locked={destinationLocked}
                 selectedAccount={selectedAccount}
                 selectedCard={selectedCard}
               />
