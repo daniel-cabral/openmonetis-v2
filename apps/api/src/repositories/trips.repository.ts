@@ -11,7 +11,7 @@ import {
   transactionTrips,
   trips,
 } from "@openmonetis/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type {
   LedgerTransactionRow,
   TripInput,
@@ -197,3 +197,89 @@ export const tripsRepository: TripsRepository = {
     return admin?.id ?? null;
   },
 };
+
+type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function linkTransactionsToTrip(
+  tx: DatabaseTransaction,
+  {
+    userId,
+    tripId,
+    transactionIds,
+    seriesIds,
+  }: { userId: string; tripId: string; transactionIds: string[]; seriesIds: string[] },
+) {
+  if (transactionIds.length === 0 && seriesIds.length === 0) return;
+
+  const ownedRows = await tx
+    .select({ id: transactions.id })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        or(
+          transactionIds.length ? inArray(transactions.id, transactionIds) : undefined,
+          seriesIds.length ? inArray(transactions.seriesId, seriesIds) : undefined,
+        ),
+      ),
+    );
+  if (ownedRows.length === 0) return;
+
+  await tx
+    .insert(transactionTrips)
+    .values(ownedRows.map((row) => ({ transactionId: row.id, userId, tripId })))
+    .onConflictDoUpdate({ target: transactionTrips.transactionId, set: { tripId } });
+}
+
+export async function unlinkTransactions(
+  tx: DatabaseTransaction,
+  userId: string,
+  transactionIds: string[],
+) {
+  if (transactionIds.length === 0) return;
+
+  await tx
+    .delete(transactionTrips)
+    .where(
+      and(
+        eq(transactionTrips.userId, userId),
+        inArray(transactionTrips.transactionId, transactionIds),
+      ),
+    );
+}
+
+export async function setOccurrenceTrip(
+  tx: DatabaseTransaction,
+  {
+    userId,
+    seriesId,
+    occurrenceDate,
+    tripId,
+  }: { userId: string; seriesId: string; occurrenceDate: string; tripId: string | null },
+) {
+  if (tripId === null) {
+    await tx
+      .delete(recurringOccurrenceTrips)
+      .where(
+        and(
+          eq(recurringOccurrenceTrips.userId, userId),
+          eq(recurringOccurrenceTrips.recurringSeriesId, seriesId),
+          eq(recurringOccurrenceTrips.occurrenceDate, toDate(occurrenceDate)),
+        ),
+      );
+    return;
+  }
+
+  await tx
+    .insert(recurringOccurrenceTrips)
+    .values({
+      recurringSeriesId: seriesId,
+      occurrenceDate: toDate(occurrenceDate),
+      userId,
+      tripId,
+    })
+    .onConflictDoUpdate({
+      target: [recurringOccurrenceTrips.recurringSeriesId, recurringOccurrenceTrips.occurrenceDate],
+      set: { tripId },
+    });
+}

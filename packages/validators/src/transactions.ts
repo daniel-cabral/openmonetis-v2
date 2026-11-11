@@ -145,6 +145,7 @@ const TransactionFieldsSchema = z.object({
     .max(50)
     .nullable()
     .optional(),
+  tripId: nullableUuidSchema.optional(),
 });
 
 const CreateTransactionFieldsSchema = TransactionFieldsSchema.extend({
@@ -780,6 +781,7 @@ export const TransactionOutputSchema = z
       }),
     ),
     isDivided: z.boolean(),
+    tripId: z.string().uuid().nullable().optional(),
     refundSourceId: z.string().uuid().nullable(),
     refundedAmount: z.number().nonnegative(),
     refundableAmount: z.number().nonnegative(),

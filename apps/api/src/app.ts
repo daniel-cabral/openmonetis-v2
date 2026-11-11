@@ -222,6 +222,7 @@ const transactionsService = createTransactionsService(
     listCategoryFamilyIdsForUser,
     listTagsByIdsForUser,
     listPeopleByIdsForUser,
+    findTripByIdForUser: tripsRepository.findByIdForUser,
   },
   attachmentsService,
   {

@@ -264,6 +264,28 @@ for (const [label, method, result, input, code] of [
     },
     "SPLIT_PERSON_NOT_FOUND",
   ],
+  [
+    "unknown trip",
+    "findTripByIdForUser",
+    null,
+    { tripId: "a0000000-0000-4000-8000-00000000000a" },
+    "TRIP_NOT_FOUND",
+  ],
+  [
+    "transfer linked to a trip",
+    "findTripByIdForUser",
+    { id: "a0000000-0000-4000-8000-00000000000a" },
+    {
+      type: "transfer",
+      paymentMethod: "bank_transfer",
+      accountId: null,
+      categoryId: null,
+      sourceAccountId: "50000000-0000-4000-8000-000000000005",
+      destinationAccountId: "90000000-0000-4000-8000-000000000009",
+      tripId: "a0000000-0000-4000-8000-00000000000a",
+    },
+    "TRIP_NOT_LINKABLE",
+  ],
 ] as Array<
   [string, keyof TransactionsServiceDependencies, unknown, Partial<TransactionInput>, string]
 >) {
@@ -953,6 +975,7 @@ for (const [patch, update, code] of [
     { installmentCount: 4 },
     "INSTALLMENT_COUNT_IMMUTABLE",
   ],
+  [{}, { tripId: "a0000000-0000-4000-8000-00000000000a" }, "TRIP_NOT_FOUND"],
 ] as Array<
   [
     Partial<TransactionWithRelations>,
@@ -2480,6 +2503,7 @@ function copyFixture(overrides: Partial<TransactionWithRelations> = {}) {
       },
       listPaidInvoicePeriodsForUser: async () => [],
       getCardExpenseTotalForUser: async () => 0,
+      findTripByIdForUser: async () => null,
       listTransactionSplitsForUser: async (ids: string[], owner: string) => {
         assert.deepEqual(ids, [transactionId]);
         assert.equal(owner, userId);
