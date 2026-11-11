@@ -34,6 +34,7 @@
     "./inbox-rules": "./src/inbox-rules.ts",
     "./device-tokens": "./src/device-tokens.ts",
     "./tags": "./src/tags.ts",
+    "./money": "./src/money.ts",
     "./trips": "./src/trips.ts",
     "./recurring-transactions": "./src/recurring-transactions.ts",
     "./settlements": "./src/settlements.ts",
