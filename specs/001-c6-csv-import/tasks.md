@@ -78,7 +78,7 @@ export function useDetectTransactionImportMutation(): UseMutationResult<Transact
 
 ## Phase 5: US4 row identity (P1)
 
-- [ ] T007 [US4] Implement `buildImportRowIdentityPayloads({ kind, source, accountIdentification, destination: { type, id }, rows })` in `packages/domain/src/import-row-identity.ts` per data-model.md "Row identity payload" and FR-010/FR-011 (version `openmonetis-import-row-v1`; signed amount formatted from cents with 2 decimals; occurrence per identical field group in file order). Port V1 `fingerprint.test.ts` (12 cases) to `packages/domain/src/import-row-identity.test.ts`, including the fixture's two identical `Empresa Teste 3 LTDA - Boleto` lines -> 113 distinct payloads.
+- [x] T007 [US4] Implement `buildImportRowIdentityPayloads({ kind, source, accountIdentification, destination: { type, id }, rows })` in `packages/domain/src/import-row-identity.ts` per data-model.md "Row identity payload" and FR-010/FR-011 (version `openmonetis-import-row-v1`; signed amount formatted from cents with 2 decimals; occurrence per identical field group in file order). Port V1 `fingerprint.test.ts` (12 cases) to `packages/domain/src/import-row-identity.test.ts`, including the fixture's two identical `Empresa Teste 3 LTDA - Boleto` lines -> 113 distinct payloads.
 
 ## Phase 6: API (US1-US4, US6)
 
