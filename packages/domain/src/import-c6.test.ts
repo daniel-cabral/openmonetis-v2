@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import {
-  classifyC6InvoiceLine,
-  parseC6InvoiceCsv,
-  parseC6StatementCsv,
-} from "./import-c6";
+import { classifyC6InvoiceLine, parseC6InvoiceCsv, parseC6StatementCsv } from "./import-c6";
 
 const statementFixture = readFileSync(
   new URL("./__fixtures__/c6-extrato.csv", import.meta.url),
@@ -47,8 +43,7 @@ test("parseC6StatementCsv maps every fixture row to dates, day balance and expen
 
 test("parseC6StatementCsv types a positive Entrada as income", () => {
   const received = parseC6StatementCsv(statementFixture).transactions.find(
-    (transaction) =>
-      transaction.name === "Pix recebido c6 de Empresa Teste 1 LTDA",
+    (transaction) => transaction.name === "Pix recebido c6 de Empresa Teste 1 LTDA",
   );
 
   assert.ok(received);
@@ -136,7 +131,8 @@ test("parseC6StatementCsv accepts a leading byte order mark before the header", 
 
 test("parseC6StatementCsv throws when the header or every data line is missing", () => {
   assert.throws(
-    () => parseC6StatementCsv("Agência: 1 / Conta: 2\n05/07/2026,05/07/2026,Pix,,0.00,120.00,100.00"),
+    () =>
+      parseC6StatementCsv("Agência: 1 / Conta: 2\n05/07/2026,05/07/2026,Pix,,0.00,120.00,100.00"),
     Error,
   );
   assert.throws(() => parseC6StatementCsv(statementHeader), Error);
@@ -161,9 +157,7 @@ test("parseC6InvoiceCsv maps purchase date, card, holder, category and descripti
 test("parseC6InvoiceCsv reads installment N/M and treats Única as no installment", () => {
   const transactions = parseC6InvoiceCsv(invoiceFixture).transactions;
   const parcelada = transactions[0];
-  const unica = transactions.find(
-    (transaction) => transaction.name === "ASSINATURA NUVEM TESTE",
-  );
+  const unica = transactions.find((transaction) => transaction.name === "ASSINATURA NUVEM TESTE");
 
   assert.deepEqual(parcelada.installment, { current: 7, total: 8 });
   assert.ok(unica);
@@ -173,13 +167,9 @@ test("parseC6InvoiceCsv reads installment N/M and treats Única as no installmen
 test("parseC6InvoiceCsv keeps FX only when the USD value is non-zero", () => {
   const transactions = parseC6InvoiceCsv(invoiceFixture).transactions;
   const emDolar = transactions.find(
-    (transaction) =>
-      transaction.name === "PLATAFORMA IA TESTE  SA" &&
-      transaction.amount === 270,
+    (transaction) => transaction.name === "PLATAFORMA IA TESTE  SA" && transaction.amount === 270,
   );
-  const semFx = transactions.find(
-    (transaction) => transaction.name === "ASSINATURA NUVEM TESTE",
-  );
+  const semFx = transactions.find((transaction) => transaction.name === "ASSINATURA NUVEM TESTE");
 
   assert.ok(emDolar);
   assert.deepEqual(emDolar.fx, { currency: "USD", amount: 50 });
@@ -196,12 +186,8 @@ test("parseC6InvoiceCsv keeps every fixture line, typing negatives as income", (
     transactions
       .filter((transaction) => kinds.includes(transaction.lineKind ?? ""))
       .reduce((total, transaction) => total + signedCents(transaction), 0);
-  const pagamento = transactions.find(
-    (transaction) => transaction.name === "Pag Fatura Boleto",
-  );
-  const estorno = transactions.find(
-    (transaction) => transaction.name === "Estorno Tarifa",
-  );
+  const pagamento = transactions.find((transaction) => transaction.name === "Pag Fatura Boleto");
+  const estorno = transactions.find((transaction) => transaction.name === "Estorno Tarifa");
 
   assert.equal(transactions.length, 98);
   assert.deepEqual(invoice.invalidLines, []);

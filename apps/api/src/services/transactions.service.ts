@@ -1,8 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isPayable } from "@openmonetis/domain/bills";
-import { decodeImportText } from "@openmonetis/domain/import-csv";
-import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
-import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
 import {
   type CardClosingOffsetMode,
   type CardClosingRuleType,
@@ -17,6 +14,9 @@ import {
   emptyDueDateRulesReader,
   resolveDueDate,
 } from "@openmonetis/domain/due-date-rules";
+import { decodeImportText } from "@openmonetis/domain/import-csv";
+import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
+import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
 import {
   getNextRecurringOccurrenceDate,
   getRecurringDueDate,
@@ -715,7 +715,10 @@ export function createTransactionsService(
     const profile = findImportProfile(input.profileId);
     if (!profile) throw badRequest("Import profile not found", "IMPORT_PROFILE_NOT_FOUND");
     if (profile.destinationType !== input.destinationType) {
-      throw badRequest("Destination does not match the import profile", "IMPORT_DESTINATION_MISMATCH");
+      throw badRequest(
+        "Destination does not match the import profile",
+        "IMPORT_DESTINATION_MISMATCH",
+      );
     }
 
     const destination = { type: input.destinationType, id: input.destinationId };
@@ -786,7 +789,9 @@ export function createTransactionsService(
     const externalIds = transactions.flatMap((transaction) =>
       transaction.externalId ? [transaction.externalId] : [],
     );
-    const memoryKeys = [...new Set(transactions.flatMap((transaction) => importMemoryKeys(transaction.name)))];
+    const memoryKeys = [
+      ...new Set(transactions.flatMap((transaction) => importMemoryKeys(transaction.name))),
+    ];
     const [duplicateIds, categoryMappings] = await Promise.all([
       listImportedExternalIdsForUser(userId, sourceFingerprint, externalIds),
       listImportCategoryMappingsForUser(userId, memoryKeys),
@@ -845,7 +850,10 @@ export function createTransactionsService(
 
   async function importTransactions(input: ImportTransactionsInput, userId: string) {
     if (input.rows.some((row) => row.lineKind === "credit" || row.lineKind === "invoice-payment")) {
-      throw badRequest("Credit and invoice payment lines are not importable", "IMPORT_ROW_NOT_IMPORTABLE");
+      throw badRequest(
+        "Credit and invoice payment lines are not importable",
+        "IMPORT_ROW_NOT_IMPORTABLE",
+      );
     }
     const personIds = [...new Set(input.rows.map((row) => row.personId))];
     const categoryIds = [...new Set(input.rows.map((row) => row.categoryId))];

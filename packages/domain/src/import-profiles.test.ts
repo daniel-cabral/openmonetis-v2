@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import {
-  detectImportProfile,
-  findImportProfile,
-} from "./import-profiles";
+import { detectImportProfile, findImportProfile } from "./import-profiles";
 
 const statementFixture = readFileSync(
   new URL("./__fixtures__/c6-extrato.csv", import.meta.url),

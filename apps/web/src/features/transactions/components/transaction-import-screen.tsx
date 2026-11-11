@@ -4,10 +4,10 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTransactionImportReview } from "../useTransactionImportReview";
+import { TransactionImportProfileStep } from "./transaction-import-profile-step";
 import { TransactionImportReviewTable } from "./transaction-import-review-table";
 import type { Props } from "./transaction-import-screen.types";
 import { TransactionImportSettings } from "./transaction-import-settings";
-import { TransactionImportProfileStep } from "./transaction-import-profile-step";
 import { TransactionImportSummary } from "./transaction-import-summary";
 import { TransactionImportUpload } from "./transaction-import-upload";
 

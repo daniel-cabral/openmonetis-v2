@@ -28,15 +28,10 @@ function formatSignedAmount(row: ImportedTransaction): string {
 }
 
 function formatInstallment(row: ImportedTransaction): string {
-  return row.installment
-    ? `${row.installment.current}/${row.installment.total}`
-    : "";
+  return row.installment ? `${row.installment.current}/${row.installment.total}` : "";
 }
 
-function buildIdentityFields(
-  input: ImportRowIdentityInput,
-  row: ImportedTransaction,
-): string[] {
+function buildIdentityFields(input: ImportRowIdentityInput, row: ImportedTransaction): string[] {
   const common = [
     ROW_IDENTITY_VERSION,
     input.kind,
@@ -69,9 +64,7 @@ function buildIdentityFields(
 // Lines without an issuer identifier are identified by their content. Lines
 // with identical identity fields are separated by a positional occurrence in
 // file order, so the same file always yields the same payloads.
-export function buildImportRowIdentityPayloads(
-  input: ImportRowIdentityInput,
-): string[] {
+export function buildImportRowIdentityPayloads(input: ImportRowIdentityInput): string[] {
   const occurrenceCounts = new Map<string, number>();
 
   return input.rows.map((row) => {

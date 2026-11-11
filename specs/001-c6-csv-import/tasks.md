@@ -99,7 +99,7 @@ export function useDetectTransactionImportMutation(): UseMutationResult<Transact
 ## Phase 9: Polish
 
 - [x] T015 Write `docs/transaction-imports.md` (maintainer style: formats, two-step CSV flow, profile registry and how to add one, row identity rule, category key rule, error codes) and add a `### Fork` entry at the end of `Unreleased` in `CHANGELOG.md` (PT-BR).
-- [ ] T016 Gate: `pnpm lint`, `pnpm typecheck`, scoped tests of every touched test file, and the imports integration test (bash). Fix failures. Remove `previews/` from the worktree if present (never committed).
+- [x] T016 Gate: `pnpm lint`, `pnpm typecheck`, scoped tests of every touched test file, and the imports integration test (bash). Fix failures. Remove `previews/` from the worktree if present (never committed).
 
 ## Dependencies
 

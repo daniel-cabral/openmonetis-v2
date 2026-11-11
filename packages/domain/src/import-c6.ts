@@ -12,8 +12,7 @@ export type C6InvoiceLineKind = "purchase" | "credit" | "invoice-payment";
 const sourceName = "C6 Bank";
 const statementHeaderPrefix = "Data Lançamento,Data Contábil";
 const accountPattern = /Agência:\s*(\S+)\s*\/\s*Conta:\s*(\S+)/;
-const statementPeriodPattern =
-  /Extrato de\s*(\d{2}\/\d{2}\/\d{4})\s*a\s*(\d{2}\/\d{2}\/\d{4})/;
+const statementPeriodPattern = /Extrato de\s*(\d{2}\/\d{2}\/\d{4})\s*a\s*(\d{2}\/\d{2}\/\d{4})/;
 const installmentPattern = /^(\d+)\/(\d+)$/;
 const invoicePaymentMarker = "pag fatura";
 const maxNameLength = 160;

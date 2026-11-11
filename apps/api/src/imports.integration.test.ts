@@ -355,7 +355,12 @@ test("OFX and spreadsheet imports persist reviewed data, deduplicate and undo ow
         assert.ok(first.transactions.every((row) => !row.isDuplicate && row.importable));
 
         const imported = await api.data<TransactionImportResult>(
-          await api.request("/transactions/imports", owner, "POST", importInput(first, destination)),
+          await api.request(
+            "/transactions/imports",
+            owner,
+            "POST",
+            importInput(first, destination),
+          ),
           201,
         );
         assert.equal(imported.imported, 113);
@@ -369,18 +374,21 @@ test("OFX and spreadsheet imports persist reviewed data, deduplicate and undo ow
         );
         assert.ok(again.transactions.every((row) => row.isDuplicate));
         const reimport = await api.data<TransactionImportResult>(
-          await api.request("/transactions/imports", owner, "POST", importInput(again, destination)),
+          await api.request(
+            "/transactions/imports",
+            owner,
+            "POST",
+            importInput(again, destination),
+          ),
           201,
         );
         assert.equal(reimport.imported, 0);
         assert.equal(reimport.skipped, 113);
 
-        const elsewhere = await readCsvPreview(
-          c6StatementFixture,
-          "extrato.csv",
-          "c6-statement",
-          { type: "account", id: secondAccount.id },
-        );
+        const elsewhere = await readCsvPreview(c6StatementFixture, "extrato.csv", "c6-statement", {
+          type: "account",
+          id: secondAccount.id,
+        });
         assert.ok(elsewhere.transactions.every((row) => !row.isDuplicate));
 
         await api.data<{ deleted: number }>(
@@ -398,7 +406,12 @@ test("OFX and spreadsheet imports persist reviewed data, deduplicate and undo ow
       "invoice import with a credit line is rejected before any transaction is written",
       async () => {
         const destination: Destination = { type: "card", id: card.id };
-        const invoice = await readCsvPreview(c6InvoiceFixture, "fatura.csv", "c6-invoice", destination);
+        const invoice = await readCsvPreview(
+          c6InvoiceFixture,
+          "fatura.csv",
+          "c6-invoice",
+          destination,
+        );
         const credit = invoice.transactions.find((row) => row.lineKind === "credit");
         assert.ok(credit);
         assert.equal(credit.importable, false);
@@ -413,7 +426,10 @@ test("OFX and spreadsheet imports persist reviewed data, deduplicate and undo ow
           400,
           "IMPORT_ROW_NOT_IMPORTABLE",
         );
-        const written = await db.select().from(transactions).where(eq(transactions.cardId, card.id));
+        const written = await db
+          .select()
+          .from(transactions)
+          .where(eq(transactions.cardId, card.id));
         assert.equal(written.length, 0);
       },
     );
@@ -473,7 +489,12 @@ test("OFX and spreadsheet imports persist reviewed data, deduplicate and undo ow
         );
         assert.equal(contagem.transactions[0].suggestedCategoryId, null);
         await api.data<TransactionImportResult>(
-          await api.request("/transactions/imports", owner, "POST", importInput(contagem, destination)),
+          await api.request(
+            "/transactions/imports",
+            owner,
+            "POST",
+            importInput(contagem, destination),
+          ),
           201,
         );
 

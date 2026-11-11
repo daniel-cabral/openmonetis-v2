@@ -603,7 +603,10 @@ test("bulk categorization requires a matching user category", () => {
 });
 
 test("merchant key drops acquirer prefixes, place suffixes and store numbers", () => {
-  assert.equal(getImportedDescriptionKey("PG *ABC SUPERMERCADOS CONTAGEM BRA"), "abc supermercados");
+  assert.equal(
+    getImportedDescriptionKey("PG *ABC SUPERMERCADOS CONTAGEM BRA"),
+    "abc supermercados",
+  );
   assert.equal(getImportedDescriptionKey("DM*HOSTINGERCOMB   SAO PAULO   BRA"), "hostingercomb");
   assert.equal(getImportedDescriptionKey("DROGASIL2919"), "drogasil");
   assert.equal(getImportedDescriptionKey("223 LIV CTBA 23439130"), "liv ctba");

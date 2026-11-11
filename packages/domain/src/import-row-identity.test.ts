@@ -7,9 +7,7 @@ import type { ImportedTransaction } from "./transactions";
 
 type RowIdentityInput = Parameters<typeof buildImportRowIdentityPayloads>[0];
 
-function statementRow(
-  overrides: Partial<ImportedTransaction> = {},
-): ImportedTransaction {
+function statementRow(overrides: Partial<ImportedTransaction> = {}): ImportedTransaction {
   return {
     externalId: null,
     purchaseDate: "2026-07-10",
@@ -28,9 +26,7 @@ function statementRow(
   };
 }
 
-function invoiceRow(
-  overrides: Partial<ImportedTransaction> = {},
-): ImportedTransaction {
+function invoiceRow(overrides: Partial<ImportedTransaction> = {}): ImportedTransaction {
   return {
     externalId: null,
     purchaseDate: "2026-07-10",
@@ -102,10 +98,7 @@ test("statement payloads keep the persisted identity format, one per row in file
 
 test("invoice payloads keep the persisted identity format, with empty installment for single purchases", () => {
   const payloads = buildImportRowIdentityPayloads(
-    invoiceInput([
-      invoiceRow(),
-      invoiceRow({ installment: null, type: "income", amount: 75 }),
-    ]),
+    invoiceInput([invoiceRow(), invoiceRow({ installment: null, type: "income", amount: 75 })]),
   );
 
   assert.deepEqual(payloads, [
@@ -129,10 +122,7 @@ test("occurrence counts identical identity groups in file order, independently p
 
 test("case and spacing in the description do not split an identity group", () => {
   const payloads = buildImportRowIdentityPayloads(
-    statementInput([
-      statementRow(),
-      statementRow({ name: "  pix  enviado -  Loja Teste " }),
-    ]),
+    statementInput([statementRow(), statementRow({ name: "  pix  enviado -  Loja Teste " })]),
   );
 
   assert.deepEqual(payloads.map(occurrenceOf), [0, 1]);
@@ -142,10 +132,7 @@ test("rows differing in any identity field of their kind get distinct payloads",
   const cases = [
     {
       label: "statement posted date",
-      input: statementInput([
-        statementRow(),
-        statementRow({ postedDate: "2026-07-12" }),
-      ]),
+      input: statementInput([statementRow(), statementRow({ postedDate: "2026-07-12" })]),
     },
     {
       label: "statement sign",
@@ -153,17 +140,11 @@ test("rows differing in any identity field of their kind get distinct payloads",
     },
     {
       label: "invoice installment",
-      input: invoiceInput([
-        invoiceRow(),
-        invoiceRow({ installment: { current: 2, total: 3 } }),
-      ]),
+      input: invoiceInput([invoiceRow(), invoiceRow({ installment: { current: 2, total: 3 } })]),
     },
     {
       label: "invoice card last four",
-      input: invoiceInput([
-        invoiceRow(),
-        invoiceRow({ cardLastDigits: "2000" }),
-      ]),
+      input: invoiceInput([invoiceRow(), invoiceRow({ cardLastDigits: "2000" })]),
     },
   ];
 
@@ -191,15 +172,11 @@ test("destination, account identification and source are part of the statement i
 });
 
 test("metadata outside the identity inputs does not change the payload", () => {
-  const [statementBaseline] = buildImportRowIdentityPayloads(
-    statementInput([statementRow()]),
-  );
+  const [statementBaseline] = buildImportRowIdentityPayloads(statementInput([statementRow()]));
   const [statementWithMetadata] = buildImportRowIdentityPayloads(
     statementInput([statementRow({ dayBalance: 999, categoryName: "Lazer" })]),
   );
-  const [invoiceBaseline] = buildImportRowIdentityPayloads(
-    invoiceInput([invoiceRow()]),
-  );
+  const [invoiceBaseline] = buildImportRowIdentityPayloads(invoiceInput([invoiceRow()]));
   const [invoiceWithMetadata] = buildImportRowIdentityPayloads(
     invoiceInput([
       invoiceRow({
