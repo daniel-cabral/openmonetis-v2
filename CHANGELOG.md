@@ -13,6 +13,14 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   API e o serviço de IA carregam o `.env` da raiz com `--env-file-if-exists` do Node, sem prefixo
   de variável de ambiente no script.
 
+### Fork
+
+- Viagens: cadastro de viagens com período sem sobreposição, campo **Viagem** no lançamento
+  (sugerido pela data, propagado às parcelas, por ocorrência nas recorrências), página da viagem com
+  custo líquido e quebras por categoria, cartão ou conta e pessoa, sugestões de lançamentos do
+  período e **Definir viagem** em lote. Novas tabelas `trips`, `transaction_trips` e
+  `recurring_occurrence_trips` (migration `0032`).
+
 ## [0.16.0] - 2026-11-07
 
 Adiciona o extrato mensal de cada pessoa externa, com envio por e-mail pelo Resend, envio
