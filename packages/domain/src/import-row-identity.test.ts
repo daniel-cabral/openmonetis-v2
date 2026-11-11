@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { parseC6StatementCsv } from "./import-c6";
 import { buildImportRowIdentityPayloads } from "./import-row-identity";
 import type { ImportedTransaction } from "./transactions";
 
@@ -211,4 +213,23 @@ test("metadata outside the identity inputs does not change the payload", () => {
 
   assert.equal(statementWithMetadata, statementBaseline);
   assert.equal(invoiceWithMetadata, invoiceBaseline);
+});
+
+test("the C6 statement fixture yields 113 distinct payloads, separating its identical Boleto lines", () => {
+  const statement = parseC6StatementCsv(
+    readFileSync(new URL("./__fixtures__/c6-extrato.csv", import.meta.url), "utf8"),
+  );
+  const payloads = buildImportRowIdentityPayloads({
+    kind: "statement",
+    source: statement.sourceName,
+    accountIdentification: statement.accountIdentification,
+    destination: { type: "account", id: "account-1" },
+    rows: statement.transactions,
+  });
+  const boletoOccurrences = statement.transactions.flatMap((row, index) =>
+    row.name === "Empresa Teste 3 LTDA - Boleto" ? [occurrenceOf(payloads[index])] : [],
+  );
+
+  assert.equal(new Set(payloads).size, 113);
+  assert.deepEqual(boletoOccurrences, [0, 1]);
 });

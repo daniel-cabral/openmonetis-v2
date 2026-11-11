@@ -64,17 +64,32 @@ test("parseC6StatementCsv joins Title and Description without repeating equal or
       "05/07/2026,05/07/2026,Pix enviado para Pessoa Teste 1,observacao de teste,0.00,120.00,100.00",
       "06/07/2026,06/07/2026,Pix recebido de Empresa Teste 1,Pix recebido de Empresa Teste 1,10.00,0.00,110.00",
       "07/07/2026,07/07/2026,IOF CHEQUE ESPECIAL,,0.00,2.50,107.50",
+      `08/07/2026,08/07/2026,${"A".repeat(100)},${"B".repeat(100)},0.00,1.00,106.50`,
     ].join("\n"),
   );
 
   assert.deepEqual(
-    statement.transactions.map((transaction) => transaction.name),
+    statement.transactions.slice(0, 3).map((transaction) => transaction.name),
     [
       "Pix enviado para Pessoa Teste 1 - observacao de teste",
       "Pix recebido de Empresa Teste 1",
       "IOF CHEQUE ESPECIAL",
     ],
   );
+  assert.equal(statement.transactions[3].name.length, 160);
+});
+
+test("parseC6StatementCsv leaves the period null when the preamble has no Extrato line", () => {
+  const statement = parseC6StatementCsv(
+    [
+      "Agência: 1 / Conta: 2",
+      statementHeader,
+      "05/07/2026,05/07/2026,IOF CHEQUE ESPECIAL,,0.00,2.50,107.50",
+    ].join("\n"),
+  );
+
+  assert.equal(statement.period, null);
+  assert.equal(statement.transactions.length, 1);
 });
 
 test("parseC6StatementCsv keeps commas inside quoted fields", () => {
@@ -198,6 +213,13 @@ test("parseC6InvoiceCsv keeps every fixture line, typing negatives as income", (
   assert.ok(estorno);
   assert.equal(estorno.type, "income");
   assert.equal(estorno.amount, 75);
+  const countOf = (lineKind: string) =>
+    transactions.filter((transaction) => transaction.lineKind === lineKind).length;
+  assert.equal(countOf("purchase"), 96);
+  assert.equal(countOf("credit"), 1);
+  assert.equal(countOf("invoice-payment"), 1);
+  assert.equal(pagamento.lineKind, "invoice-payment");
+  assert.equal(estorno.lineKind, "credit");
 });
 
 test("parseC6InvoiceCsv skips invalid lines and reports their file line numbers", () => {

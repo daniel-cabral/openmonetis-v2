@@ -408,8 +408,51 @@ export function normalizeImportedType(value: unknown, signedAmount?: number) {
     : ("expense" as const);
 }
 
+// Legacy key: kept only to look up mappings stored before the merchant-aware key (FR-016).
 export function normalizeImportedDescriptionKey(value: string) {
   return value.trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
+}
+
+// Merchant-aware category memory key (FR-015). Acquirer prefixes, place suffixes and
+// store numbers vary between statements of the same merchant, so they are dropped.
+export function getImportedDescriptionKey(value: string) {
+  let key = value.toLowerCase().trim();
+  key = stripImportedPlaceSuffix(key);
+  key = keepImportedMerchantAroundStar(key);
+  key = key.replace(/^\d+\s+/, "");
+  key = key.replace(/(?<=[a-z])\d+$/, "");
+  key = key.replace(/\s+\d+$/, "");
+  return key.replace(/\s+/g, " ").trim();
+}
+
+// Keeps the longer side of "ACQUIRER*MERCHANT": the merchant identifier, not a truncated fragment.
+function keepImportedMerchantAroundStar(value: string) {
+  const starIndex = value.indexOf("*");
+  if (starIndex < 0) return value;
+
+  const left = value.slice(0, starIndex).trim();
+  const right = value.slice(starIndex + 1).trim();
+  if (!left) return right;
+  if (!right) return left;
+  return left.length > right.length ? left : right;
+}
+
+// The city is delimited by the run of spaces that separates it from the merchant. Only applied
+// when the country marker is present, so a merchant ending in a short word keeps its name.
+function stripImportedPlaceSuffix(value: string) {
+  const withoutCountry = value.replace(/\s+(bra|br)$/, "");
+  if (withoutCountry === value) return value;
+
+  const runs = /\s{2,}/g;
+  let cut = -1;
+  let run = runs.exec(withoutCountry);
+  while (run) {
+    cut = run.index;
+    run = runs.exec(withoutCountry);
+  }
+
+  if (cut >= 0) return withoutCountry.slice(0, cut);
+  return withoutCountry.replace(/\s+\S+$/, "");
 }
 
 function readOfxField(block: string, tag: string) {
