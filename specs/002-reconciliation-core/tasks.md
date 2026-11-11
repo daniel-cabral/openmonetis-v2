@@ -86,7 +86,7 @@ export type ReconciliationTransactionRow = {
   isGenerated: boolean; inPaidInvoice: boolean;
 };
 export function listReconciliationTransactionCandidates(input: { userId: string; targetType: "account" | "card"; targetId: string; from: string; to: string; periods: string[] }): Promise<ReconciliationTransactionRow[]>;
-export type ReconciliationRecurringRuleRow = Awaited<ReturnType<typeof listRecurringRulesForUser>>[number]; // reuse the existing recurring repository row shape, filtered to the target
+export type ReconciliationRecurringRuleRow = Awaited<ReturnType<typeof listRecurringRulesForReport>>[number]; // reuse the existing recurring repository row shape, filtered to the target
 export function listReconciliationRecurringRules(input: { userId: string; targetType: "account" | "card"; targetId: string }): Promise<ReconciliationRecurringRuleRow[]>;
 export type ReconciliationOccurrenceRow = { ruleId: string; date: string; isSettled: boolean; settledAmount: string | null; importSourceFingerprint: string | null; importExternalId: string | null };
 export function listReconciliationOccurrences(input: { userId: string; ruleIds: string[]; from: string; to: string }): Promise<ReconciliationOccurrenceRow[]>;
