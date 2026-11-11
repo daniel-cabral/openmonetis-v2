@@ -587,7 +587,16 @@ export function selectBulkTransactionIds(
 }
 
 export function formatBulkTransactionResult(
-  action: "categorized" | "renamed" | "tagged" | "untagged" | "deleted" | "settled" | "unsettled",
+  action:
+    | "categorized"
+    | "renamed"
+    | "tagged"
+    | "untagged"
+    | "linked"
+    | "unlinked"
+    | "deleted"
+    | "settled"
+    | "unsettled",
   selection: BulkTransactionSelection,
 ) {
   const count = selection.ids.length;
@@ -598,6 +607,8 @@ export function formatBulkTransactionResult(
     renamed: `${subject} renomeado${plural}`,
     tagged: `Etiqueta adicionada a ${subject}`,
     untagged: `Etiqueta removida de ${subject}`,
+    linked: `${subject} vinculado${plural} à viagem`,
+    unlinked: `${subject} sem viagem`,
     deleted: `${subject} removido${plural}`,
     settled: `${subject} marcado${plural} como pago${plural}`,
     unsettled: `${subject} marcado${plural} em aberto`,
@@ -614,6 +625,7 @@ export type BulkTransactionActionKey =
   | "unsettle"
   | "categorize"
   | "tag"
+  | "trip"
   | "rename"
   | "delete";
 
@@ -628,6 +640,7 @@ const bulkTransactionActionCopy: Record<
   unsettle: { label: "Marcar em aberto", unavailable: "Nenhum selecionado está pago" },
   categorize: { label: "Categoria", unavailable: "Nenhum selecionado aceita outra categoria" },
   tag: { label: "Etiquetas", unavailable: "Nenhum selecionado aceita etiquetas" },
+  trip: { label: "Definir viagem", unavailable: "Nenhum selecionado aceita viagem" },
   rename: { label: "Descrição", unavailable: "Nenhum selecionado aceita outra descrição" },
   delete: { label: "Excluir", unavailable: "Nenhum selecionado pode ser excluído" },
 };

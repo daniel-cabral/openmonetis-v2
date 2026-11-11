@@ -15,6 +15,7 @@ import {
   invoices,
   people,
   type RecurringTransactionRule,
+  recurringOccurrenceTrips,
   recurringTransactionOccurrences,
   recurringTransactionRules,
   recurringTransactionRuleTags,
@@ -27,6 +28,7 @@ import {
   transactionSplits,
   transactions,
   transactionTags,
+  transactionTrips,
 } from "@openmonetis/db";
 import { createEstablishmentNameKey } from "@openmonetis/domain/establishments";
 import { selectNewExternalExpenseAssignmentKeys } from "@openmonetis/domain/external-expenses";
@@ -36,6 +38,7 @@ import {
   assertTransferWithinAvailableBalance,
   selectRecurringRuleVersionsToUpdate,
 } from "@openmonetis/domain/transactions";
+import type { TripLinkChange } from "@openmonetis/domain/trips";
 import {
   and,
   asc,
@@ -75,8 +78,13 @@ import {
   replaceRecurringRuleTags,
   replaceTransactionTags,
 } from "./tags.repository";
+import { linkTransactionsToTrip, setOccurrenceTrip, unlinkTransactions } from "./trips.repository";
 
-function withoutTagIds<T extends { tagIds?: string[] }>({ tagIds: _tagIds, ...record }: T) {
+function withoutTagIds<T extends { tagIds?: string[]; tripId?: string | null }>({
+  tagIds: _tagIds,
+  tripId: _tripId,
+  ...record
+}: T) {
   return record;
 }
 
@@ -138,6 +146,7 @@ export type TransactionCreateRecord = Omit<
   settledAmount?: string | null;
   settledDate?: Date | null;
   tagIds?: string[];
+  tripId?: string | null;
 };
 type InstallmentSeriesCreateRecord = {
   id: string;
@@ -152,6 +161,7 @@ type RecurringRuleCreateRecord = Omit<
 > & {
   dueDateRuleExcluded?: boolean;
   tagIds?: string[];
+  tripId?: string | null;
   recurrenceEndDate?: Date | null;
 };
 type RecurringRuleUpdateRecord = Partial<Omit<RecurringRuleCreateRecord, "userId">>;
@@ -297,6 +307,27 @@ export type TransactionUpdateRecord = Partial<
   >
 >;
 
+export type TransactionTripChange = TripLinkChange & { seriesId: string | null };
+
+async function applyTransactionTripChange(
+  transaction: DatabaseTransaction,
+  userId: string,
+  transactionId: string,
+  change: TransactionTripChange | undefined,
+) {
+  if (!change || change.kind === "none") return;
+  if (change.kind === "unlinkRow") {
+    await unlinkTransactions(transaction, userId, [transactionId]);
+    return;
+  }
+  await linkTransactionsToTrip(transaction, {
+    userId,
+    tripId: change.tripId,
+    transactionIds: [transactionId],
+    seriesIds: change.kind === "linkSeries" && change.seriesId ? [change.seriesId] : [],
+  });
+}
+
 async function lockTransferSourceAccounts(
   transaction: DatabaseTransaction,
   userId: string,
@@ -431,6 +462,7 @@ export type TransactionWithRelations = Omit<
   refundedAmount: string;
   anticipationId: string | null;
   installmentOriginalPeriod: string | null;
+  tripId?: string | null;
 };
 
 export type RecurringRuleWithRelations = Omit<
@@ -439,6 +471,7 @@ export type RecurringRuleWithRelations = Omit<
 > & {
   dueDateRuleExcluded?: boolean;
   occurrenceOverrides?: import("@openmonetis/domain/settlements").SettlementAwareRule["occurrenceOverrides"];
+  occurrenceTripIds?: Record<string, string>;
   recurrenceEndDate?: Date | null;
   configuredEndDate?: string | null;
 
@@ -564,7 +597,19 @@ const transactionColumns = {
       and ${installmentAnticipationItems.userId} = ${transactions.userId}
     limit 1
   )`.as("installment_original_period"),
+  tripId: sql<string | null>`(
+    select ${transactionTrips.tripId}
+    from ${transactionTrips}
+    where ${transactionTrips.transactionId} = ${transactions.id}
+      and ${transactionTrips.userId} = ${transactions.userId}
+  )`.as("trip_id"),
 };
+
+const recurringOccurrenceTripIdsSql = sql<
+  Record<string, string>
+>`coalesce((select jsonb_object_agg(to_char(${recurringOccurrenceTrips.occurrenceDate}, 'YYYY-MM-DD'), ${recurringOccurrenceTrips.tripId}) from ${recurringOccurrenceTrips} where ${recurringOccurrenceTrips.userId} = ${recurringTransactionRules.userId} and ${recurringOccurrenceTrips.recurringSeriesId} = ${recurringTransactionRules.seriesId}), '{}'::jsonb)`.as(
+  "occurrence_trip_ids",
+);
 
 const recurringRuleColumns = {
   tagIds: sql<
@@ -590,6 +635,7 @@ const recurringRuleColumns = {
     "configured_end_date",
   ),
   occurrenceOverrides: recurringOccurrenceOverridesSql,
+  occurrenceTripIds: recurringOccurrenceTripIdsSql,
   recurrenceEndDate: recurringTransactionRules.recurrenceEndDate,
   frequency: recurringTransactionRules.frequency,
   accountId: recurringTransactionRules.accountId,
@@ -806,6 +852,13 @@ export async function insertTransactionsWithSplits(
           });
         if (record?.tagIds?.length)
           await replaceTransactionTags(transaction, row.id, record.userId, record.tagIds);
+        if (record?.tripId)
+          await linkTransactionsToTrip(transaction, {
+            userId: record.userId,
+            tripId: record.tripId,
+            transactionIds: [row.id],
+            seriesIds: [],
+          });
       }
       const splitRows = splits.flatMap((split) => {
         const row = rows[split.transactionIndex];
@@ -910,6 +963,13 @@ export async function insertInstallmentSeriesWithTransactions(
         const record = data[index];
         if (record?.tagIds?.length)
           await replaceTransactionTags(transaction, row.id, record.userId, record.tagIds);
+        if (record?.tripId)
+          await linkTransactionsToTrip(transaction, {
+            userId: record.userId,
+            tripId: record.tripId,
+            transactionIds: [row.id],
+            seriesIds: [],
+          });
       }
       const splitRows = splits.flatMap((split) => {
         const row = rows[split.transactionIndex];
@@ -959,6 +1019,13 @@ export async function insertRecurringRuleWithSplits(
     const rule = ruleRecord as { id: string };
     if (data.tagIds?.length)
       await replaceRecurringRuleTags(transaction, rule.id, data.userId, data.tagIds);
+    if (data.tripId)
+      await setOccurrenceTrip(transaction, {
+        userId: data.userId,
+        seriesId: series.id,
+        occurrenceDate: data.anchorDate.toISOString().slice(0, 10),
+        tripId: data.tripId,
+      });
     if (splits.length) {
       await transaction
         .insert(recurringTransactionSplits)
@@ -1612,6 +1679,7 @@ export async function updateTransactionWithSplitsForUser(
   userId: string,
   data: TransactionUpdateRecord,
   splits?: Array<{ personId: string; amount: string }>,
+  tripChange?: TransactionTripChange,
 ) {
   const updatedId = await db.transaction(async (transaction) => {
     const [current] = await transaction
@@ -1655,6 +1723,7 @@ export async function updateTransactionWithSplitsForUser(
     if (splits !== undefined) {
       await replaceTransactionSplits(transaction, id, userId, splits);
     }
+    await applyTransactionTripChange(transaction, userId, id, tripChange);
     const afterAssignments = await findExternalExpenseAssignmentKeys(transaction, userId, [id]);
     await synchronizePendingExternalExpensesForTransactions(
       transaction,
@@ -1874,6 +1943,34 @@ export async function removeTransactionsTagsForUser(
   return ids;
 }
 
+export async function setTransactionsTripForUser(
+  ids: string[],
+  userId: string,
+  tripId: string | null,
+) {
+  return db.transaction(async (transaction) => {
+    if (tripId === null) {
+      await unlinkTransactions(transaction, userId, ids);
+      return ids;
+    }
+    const rows = await transaction
+      .select({
+        id: transactions.id,
+        seriesId: transactions.seriesId,
+        condition: transactions.condition,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, ids)));
+    const installmentRows = rows.filter((row) => row.condition === "installment" && row.seriesId);
+    return linkTransactionsToTrip(transaction, {
+      userId,
+      tripId,
+      transactionIds: rows.filter((row) => !installmentRows.includes(row)).map((row) => row.id),
+      seriesIds: [...new Set(installmentRows.map((row) => row.seriesId as string))],
+    });
+  });
+}
+
 export async function deleteTransactionsForUser(ids: string[], userId: string) {
   return db.transaction(async (transaction) => {
     const targets = await transaction
@@ -1941,6 +2038,7 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
     id: string;
     data: TransactionUpdateRecord;
     splits?: Array<{ personId: string; amount: string }>;
+    tripChange?: TransactionTripChange;
   }>,
 ) {
   return db.transaction(async (transaction) => {
@@ -1998,6 +2096,7 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
       if (update.splits !== undefined) {
         await replaceTransactionSplits(transaction, update.id, userId, update.splits);
       }
+      await applyTransactionTripChange(transaction, userId, update.id, update.tripChange);
     }
 
     const afterAssignments = await findExternalExpenseAssignmentKeys(
@@ -2207,6 +2306,7 @@ export async function updateRecurringRuleWithSplitsForUser(
     hasPrevious: boolean;
     reschedule?: boolean;
     expectedVersions: Array<{ id: string; updatedAt: Date }>;
+    tripChange?: { occurrenceDate: string; tripId: string | null };
   },
 ) {
   const updatedId = await db.transaction(async (transaction) => {
@@ -2257,6 +2357,13 @@ export async function updateRecurringRuleWithSplitsForUser(
     }
     const selectedVersion = series.find((rule) => rule.id === id);
     if (!selectedVersion) return null;
+    if (options.tripChange)
+      await setOccurrenceTrip(transaction, {
+        userId,
+        seriesId: current.seriesId,
+        occurrenceDate: options.tripChange.occurrenceDate,
+        tripId: options.tripChange.tripId,
+      });
     const schedulePlan =
       options.reschedule && data.anchorDate
         ? planRecurringScheduleChange(

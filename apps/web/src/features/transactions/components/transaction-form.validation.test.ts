@@ -4,6 +4,7 @@ import {
   getChangedTransactionInput,
   getDefaultTransactionFormValues,
   normalizeTransactionInput,
+  resolveTransactionTripId,
   type TransactionFormValues,
   validateTransactionForm,
 } from "./transaction-form.validation";
@@ -135,5 +136,58 @@ test("tag edits preserve unchanged scopes and send explicit removals", () => {
   assert.equal(
     validateTransactionForm({ value: { ...defaults, tagIds: [tagId, tagId] } })?.fields.tagIds,
     "Selecione até 20 etiquetas.",
+  );
+});
+
+test("trip field suggests the trip for the purchase date until the user touches it", () => {
+  const lisboa = "70000000-0000-4000-8000-000000000007";
+  const porto = "80000000-0000-4000-8000-000000000008";
+  const trips = [{ id: lisboa, startDate: "2026-05-12", endDate: "2026-05-22" }];
+  const resolve = ({
+    mode,
+    origin = "regular",
+    touched = false,
+    type = "expense",
+    purchaseDate = "2026-05-14",
+    tripId = "",
+  }: {
+    mode: "create" | "edit" | "copy";
+    origin?: "regular" | "invoicePayment";
+    touched?: boolean;
+    type?: "expense" | "transfer";
+    purchaseDate?: string;
+    tripId?: string;
+  }) =>
+    resolveTransactionTripId({
+      mode,
+      origin,
+      touched,
+      trips,
+      value: { type, purchaseDate, tripId },
+    });
+
+  assert.equal(resolve({ mode: "create" }), lisboa);
+  assert.equal(resolve({ mode: "copy" }), lisboa);
+  assert.equal(resolve({ mode: "create", purchaseDate: "2026-06-01" }), "");
+  assert.equal(resolve({ mode: "create", touched: true, tripId: porto }), porto);
+  assert.equal(resolve({ mode: "create", touched: true, tripId: "" }), "");
+  assert.equal(resolve({ mode: "edit", tripId: porto }), porto);
+  assert.equal(resolve({ mode: "edit", tripId: "" }), "");
+  assert.equal(resolve({ mode: "create", type: "transfer" }), "");
+  assert.equal(resolve({ mode: "create", origin: "invoicePayment" }), "");
+});
+
+test("trip edits send tripId only when it differs from the stored link", () => {
+  const lisboa = "70000000-0000-4000-8000-000000000007";
+  const defaults = { ...paidBoleto, tripId: lisboa };
+  const renamed = { ...defaults, name: "Conta renomeada" };
+  assert.equal(
+    getChangedTransactionInput(normalizeTransactionInput(renamed), renamed, defaults).tripId,
+    undefined,
+  );
+  const unlinked = { ...defaults, tripId: "" };
+  assert.equal(
+    getChangedTransactionInput(normalizeTransactionInput(unlinked), unlinked, defaults).tripId,
+    null,
   );
 });

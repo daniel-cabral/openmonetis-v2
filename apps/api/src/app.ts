@@ -65,6 +65,7 @@ import { applicationVersion, releasesRepository } from "./repositories/releases.
 import { settingsRepository } from "./repositories/settings.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
+import { tripsRepository } from "./repositories/trips.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createAiChatsRoute } from "./routes/ai-chats";
 import { createAiDataSharingRoute } from "./routes/ai-data-sharing";
@@ -103,6 +104,7 @@ import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createTagsRoute } from "./routes/tags";
 import { createTransactionsRoute } from "./routes/transactions";
+import { createTripsRoute } from "./routes/trips";
 import { createAccountsService } from "./services/accounts.service";
 import { createAiChatsService } from "./services/ai-chats.service";
 import { createAiContextService } from "./services/ai-context.service";
@@ -148,6 +150,7 @@ import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createTagsService } from "./services/tags.service";
 import { createTransactionsService } from "./services/transactions.service";
+import { createTripsService } from "./services/trips.service";
 import type { ApiVariables } from "./types/context";
 import { aiServiceGateway } from "./utils/ai-service";
 import { createEmailAssetReader, readEmailAssetsDirectory } from "./utils/email-assets";
@@ -219,6 +222,7 @@ const transactionsService = createTransactionsService(
     listCategoryFamilyIdsForUser,
     listTagsByIdsForUser,
     listPeopleByIdsForUser,
+    findTripByIdForUser: tripsRepository.findByIdForUser,
   },
   attachmentsService,
   {
@@ -231,6 +235,23 @@ const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {
     const query = ListTransactionsQuerySchema.parse({ period, pageSize: 100 });
     return (await transactionsService.listTransactions(userId, query, false)).items;
+  }),
+);
+const tripsRoute = createTripsRoute(
+  createTripsService(tripsRepository, {
+    getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+    listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+      (
+        await transactionsService.listTransactions(
+          userId,
+          ListTransactionsQuerySchema.parse({
+            dateStart: startDate,
+            dateEnd: endDate,
+            pageSize: 100,
+          }),
+          false,
+        )
+      ).items,
   }),
 );
 const peopleRoute = createPeopleRoute(
@@ -470,6 +491,10 @@ app.use("/tags", privateCache);
 app.use("/tags/*", privateCache);
 app.use("/tags", requireAuth);
 app.use("/tags/*", requireAuth);
+app.use("/trips", privateCache);
+app.use("/trips/*", privateCache);
+app.use("/trips", requireAuth);
+app.use("/trips/*", requireAuth);
 app.use("/categories", privateCache);
 app.use("/categories/*", privateCache);
 app.use("/categories", requireAuth);
@@ -793,6 +818,7 @@ app.route("/goals", goalsRoute);
 app.route("/bills", billsRoute);
 app.route("/categories", categoriesRoute);
 app.route("/tags", tagsRoute);
+app.route("/trips", tripsRoute);
 app.route("/people", peopleRoute);
 app.route("/person-connections", personConnectionsRoute);
 app.route("/person-reports", personReportsRoute);

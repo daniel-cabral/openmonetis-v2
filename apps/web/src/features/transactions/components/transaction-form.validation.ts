@@ -1,3 +1,4 @@
+import { findTripForDate, isTripLinkable, type TripPeriod } from "@openmonetis/domain/trips";
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import type { AccountOutput } from "@openmonetis/validators/accounts";
 import type { CardOutput } from "@openmonetis/validators/cards";
@@ -22,6 +23,7 @@ export type TransactionFormValues = {
   cardId: string;
   categoryId: string;
   tagIds: string[];
+  tripId?: string;
   sourceAccountId: string;
   destinationAccountId: string;
   dueDate: string;
@@ -77,6 +79,7 @@ const transactionFieldMessages: Record<TransactionFieldName, string> = {
   cardId: "Selecione um cartão.",
   categoryId: "Selecione uma categoria.",
   tagIds: "Selecione até 20 etiquetas.",
+  tripId: "Selecione uma viagem válida.",
   sourceAccountId: "Selecione a conta de origem.",
   destinationAccountId: "Selecione a conta de destino.",
   dueDate: "Informe uma data válida.",
@@ -124,6 +127,7 @@ export function getDefaultTransactionFormValues(
     cardId: defaults.cardId ?? activeCards[0]?.id ?? "",
     categoryId: defaults.categoryId ?? "",
     tagIds: [],
+    tripId: "",
     sourceAccountId: defaults.sourceAccountId ?? accountId,
     destinationAccountId: "",
     dueDate: defaults.dueDate ?? "",
@@ -172,6 +176,7 @@ export function getTransactionFormValuesFromTransaction(
     cardId: transaction.cardId ?? "",
     categoryId: transaction.categoryId ?? "",
     tagIds: transaction.tagIds ?? [],
+    tripId: transaction.tripId ?? "",
     sourceAccountId: transaction.sourceAccountId ?? "",
     destinationAccountId: transaction.destinationAccountId ?? "",
     dueDate: transaction.originalDueDate ?? transaction.dueDate ?? "",
@@ -247,6 +252,7 @@ export function normalizeTransactionInput(
       : value.condition === "recurring"
         ? false
         : value.isSettled === "true",
+    tripId: value.tripId || null,
     tagIds: value.tagIds,
     note: value.note.trim() || null,
     splitShares: value.splitShares.length
@@ -376,6 +382,7 @@ export function getChangedTransactionInput(
     ...(JSON.stringify(value.tagIds) !== JSON.stringify(defaults.tagIds)
       ? { tagIds: data.tagIds }
       : {}),
+    ...(value.tripId !== defaults.tripId ? { tripId: data.tripId } : {}),
     ...(JSON.stringify(value.splitShares) !== JSON.stringify(defaults.splitShares)
       ? { splitShares: data.splitShares }
       : {}),
@@ -400,6 +407,24 @@ export function getTrackedInstallmentHelper(total: number, start: number) {
 
   const previous = start - 1;
   return `${tracked} ${tracked === 1 ? "parcela será cadastrada" : "parcelas serão cadastradas"}; ${previous} ${previous === 1 ? "anterior ficará" : "anteriores ficarão"} fora do acompanhamento.`;
+}
+
+export function resolveTransactionTripId({
+  mode,
+  origin,
+  touched,
+  trips,
+  value,
+}: {
+  mode: "create" | "edit" | "copy";
+  origin: TransactionOutput["origin"];
+  touched: boolean;
+  trips: readonly TripPeriod[];
+  value: Pick<TransactionFormValues, "type" | "purchaseDate" | "tripId">;
+}): string {
+  if (!isTripLinkable({ type: value.type, origin })) return "";
+  if (mode === "edit" || touched) return value.tripId ?? "";
+  return findTripForDate(trips, value.purchaseDate)?.id ?? "";
 }
 
 function normalizeLooseTransactionInput(value: TransactionFormValues) {

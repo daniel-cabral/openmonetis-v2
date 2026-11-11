@@ -224,6 +224,11 @@ test("bulk selection collapses split shares and skips recurring occurrences", ()
     title: "1 lançamento removido",
     description: "2 ignorados: recorrentes, gerados pelo sistema ou incompatíveis com a ação.",
   });
+  assert.equal(
+    formatBulkTransactionResult("linked", selection).title,
+    "1 lançamento vinculado à viagem",
+  );
+  assert.equal(formatBulkTransactionResult("unlinked", selection).title, "1 lançamento sem viagem");
 });
 
 test("bulk action hints show partial reach and why an action is unavailable", () => {

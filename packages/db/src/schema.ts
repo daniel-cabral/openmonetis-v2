@@ -1044,6 +1044,73 @@ export const recurringTransactionRuleTags = pgTable(
   ],
 );
 
+export const trips = pgTable(
+  "trips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    startDate: date("start_date", { mode: "date" }).notNull(),
+    endDate: date("end_date", { mode: "date" }).notNull(),
+    note: varchar("note", { length: 500 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("trips_id_user_id_unique").on(table.id, table.userId),
+    index("trips_user_start_idx").on(table.userId, table.startDate),
+    check("trips_name_not_blank_check", sql`btrim(${table.name}) <> ''`),
+    check("trips_date_range_check", sql`${table.endDate} >= ${table.startDate}`),
+  ],
+);
+
+export const transactionTrips = pgTable(
+  "transaction_trips",
+  {
+    transactionId: uuid("transaction_id").primaryKey(),
+    userId: uuid("user_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+  },
+  (table) => [
+    index("transaction_trips_user_trip_idx").on(table.userId, table.tripId),
+    foreignKey({
+      columns: [table.transactionId, table.userId],
+      foreignColumns: [transactions.id, transactions.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tripId, table.userId],
+      foreignColumns: [trips.id, trips.userId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const recurringOccurrenceTrips = pgTable(
+  "recurring_occurrence_trips",
+  {
+    recurringSeriesId: uuid("recurring_series_id").notNull(),
+    occurrenceDate: date("occurrence_date", { mode: "date" }).notNull(),
+    userId: uuid("user_id").notNull(),
+    tripId: uuid("trip_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.recurringSeriesId, table.occurrenceDate] }),
+    index("recurring_occurrence_trips_user_trip_idx").on(table.userId, table.tripId),
+    foreignKey({
+      columns: [table.recurringSeriesId, table.userId],
+      foreignColumns: [recurringTransactionSeries.id, recurringTransactionSeries.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.tripId, table.userId],
+      foreignColumns: [trips.id, trips.userId],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const deviceTokens = pgTable(
   "device_tokens",
   {

@@ -23,6 +23,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Sugestões de categoria usam chave por comerciante: variantes da mesma loja (praça, prefixo do
   adquirente, número da loja) compartilham a memória. Sugestões salvas com a chave antiga continuam
   válidas.
+- Viagens: cadastro de viagens com período sem sobreposição, campo **Viagem** no lançamento
+  (sugerido pela data, propagado às parcelas, por ocorrência nas recorrências), página da viagem com
+  custo líquido e quebras por categoria, cartão ou conta e pessoa, sugestões de lançamentos do
+  período e **Definir viagem** em lote. Novas tabelas `trips`, `transaction_trips` e
+  `recurring_occurrence_trips` (migration `0032`).
 
 ## [0.16.0] - 2026-11-07
 

@@ -6,6 +6,7 @@ import {
   BulkRenameTransactionsInputSchema,
   BulkTagTransactionsInputSchema,
   BulkTransactionsOutputSchema,
+  BulkTripTransactionsInputSchema,
   CreateTransactionRefundInputSchema,
   DetectTransactionImportInputSchema,
   ExportTransactionsQuerySchema,
@@ -125,6 +126,7 @@ export function createTransactionsRoute(service: TransactionsService) {
     previewTransactionImport,
     renameTransactions,
     settleRecurringOccurrence,
+    setTransactionsTrip,
     settleTransactions,
     tagTransactions,
     undoTransactionImport,
@@ -776,6 +778,28 @@ export function createTransactionsRoute(service: TransactionsService) {
       },
     }),
     async (c) => c.json(ok(await tagTransactions(c.req.valid("json"), c.get("userId"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/bulk/trip",
+      tags: ["Transactions"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: BulkTripTransactionsInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Linked or unlinked transactions",
+          content: { "application/json": { schema: bulkTransactionsResponseSchema } },
+        },
+        ...bulkTransactionsErrorResponses,
+      },
+    }),
+    async (c) => c.json(ok(await setTransactionsTrip(c.req.valid("json"), c.get("userId"))), 200),
   );
 
   transactionsRoute.openapi(

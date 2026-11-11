@@ -10,6 +10,18 @@
 
 **Fork-only flag**: no upstream signal for trips (inventory section 2). This feature is fork-only until the maintainer shows interest; it must still follow AGENTS.md and the upstream-compatible shape.
 
+## Clarifications
+
+### Session 2026-11-11
+
+Answered autonomously (user unavailable) from the inventory, the V1 code and the current V2 code; each answer carries its rationale.
+
+- Q: How does "Definir viagem" in the bulk bar treat ineligible rows (transfers, system origins, recurring occurrences)? → A: The web pre-filters the selection with the shared domain eligibility rule and reports "N atualizados, M ignorados"; the API rejects the whole batch if any id is ineligible or foreign. Recurring occurrences (rows without a stored record) are always counted as ignored in bulk. Rationale: this is exactly how every existing V2 bulk action works (`selectBulkTransactionIds` + `canApplyBulkTransactionAction`), and bulk ids are stored-record UUIDs only.
+- Q: When a transaction is saved, when does the trip field change any row? → A: `tripId` omitted = untouched (no row changes); `tripId: null` = unlink only the edited row (or the edited occurrence); a trip id that differs from the row's stored trip = link with propagation (whole installment series). Same value as stored = no-op. Rationale: V1 `single-actions.ts` rule (present and different), which is what keeps 7/10 unlinked when 3/10 is re-saved.
+- Q: Which amount counts toward net cost and breakdowns, and what is the user's own share in V2? → A: The booked amount (`amount`, paid or unpaid; for a recurring occurrence the occurrence amount after per-occurrence overrides). Own share = the admin person's split share when the transaction has split shares, otherwise the whole amount when the transaction's person is the admin, otherwise zero. Expenses = own expense shares; reimbursements = own income shares (regular income and refunds). Rationale: V1 summed `valor` of admin rows; V2 replaces split groups with split shares, so the admin share is the split amount.
+- Q: How is a recurring occurrence identified for its trip link, and what happens when the series is rescheduled? → A: By (recurring series, occurrence date). Creating a recurring entry with a trip links only the occurrence on the entry date. A link whose date no longer yields an occurrence (skipped, rescheduled, stopped) is ignored by the trip page, list counts and summaries; it is not shown and does not count. Rationale: V2 occurrences are expanded from rules, and the existing per-occurrence state (`recurring_transaction_occurrences`) is keyed the same way; ignoring orphans avoids hooking into every recurrence edit path.
+- Q: What do the trips list "linked count" and ordering mean? → A: Linked count = number of linked rows the trip page lists (stored transactions, each installment counted, plus valid recurring occurrences); net cost uses the FR-014 rule; list ordered by start date descending, ties by name (pt-BR). Rationale: V1 counted linked rows (`count(transactions.id)`) and ordered by start desc.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Register trips and see what they cost (Priority: P1)
@@ -105,6 +117,7 @@ The bulk selection bar of the transactions list offers "Definir viagem" (choose 
 - Labels for missing data: "Sem categoria", "Sem cartão ou conta", "Sem pessoa".
 - A user without an admin person (no own share to compute) sees zero totals instead of an error.
 - Breakdown ordering: amount descending, ties by label in pt-BR order.
+- A recurring occurrence link whose date no longer yields an occurrence (skipped, rescheduled, stopped series) is ignored by the trip page, counts and summaries.
 
 ## Requirements *(mandatory)*
 
@@ -115,23 +128,23 @@ The bulk selection bar of the transactions list offers "Definir viagem" (choose 
 - **FR-003**: Trip name MUST be required, trimmed, max 60 characters; note optional, max 500; start and end MUST be real calendar dates with end on or after start; messages shown in PT-BR.
 - **FR-004**: The system MUST reject a trip whose inclusive date range overlaps another trip of the same user (excluding itself on edit), with a message naming the conflicting trip and its dates.
 - **FR-005**: Deleting a trip MUST unlink its transactions without deleting them, after an explicit confirmation.
-- **FR-006**: A "Viagens" entry MUST exist in the app navigation, leading to the trips list (name, period, linked count, net cost; most recent first; empty state "Nenhuma viagem ainda") and from there to each trip page.
+- **FR-006**: A "Viagens" entry MUST exist in the app navigation, leading to the trips list (name, period, linked count, net cost; start date descending, ties by name; empty state "Nenhuma viagem ainda") and from there to each trip page.
 - **FR-007**: A transaction MUST be linkable to at most one own trip, independent of its date.
 - **FR-008**: When a new transaction is created, the form MUST prefill the trip whose range contains the purchase date; the user can clear or change it.
 - **FR-009**: Transfers and system-generated transactions (invoice payment, invoice adjustment/credit, account balance adjustment, person settlement) MUST NOT be linkable, MUST NOT show the field, and MUST be excluded from suggestions and bulk linking. Regular income and expense (including refunds/reimbursements) are linkable.
 - **FR-010**: Linking an installment transaction MUST link every installment of its series regardless of edit scope; unlinking MUST affect only the given installment.
 - **FR-011**: Linking a transaction with split shares MUST link the whole transaction, so every share belongs to the same trip.
-- **FR-012**: For a recurring series the link MUST be stored per occurrence: linking or unlinking one occurrence MUST NOT change the series rule or other occurrences, and MUST NOT materialize unrelated occurrences.
-- **FR-013**: Saving a transaction without touching the trip field MUST NOT change the trip of any other row.
-- **FR-014**: The trip page MUST show net cost = (own expenses) minus (own linked income/reimbursements), plus the expenses and reimbursements figures, counting paid and unpaid rows, computed in integer cents. "Own" means the user's admin-person share.
+- **FR-012**: For a recurring series the link MUST be stored per occurrence, identified by (series, occurrence date): linking or unlinking one occurrence MUST NOT change the series rule or other occurrences, and MUST NOT materialize unrelated occurrences. A link whose date no longer yields an occurrence is ignored everywhere.
+- **FR-013**: Saving a transaction without touching the trip field MUST NOT change the trip of any other row. An omitted trip field changes nothing; `null` unlinks only the edited row or occurrence; a trip different from the stored one links with FR-010 propagation; the stored value re-sent is a no-op.
+- **FR-014**: The trip page MUST show net cost = (own expenses) minus (own linked income/reimbursements), plus the expenses and reimbursements figures, counting paid and unpaid rows at their booked amount (recurring occurrences at their occurrence amount), computed in integer cents. "Own" means the admin person's split share when the transaction is split, otherwise the whole amount when its person is the admin, otherwise zero. Reimbursements are the own share of linked income (regular income and refunds).
 - **FR-015**: The trip page MUST show breakdowns of expenses by category, by card or account, and by person; the person breakdown includes every person's expense shares, while category and card/account breakdowns and net cost count only the user's own share.
 - **FR-016**: The trip page MUST list linked transactions and allow unlinking each.
 - **FR-017**: Suggestions MUST list unlinked, eligible transactions with purchase date inside the trip range; installment series appear once, recurring occurrences individually.
 - **FR-018**: Suggestions MUST support pagination (20 per page, clamped page), origin filter (all, cards, accounts, a specific card, a specific account), select page, select all, and batch link of the selection; an empty selection is rejected.
-- **FR-019**: The transactions bulk bar MUST offer "Definir viagem" with a "Sem viagem" option, applying FR-009 to FR-012 and reporting updated and ignored counts.
+- **FR-019**: The transactions bulk bar MUST offer "Definir viagem" with a "Sem viagem" option, applying FR-009 to FR-012 and reporting updated and ignored counts. The web pre-filters ineligible rows and recurring occurrences (counted as ignored); the API rejects a batch containing any ineligible or foreign id.
 - **FR-020**: Trips and links MUST be exposed through the API with OpenAPI contracts and Zod validation, following the AGENTS.md feature shape; financial rules (net cost, eligibility, propagation, overlap) live in the domain.
 - **FR-021**: Trip data MUST be reachable by the V1 ETL (016): trips and the transaction-to-trip link, including per-occurrence links of recurring series, can be loaded.
-- **FR-022**: Other features (005 report filter) MUST be able to read a user's trips and the trip of each transaction/occurrence, including the min and max period of a trip's linked rows.
+- **FR-022**: Other features (005 report filter) MUST be able to read a user's trips and the trip of each transaction/occurrence. The "min and max period of a trip's linked rows" read is built by 005, its only consumer, on top of the 004 link tables (decision: no speculative read in 004).
 
 ### Key Entities
 
@@ -156,7 +169,7 @@ The bulk selection bar of the transactions list offers "Definir viagem" (choose 
 - V1 "split group" rows become, in V2, one transaction with split shares; "link the whole group" is therefore automatic. This is a change from V1 (kept behavior, simpler model).
 - V1 excluded transfers and `AUTO_FATURA` notes; V2 expresses the same intent through typed origins and also excludes the other system origins. Note-prefix checks are dropped.
 - "Own" share = admin person, as in V1 (admin payer); a person selector on the trip page is out of scope.
-- Bulk ignore behavior (count of updated and ignored rows) mirrors the V2 bulk-category pattern; V1 did not report counts for trips.
+- Bulk ignore behavior (count of updated and ignored rows) mirrors the existing V2 bulk actions (web pre-filter plus strict API); V1 did not report counts for trips.
 - Trip field on a recurring entry applies only to the occurrence on the entry date, never to the rule.
 - Mobile clients are out of scope.
 
@@ -174,3 +187,19 @@ V1 evidence (`D:\Repos\daniel-cabral\openmonetis`): `openspec/specs/trips/spec.m
 V2 code extended: `packages/db/src/schema.ts` (`transactions`, `transactionSplits`, `recurringTransactionOccurrences`, `installmentSeries`), `packages/domain/src/transactions.ts`, transaction form and bulk bar in `apps/web/src/features/transactions/`.
 
 Inventory rows covered (fork delta 1.2): Trip CRUD + "Viagens" menu; Trip field on entry; Trip page net cost and breakdowns; Trip suggestions; Bulk set trip. The report-filter row belongs to 005. Data mapping row `viagens` / `lancamentos.viagem_id` (section 3) is served by FR-021.
+
+## UI decisions
+
+Previews (real app CSS compiled from `apps/web/src/styles/app.css`; regenerate with
+`cd apps/web && pnpm dlx @tailwindcss/cli@4.3.4 -i ../../specs/004-trips/previews/preview.css -o ../../specs/004-trips/previews/app.css`):
+`specs/004-trips/previews/option-a-single-page.html`, `option-b-tabs.html`, `form-and-bulk.html`.
+
+**Chosen: option A (single scrolling page, card grid list)**, decided autonomously. Rationale: it is the V1 layout and section order (header, summary, three breakdowns, linked list, suggestions), built only from existing V2 pieces, so users migrating from V1 find the same page.
+
+- Trips list: `PageHeader` (eyebrow "Organização", icon `Plane`, action "Nova viagem") plus a card grid like `people-grid.tsx` (`grid gap-4 md:grid-cols-2 xl:grid-cols-3`); each card shows name, period, "{n} lançamento(s)" and net cost, links to `/trips/$tripId`. Empty state: inline `Card role="status"` "Nenhuma viagem ainda" / "Crie uma viagem para juntar os gastos dela em um só lugar." with the create button.
+- Navigation: "Viagens" entry in the "Organização" section of `components/navigation/nav-items.tsx`, icon `Plane`, description "Quanto custou cada viagem".
+- Trip page: `FinancialSummaryHeader` (`variant="soft"`) with primary "Custo líquido" and metrics Despesas, Reembolsos, Lançamentos; actions Editar / Excluir (confirmation "Excluir viagem?" + "Os lançamentos continuam existindo, só deixam de pertencer a esta viagem."). Then three `Card`s "Por categoria", "Por cartão ou conta", "Por pessoa" (`grid gap-6 xl:grid-cols-3`, empty "Nada por aqui ainda."), then "Lançamentos da viagem" with per-row "Desvincular", then "Sugestões (N)" with origin `Select` ("Origem"), table with page checkbox, "select all of filter" banner, "Vincular N selecionados" and the `transactions-pagination.tsx` footer style.
+- Trip dialog: shadcn `Dialog` + TanStack Form with Nome, Início, Fim, Anotação ("Nova viagem" / "Editar viagem"), same pattern as `tag-dialog.tsx`/`tag-form.tsx`.
+- Transaction form: "Viagem" single select (`components/forms/mobile-select.tsx`) inside the collapsible block of `transaction-advanced-fields.tsx`, before "Etiquetas"; option "Nenhuma"; hidden for transfers and system origins.
+- Bulk bar: new "Viagem" icon action (`Plane`) in `transaction-bulk-action-dock.tsx`, a `MobilePicker` + `Command` picker copied from `transaction-bulk-category-picker.tsx` with "Sem viagem" first, then trips; toast reports updated and ignored counts.
+- Discarded: option B (table list + tabs on the trip page), because tabs hide the suggestions that are the main way to populate a trip and break V1 muscle memory.

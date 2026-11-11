@@ -26,6 +26,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TagsRouteImport } from './routes/tags'
 import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as TripsRouteImport } from './routes/trips'
 import { Route as AccountsAccountIdRouteImport } from './routes/accounts_.$accountId'
 import { Route as ApiProxySplatRouteImport } from './routes/api-proxy.$'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
@@ -41,6 +42,7 @@ import { Route as ReportsInstallmentsRouteImport } from './routes/reports/instal
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
 import { Route as ReportsRecurringTransactionsRouteImport } from './routes/reports/recurring-transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions_.import'
+import { Route as TripsTripIdRouteImport } from './routes/trips_.$tripId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -127,6 +129,11 @@ const TransactionsRoute = TransactionsRouteImport.update({
   path: '/transactions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TripsRoute = TripsRouteImport.update({
+  id: '/trips',
+  path: '/trips',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountsAccountIdRoute = AccountsAccountIdRouteImport.update({
   id: '/accounts_/$accountId',
   path: '/accounts/$accountId',
@@ -205,6 +212,11 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
   path: '/transactions/import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TripsTripIdRoute = TripsTripIdRouteImport.update({
+  id: '/trips_/$tripId',
+  path: '/trips/$tripId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -224,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
+  '/trips': typeof TripsRoute
   '/accounts/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
   '/api/$': typeof ApiSplatRoute
@@ -239,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/trips/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -258,6 +272,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
+  '/trips': typeof TripsRoute
   '/accounts/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
   '/api/$': typeof ApiSplatRoute
@@ -273,6 +288,7 @@ export interface FileRoutesByTo {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/trips/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -293,6 +309,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/tags': typeof TagsRoute
   '/transactions': typeof TransactionsRoute
+  '/trips': typeof TripsRoute
   '/accounts_/$accountId': typeof AccountsAccountIdRoute
   '/api-proxy/$': typeof ApiProxySplatRoute
   '/api/$': typeof ApiSplatRoute
@@ -308,6 +325,7 @@ export interface FileRoutesById {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions_/import': typeof TransactionsImportRoute
+  '/trips_/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -329,6 +347,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/tags'
     | '/transactions'
+    | '/trips'
     | '/accounts/$accountId'
     | '/api-proxy/$'
     | '/api/$'
@@ -344,6 +363,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/trips/$tripId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -363,6 +383,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/tags'
     | '/transactions'
+    | '/trips'
     | '/accounts/$accountId'
     | '/api-proxy/$'
     | '/api/$'
@@ -378,6 +399,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/trips/$tripId'
   id:
     | '__root__'
     | '/'
@@ -397,6 +419,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/tags'
     | '/transactions'
+    | '/trips'
     | '/accounts_/$accountId'
     | '/api-proxy/$'
     | '/api/$'
@@ -412,6 +435,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions_/import'
+    | '/trips_/$tripId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -432,6 +456,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TagsRoute: typeof TagsRoute
   TransactionsRoute: typeof TransactionsRoute
+  TripsRoute: typeof TripsRoute
   AccountsAccountIdRoute: typeof AccountsAccountIdRoute
   ApiProxySplatRoute: typeof ApiProxySplatRoute
   ApiSplatRoute: typeof ApiSplatRoute
@@ -447,6 +472,7 @@ export interface RootRouteChildren {
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
   ReportsRecurringTransactionsRoute: typeof ReportsRecurringTransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
+  TripsTripIdRoute: typeof TripsTripIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -570,6 +596,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/trips': {
+      id: '/trips'
+      path: '/trips'
+      fullPath: '/trips'
+      preLoaderRoute: typeof TripsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/accounts_/$accountId': {
       id: '/accounts_/$accountId'
       path: '/accounts/$accountId'
@@ -675,6 +708,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/trips_/$tripId': {
+      id: '/trips_/$tripId'
+      path: '/trips/$tripId'
+      fullPath: '/trips/$tripId'
+      preLoaderRoute: typeof TripsTripIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -696,6 +736,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TagsRoute: TagsRoute,
   TransactionsRoute: TransactionsRoute,
+  TripsRoute: TripsRoute,
   AccountsAccountIdRoute: AccountsAccountIdRoute,
   ApiProxySplatRoute: ApiProxySplatRoute,
   ApiSplatRoute: ApiSplatRoute,
@@ -711,6 +752,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,
   ReportsRecurringTransactionsRoute: ReportsRecurringTransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,
+  TripsTripIdRoute: TripsTripIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

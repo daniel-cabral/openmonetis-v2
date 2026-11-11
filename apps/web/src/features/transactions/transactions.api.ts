@@ -4,6 +4,7 @@ import type {
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
   BulkTransactionsOutput,
+  BulkTripTransactionsInput,
   CreateTransactionRefundInput,
   ExportTransactionsQuery,
   ImportTransactionsInput,
@@ -259,6 +260,11 @@ export const renameTransactions = (input: BulkRenameTransactionsInput) =>
 export const tagTransactions = (input: BulkTagTransactionsInput) =>
   request<BulkTransactionsOutput>("/transactions/bulk/tags", {
     method: "PATCH",
+    body: JSON.stringify(input),
+  });
+export const setTransactionsTrip = (input: BulkTripTransactionsInput) =>
+  request<BulkTransactionsOutput>("/transactions/bulk/trip", {
+    method: "POST",
     body: JSON.stringify(input),
   });
 export const deleteTransactions = (input: BulkDeleteTransactionsInput) =>
