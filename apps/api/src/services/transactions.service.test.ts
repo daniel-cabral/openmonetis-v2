@@ -563,9 +563,15 @@ for (const [label, fileName, contentBase64, code] of [
   ],
   [
     "unsupported",
-    "statement.csv",
+    "statement.exe",
     Buffer.from("content").toString("base64"),
     "IMPORT_FORMAT_NOT_SUPPORTED",
+  ],
+  [
+    "csv without profile",
+    "statement.csv",
+    Buffer.from("content").toString("base64"),
+    "IMPORT_PROFILE_REQUIRED",
   ],
   [
     "invalid workbook",

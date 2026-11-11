@@ -4,6 +4,7 @@ import { FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { formatImportInvalidLines } from "../transactions.presentation";
 import type { useTransactionImportReview } from "../useTransactionImportReview";
 import { formatDate } from "./transaction-import-screen-options";
 export function TransactionImportSummary({
@@ -19,6 +20,7 @@ export function TransactionImportSummary({
   incompleteRows: ReturnType<typeof useTransactionImportReview>["incompleteRows"];
   duplicateCount: ReturnType<typeof useTransactionImportReview>["duplicateCount"];
 }) {
+  const invalidLinesMessage = formatImportInvalidLines(preview.invalidLines);
   return (
     <Card className="border" size="sm">
       <CardContent className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -41,6 +43,11 @@ export function TransactionImportSummary({
                 .filter(Boolean)
                 .join(" · ") || "Extrato pronto para revisão"}
             </p>
+            {invalidLinesMessage ? (
+              <p className="mt-0.5 text-muted-foreground text-xs" role="status">
+                {invalidLinesMessage}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

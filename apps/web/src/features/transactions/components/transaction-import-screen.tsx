@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTransactionImportReview } from "../useTransactionImportReview";
+import { TransactionImportProfileStep } from "./transaction-import-profile-step";
 import { TransactionImportReviewTable } from "./transaction-import-review-table";
 import type { Props } from "./transaction-import-screen.types";
 import { TransactionImportSettings } from "./transaction-import-settings";
@@ -19,6 +20,7 @@ export function TransactionImportScreen({
   isDownloadingTemplate,
   isPreviewing,
   isImporting,
+  onDetect,
   onPreview,
   onDownloadTemplate,
   onImport,
@@ -27,6 +29,9 @@ export function TransactionImportScreen({
     inputRef,
     importCompletedRef,
     preview,
+    pendingCsv,
+    confirmCsvImport,
+    cancelCsvImport,
     rows,
     setRows,
     error,
@@ -59,6 +64,7 @@ export function TransactionImportScreen({
     isDownloadingTemplate,
     isPreviewing,
     isImporting,
+    onDetect,
     onPreview,
     onDownloadTemplate,
     onImport,
@@ -76,7 +82,17 @@ export function TransactionImportScreen({
         title="Importar extrato"
       />
 
-      {!preview ? (
+      {!preview && pendingCsv ? (
+        <TransactionImportProfileStep
+          accounts={accounts}
+          cards={cards}
+          detection={pendingCsv.detection}
+          file={pendingCsv.file}
+          isPreviewing={isPreviewing}
+          onCancel={cancelCsvImport}
+          onConfirm={confirmCsvImport}
+        />
+      ) : !preview ? (
         <TransactionImportUpload
           inputRef={inputRef}
           dragging={dragging}
@@ -130,6 +146,7 @@ export function TransactionImportScreen({
             accounts={accounts}
             cards={cards}
             people={people}
+            destinationLocked={Boolean(preview.profileId)}
           />
 
           <TransactionImportReviewTable

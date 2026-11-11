@@ -4,12 +4,14 @@ import {
   describeBulkTransactionAction,
   formatBulkTransactionResult,
   formatDate,
+  formatImportInvalidLines,
   formatInstallmentOption,
   formatPaymentMethod,
   formatPaymentMethodTable,
   formatTransactionConditionSummary,
   formatTransactionSettlementSummary,
   getTransactionDateLabel,
+  getTransactionImportErrorMessage,
   getTransactionSettlementAction,
   getTransactionSettlementLabel,
   groupTransactionRows,
@@ -251,4 +253,29 @@ test("transaction export file names include the scoped label as a slug", () => {
     labelTransactionExportFileName("lancamentos-2026-11.csv", "!!!"),
     "lancamentos-2026-11.csv",
   );
+});
+
+test("skipped CSV lines are summarized in PT-BR grouped by reason with their file line numbers", () => {
+  assert.equal(formatImportInvalidLines([]), null);
+  assert.equal(
+    formatImportInvalidLines([{ lineNumber: 3, reason: "invalid_date" }]),
+    "1 linha ignorada (linha 3: data inválida)",
+  );
+  assert.equal(
+    formatImportInvalidLines([
+      { lineNumber: 3, reason: "invalid_date" },
+      { lineNumber: 4, reason: "invalid_amount" },
+      { lineNumber: 9, reason: "invalid_date" },
+    ]),
+    "3 linhas ignoradas (linhas 3, 9: data inválida / 4: valor inválido)",
+  );
+});
+
+test("import error codes map to actionable copy, and unknown codes keep the unreadable-file fallback", () => {
+  assert.equal(
+    getTransactionImportErrorMessage({ code: "IMPORT_XLS_BINARY_NOT_SUPPORTED" }),
+    "Arquivos .xls antigos (Excel 97-2003) não são suportados. Salve como .xlsx.",
+  );
+  assert.equal(getTransactionImportErrorMessage({ code: "IMPORT_FILE_INVALID" }), null);
+  assert.equal(getTransactionImportErrorMessage(new Error("network")), null);
 });

@@ -22,6 +22,7 @@ export function TransactionImportDestination({
   accounts,
   cards,
   isCard,
+  locked,
   selectedAccount,
   selectedCard,
 }: {
@@ -29,6 +30,7 @@ export function TransactionImportDestination({
   accounts: Props["accounts"];
   cards: Props["cards"];
   isCard: boolean;
+  locked: boolean;
   selectedAccount: AccountOutput | undefined;
   selectedCard: CardOutput | undefined;
 }) {
@@ -47,6 +49,7 @@ export function TransactionImportDestination({
           {(field) => (
             <Field label="Conta ou cartão">
               <Select
+                disabled={locked}
                 onValueChange={(value) => {
                   const next = value as string;
                   field.handleChange(next);

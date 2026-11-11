@@ -591,14 +591,43 @@ export const SettleRecurringOccurrenceInputSchema = z.object({
   accountId: z.uuid().optional(),
 });
 
+const TransactionImportFileShape = {
+  fileName: z.string().trim().min(1).max(255),
+  contentBase64: z
+    .string()
+    .min(1)
+    .max(7_100_000)
+    .regex(/^[A-Za-z0-9+/]+=*$/),
+};
+
+const ImportProfileIdSchema = z.enum(["c6-statement", "c6-invoice"]);
+const ImportLineKindSchema = z.enum(["purchase", "credit", "invoice-payment"]);
+
+export const DetectTransactionImportInputSchema = z
+  .object(TransactionImportFileShape)
+  .openapi("DetectTransactionImportInput");
+
+export const TransactionImportDetectionSchema = z
+  .object({
+    detectedProfileId: ImportProfileIdSchema.nullable(),
+    profiles: z.array(
+      z.object({
+        id: ImportProfileIdSchema,
+        label: z.string(),
+        kind: z.enum(["statement", "invoice"]),
+        destinationType: z.enum(["account", "card"]),
+      }),
+    ),
+    accountIdentification: z.string().nullable(),
+  })
+  .openapi("TransactionImportDetection");
+
 export const PreviewTransactionImportInputSchema = z
   .object({
-    fileName: z.string().trim().min(1).max(255),
-    contentBase64: z
-      .string()
-      .min(1)
-      .max(7_100_000)
-      .regex(/^[A-Za-z0-9+/]+=*$/),
+    ...TransactionImportFileShape,
+    profileId: z.string().trim().min(1).max(64).optional(),
+    destinationType: z.enum(["account", "card"]).optional(),
+    destinationId: z.uuid().optional(),
   })
   .openapi("PreviewTransactionImportInput");
 
@@ -618,10 +647,28 @@ export const TransactionImportPreviewOutputSchema = z
     accountNumber: z.string().nullable(),
     period: z.object({ from: dateSchema, to: dateSchema }).nullable(),
     isCreditCard: z.boolean(),
+    profileId: z.string().nullable(),
+    accountIdentification: z.string().nullable(),
+    invalidLines: z.array(
+      z.object({
+        lineNumber: z.number().int().positive(),
+        reason: z.enum(["invalid_date", "invalid_amount"]),
+      }),
+    ),
     transactions: z.array(
       ImportedTransactionRowSchema.extend({
+        postedDate: dateSchema.nullable(),
+        dayBalance: z.number().nullable(),
+        installment: z
+          .object({ current: z.number().int().positive(), total: z.number().int().positive() })
+          .nullable(),
+        cardLastDigits: z.string().nullable(),
+        holderName: z.string().nullable(),
+        fx: z.object({ currency: z.literal("USD"), amount: z.number().positive() }).nullable(),
+        lineKind: ImportLineKindSchema.nullable(),
         isDuplicate: z.boolean(),
         suggestedCategoryId: z.string().uuid().nullable(),
+        importable: z.boolean(),
       }),
     ),
   })
@@ -648,6 +695,7 @@ export const ImportTransactionsInputSchema = z
         }).extend({
           personId: z.string().uuid(),
           categoryId: z.string().uuid(),
+          lineKind: ImportLineKindSchema.nullable().optional(),
         }),
       )
       .min(1)
@@ -810,6 +858,8 @@ export type ListTransactionsQuery = z.infer<typeof ListTransactionsQuerySchema>;
 export type TransactionOutput = z.infer<typeof TransactionOutputSchema>;
 export type PaginatedTransactionsOutput = z.infer<typeof PaginatedTransactionsOutputSchema>;
 export type RecentEstablishmentsOutput = z.infer<typeof RecentEstablishmentsOutputSchema>;
+export type DetectTransactionImportInput = z.infer<typeof DetectTransactionImportInputSchema>;
+export type TransactionImportDetection = z.infer<typeof TransactionImportDetectionSchema>;
 export type PreviewTransactionImportInput = z.infer<typeof PreviewTransactionImportInputSchema>;
 export type TransactionImportPreview = z.infer<typeof TransactionImportPreviewOutputSchema>;
 export type ImportTransactionsInput = z.infer<typeof ImportTransactionsInputSchema>;

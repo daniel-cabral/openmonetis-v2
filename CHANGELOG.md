@@ -13,6 +13,17 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   API e o serviço de IA carregam o `.env` da raiz com `--env-file-if-exists` do Node, sem prefixo
   de variável de ambiente no script.
 
+### Fork
+
+- Importação de extrato e fatura CSV do C6 Bank: o arquivo é associado a um perfil de banco e a
+  uma conta ou cartão antes da leitura. Linhas de crédito e pagamento de fatura aparecem na revisão
+  como informativas e não são importáveis.
+- Importação aceita `.csv` e `.xls`; arquivos `.xls` binários do Excel 97-2003 são recusados com
+  mensagem para salvar como `.xlsx`.
+- Sugestões de categoria usam chave por comerciante: variantes da mesma loja (praça, prefixo do
+  adquirente, número da loja) compartilham a memória. Sugestões salvas com a chave antiga continuam
+  válidas.
+
 ## [0.16.0] - 2026-11-07
 
 Adiciona o extrato mensal de cada pessoa externa, com envio por e-mail pelo Resend, envio

@@ -397,6 +397,49 @@ export function getTransactionMutationErrorMessage(error: unknown) {
     : "Não foi possível concluir. Tente novamente em instantes.";
 }
 
+const transactionImportErrorMessages: Record<string, string> = {
+  IMPORT_PROFILE_REQUIRED: "Escolha o perfil e o destino do arquivo CSV.",
+  IMPORT_PROFILE_NOT_FOUND: "Este perfil de importação não existe mais. Escolha outro.",
+  IMPORT_DESTINATION_MISMATCH: "O destino não corresponde ao perfil escolhido.",
+  IMPORT_ROW_NOT_IMPORTABLE:
+    "Linhas de crédito e pagamento de fatura não podem ser importadas. Desmarque-as.",
+  IMPORT_XLS_BINARY_NOT_SUPPORTED:
+    "Arquivos .xls antigos (Excel 97-2003) não são suportados. Salve como .xlsx.",
+};
+
+/** Message for import codes the user can act on; null keeps the generic unreadable-file copy. */
+export function getTransactionImportErrorMessage(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  return typeof code === "string" ? (transactionImportErrorMessages[code] ?? null) : null;
+}
+
+export const transactionImportLineKindLabels = {
+  credit: "Crédito na fatura",
+  "invoice-payment": "Pagamento de fatura anterior",
+} as const;
+
+export const transactionImportNonImportableNote = "Disponível na conciliação";
+
+const invalidImportLineReasonLabels = {
+  invalid_date: "data inválida",
+  invalid_amount: "valor inválido",
+} as const;
+
+/** Summary of skipped CSV lines, grouped by reason, e.g. "2 linhas ignoradas (linhas 3, 9: data inválida)". */
+export function formatImportInvalidLines(
+  invalidLines: { lineNumber: number; reason: keyof typeof invalidImportLineReasonLabels }[],
+) {
+  if (!invalidLines.length) return null;
+  const details = Object.entries(invalidImportLineReasonLabels).flatMap(([reason, label]) => {
+    const lineNumbers = invalidLines
+      .filter((line) => line.reason === reason)
+      .map((line) => line.lineNumber);
+    return lineNumbers.length ? [`${lineNumbers.join(", ")}: ${label}`] : [];
+  });
+  const count = invalidLines.length;
+  return `${count} ${count === 1 ? "linha ignorada" : "linhas ignoradas"} (${count === 1 ? "linha" : "linhas"} ${details.join(" / ")})`;
+}
+
 /** Keep the visible shares of one purchase together without joining separate occurrences. */
 export function groupTransactionRows<
   T extends Pick<

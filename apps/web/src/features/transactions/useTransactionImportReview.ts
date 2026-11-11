@@ -2,6 +2,7 @@ import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import {
   ImportTransactionsInputSchema,
+  type TransactionImportDetection,
   type TransactionImportPreview,
 } from "@openmonetis/validators/transactions";
 import { useForm } from "@tanstack/react-form";
@@ -11,17 +12,23 @@ import {
   findCategoryByImportedName,
   getCommonRowValue,
   haveDifferentRowValues,
+  isSelectableImportRow,
 } from "./components/transaction-import-review";
 import type { Props, ReviewRow } from "./components/transaction-import-screen.types";
 import {
   acceptedExtensions,
   type accountPaymentMethods,
 } from "./components/transaction-import-screen-options";
-import { getTransactionMutationErrorMessage } from "./transactions.presentation";
+import type { TransactionImportPreviewOptions } from "./transactions.api";
+import {
+  getTransactionImportErrorMessage,
+  getTransactionMutationErrorMessage,
+} from "./transactions.presentation";
 
 export function useTransactionImportReview({
   categories,
   people,
+  onDetect,
   onPreview,
   onDownloadTemplate,
   onImport,
@@ -29,6 +36,11 @@ export function useTransactionImportReview({
   const inputRef = useRef<HTMLInputElement>(null);
   const importCompletedRef = useRef(false);
   const [preview, setPreview] = useState<TransactionImportPreview | null>(null);
+  // A CSV waits for the profile and destination choice before it is read (two-step flow).
+  const [pendingCsv, setPendingCsv] = useState<{
+    file: File;
+    detection: TransactionImportDetection;
+  } | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -66,6 +78,7 @@ export function useTransactionImportReview({
             type: row.type,
             personId: row.personId,
             categoryId: row.categoryId,
+            lineKind: row.lineKind,
           })),
       });
       if (!parsed.success) {
@@ -87,7 +100,9 @@ export function useTransactionImportReview({
   const selectedRows = rows.filter((row) => row.selected);
   const incompleteRows = selectedRows.filter((row) => !row.personId || !row.categoryId);
   const duplicateCount = rows.filter((row) => row.isDuplicate).length;
-  const allAvailableSelected = rows.filter((row) => !row.isDuplicate).every((row) => row.selected);
+  const allAvailableSelected = rows
+    .filter((row) => isSelectableImportRow(row))
+    .every((row) => row.selected);
   const selectedExpenseRows = selectedRows.filter((row) => row.type === "expense");
   const selectedIncomeRows = selectedRows.filter((row) => row.type === "income");
   const commonPersonId = getCommonRowValue(selectedRows, (row) => row.personId);
@@ -108,20 +123,31 @@ export function useTransactionImportReview({
     setError(null);
     const extension = file.name.split(".").at(-1)?.toLowerCase() ?? "";
     if (!acceptedExtensions.includes(extension)) {
-      setError("Formato não suportado. Use OFX, QFX ou XLSX.");
+      setError("Formato não suportado. Use OFX, QFX, CSV, XLSX ou XLS.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       setError("O arquivo deve ter no máximo 5 MB.");
       return;
     }
+    if (extension === "csv") {
+      try {
+        setPendingCsv({ file, detection: await onDetect(file) });
+      } catch {
+        setError("Não foi possível ler o arquivo. Verifique o formato e tente novamente.");
+      }
+      return;
+    }
+    await loadPreview(file);
+  }
+
+  async function loadPreview(file: File, options?: TransactionImportPreviewOptions) {
     try {
-      const result = await onPreview(file);
+      const result = await onPreview(file, options);
       const defaultPersonId =
         people.find((person) => person.role === "admin")?.id ?? people[0]?.id ?? "";
-      const destination = "";
       form.reset({
-        destination,
+        destination: options ? `${options.destinationType}:${options.destinationId}` : "",
         paymentMethod: result.isCreditCard ? "credit_card" : "pix",
         invoicePeriod: result.period?.to.slice(0, 7) ?? getCurrentPeriodInBrazil(),
       });
@@ -129,15 +155,30 @@ export function useTransactionImportReview({
         result.transactions.map((transaction) => ({
           ...transaction,
           rowKey: crypto.randomUUID(),
-          selected: !transaction.isDuplicate,
+          selected: isSelectableImportRow(transaction),
           personId: defaultPersonId,
           categoryId: findCategoryByImportedName(categories, transaction),
         })),
       );
+      setPendingCsv(null);
       setPreview(result);
-    } catch {
-      setError("Não foi possível ler o arquivo. Verifique o formato e tente novamente.");
+    } catch (error) {
+      setError(
+        getTransactionImportErrorMessage(error) ??
+          "Não foi possível ler o arquivo. Verifique o formato e tente novamente.",
+      );
     }
+  }
+
+  function confirmCsvImport(options: TransactionImportPreviewOptions) {
+    if (!pendingCsv) return;
+    setError(null);
+    void loadPreview(pendingCsv.file, options);
+  }
+
+  function cancelCsvImport() {
+    setPendingCsv(null);
+    setError(null);
   }
 
   function updateSelectedRows(update: (row: ReviewRow) => ReviewRow) {
@@ -147,6 +188,7 @@ export function useTransactionImportReview({
   function resetUpload() {
     importCompletedRef.current = false;
     setPreview(null);
+    setPendingCsv(null);
     setRows([]);
     setError(null);
     form.reset();
@@ -178,6 +220,9 @@ export function useTransactionImportReview({
     inputRef,
     importCompletedRef,
     preview,
+    pendingCsv,
+    confirmCsvImport,
+    cancelCsvImport,
     rows,
     setRows,
     error,
