@@ -13,8 +13,8 @@ servers on default ports (lane B: 7201-7203). Never `drizzle-kit push`.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `"./trips": "./src/trips.ts"` to the `exports` map of `packages/domain/package.json` and of `packages/validators/package.json` (alphabetical position as the other entries). Verify: `node -e "require('./packages/domain/package.json').exports['./trips']||process.exit(1)"`.
-- [ ] T002 Add the root script `"test:trips:integration": "TRIPS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/trips.repository.integration.test.ts"` to `package.json` next to `test:tags:integration`, and list `pnpm test:trips:integration` in the integration suite list of `docs/testing.md` (after `pnpm test:tags:integration`; update the suite count sentence "todas as quatorze suítes" to the new count). Verify: `node -e "require('./package.json').scripts['test:trips:integration']||process.exit(1)"`.
+- [x] T001 Add `"./trips": "./src/trips.ts"` to the `exports` map of `packages/domain/package.json` and of `packages/validators/package.json` (alphabetical position as the other entries). Verify: `node -e "require('./packages/domain/package.json').exports['./trips']||process.exit(1)"`.
+- [x] T002 Add the root script `"test:trips:integration": "TRIPS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/trips.repository.integration.test.ts"` to `package.json` next to `test:tags:integration`, and list `pnpm test:trips:integration` in the integration suite list of `docs/testing.md` (after `pnpm test:tags:integration`; update the suite count sentence "todas as quatorze suítes" to the new count). Verify: `node -e "require('./package.json').scripts['test:trips:integration']||process.exit(1)"`.
 
 ## Phase 2: Foundational (blocks every story)
 

@@ -36,6 +36,7 @@
     "./inbox-rules": "./src/inbox-rules.ts",
     "./device-tokens": "./src/device-tokens.ts",
     "./tags": "./src/tags.ts",
+    "./trips": "./src/trips.ts",
     "./recurring-transactions": "./src/recurring-transactions.ts",
     "./business-calendars": "./src/business-calendars.ts",
     "./due-date-rules": "./src/due-date-rules.ts",
