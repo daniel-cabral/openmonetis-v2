@@ -1,12 +1,15 @@
 import type { TransactionInput } from "@openmonetis/validators/transactions";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { useImperativeHandle, useMemo, useState } from "react";
+import { tripsQueryOptions } from "@/features/trips/trips.queries";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { showInvalidFormToast } from "@/lib/form-feedback";
 import type { TransactionFormProps } from "./components/transaction-form.types";
 import {
   getDefaultTransactionFormValues,
   getTransactionFormValuesFromTransaction,
+  resolveTransactionTripId,
   type TransactionFormValues,
   validateTransactionForm,
 } from "./components/transaction-form.validation";
@@ -28,6 +31,7 @@ export function useTransactionForm({
   ref,
 }: TransactionFormProps) {
   const mobile = useIsMobile();
+  const trips = useQuery(tripsQueryOptions()).data ?? [];
 
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingInstallmentUpdate, setPendingInstallmentUpdate] = useState<{
@@ -102,7 +106,19 @@ export function useTransactionForm({
     validators: {
       onSubmit: validateTransactionForm,
     },
-    onSubmit: submit,
+    onSubmit: ({ value, formApi }) =>
+      submit({
+        value: {
+          ...value,
+          tripId: resolveTransactionTripId({
+            mode,
+            origin: transaction?.origin ?? "regular",
+            touched: formApi.getFieldMeta("tripId")?.isTouched ?? false,
+            trips,
+            value,
+          }),
+        },
+      }),
   });
 
   useImperativeHandle(ref, () => ({

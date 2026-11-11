@@ -73,9 +73,13 @@ export function useTransactionFormSubmission({
   }
   async function submit({ value }: { value: TransactionFormValues }) {
     try {
-      const data = normalizeTransactionInput(value, {
+      const normalized = normalizeTransactionInput(value, {
         includeStartInstallment: mode !== "edit",
       });
+      const data: TransactionInput =
+        mode === "edit" && value.tripId === defaultValues.tripId
+          ? { ...normalized, tripId: undefined }
+          : normalized;
 
       if (mode === "edit" && transaction?.isRecurring && transaction.recurringRuleId) {
         setPendingRecurringUpdate({
