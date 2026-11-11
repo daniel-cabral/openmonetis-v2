@@ -1,7 +1,10 @@
-import type { TripDetailOutput } from "@openmonetis/validators/trips";
 import { dateOnlyToSafeInstant, formatDateInBrazil } from "@openmonetis/shared/date-time";
+import type { TripDetailOutput } from "@openmonetis/validators/trips";
+import { toast } from "sonner";
 import { MoneyValue } from "@/components/money-value";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUnlinkTripTransactionsMutation } from "../trips.mutations";
 
 type TripLinkedEntry = TripDetailOutput["linked"][number];
 
@@ -13,7 +16,24 @@ function formatPurchaseDate(date: string) {
   });
 }
 
-export function TripLinkedList({ entries }: { entries: readonly TripLinkedEntry[] }) {
+export function TripLinkedList({
+  entries,
+  tripId,
+}: {
+  entries: readonly TripLinkedEntry[];
+  tripId: string;
+}) {
+  const unlink = useUnlinkTripTransactionsMutation();
+
+  async function unlinkEntry(id: string) {
+    try {
+      await unlink.mutateAsync({ id: tripId, ids: [id] });
+      toast.success("Lançamento desvinculado da viagem.");
+    } catch {
+      toast.error("Não foi possível desvincular o lançamento.");
+    }
+  }
+
   return (
     <Card className="gap-4 p-4 sm:p-6">
       <CardHeader className="p-0">
@@ -35,7 +55,18 @@ export function TripLinkedList({ entries }: { entries: readonly TripLinkedEntry[
                     {formatPurchaseDate(entry.purchaseDate)} · {entry.personNames.join(", ")}
                   </p>
                 </div>
-                <MoneyValue amount={entry.amount} className="shrink-0" />
+                <div className="flex shrink-0 items-center gap-3">
+                  <MoneyValue amount={entry.amount} />
+                  <Button
+                    disabled={unlink.isPending}
+                    onClick={() => void unlinkEntry(entry.id)}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Desvincular
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

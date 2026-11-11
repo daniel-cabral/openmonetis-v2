@@ -29,6 +29,7 @@ import { tripQueryOptions, tripsQueryOptions } from "../trips.queries";
 import { TripBreakdownCard } from "./trip-breakdown-card";
 import { TripDialog } from "./trip-dialog";
 import { TripLinkedList } from "./trip-linked-list";
+import { TripSuggestions } from "./trip-suggestions";
 
 export function TripDetailPage({ tripId }: { tripId: string }) {
   const [editing, setEditing] = useState(false);
@@ -123,7 +124,8 @@ export function TripDetailPage({ tripId }: { tripId: string }) {
               <TripBreakdownCard items={detail.summary.bySource} title="Por cartão ou conta" />
               <TripBreakdownCard items={detail.summary.byPerson} title="Por pessoa" />
             </section>
-            <TripLinkedList entries={detail.linked} />
+            <TripLinkedList entries={detail.linked} tripId={tripId} />
+            <TripSuggestions tripId={tripId} />
           </section>
         ) : null}
       </main>

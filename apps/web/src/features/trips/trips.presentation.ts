@@ -53,3 +53,18 @@ export const tripFormMessages = {
   endBeforeStart: "A data de fim deve ser igual ou posterior à data de início.",
   noteTooLong: `A anotação deve ter no máximo ${tripNoteMaxLength} caracteres.`,
 } as const;
+
+export const tripSuggestionOriginLabels = {
+  all: "Todos",
+  cards: "Só cartões",
+  accounts: "Só contas",
+} as const;
+
+export function formatLinkSelectionLabel(count: number) {
+  if (count === 0) return "Vincular selecionados";
+  return count === 1 ? "Vincular 1 selecionado" : `Vincular ${count} selecionados`;
+}
+
+export function formatSuggestionRange(range: { from: number; to: number; total: number }) {
+  return `${range.from} a ${range.to} de ${range.total}`;
+}

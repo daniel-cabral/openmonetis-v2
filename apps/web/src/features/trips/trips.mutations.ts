@@ -1,5 +1,11 @@
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createTrip, deleteTrip, updateTrip } from "./trips.api";
+import {
+  createTrip,
+  deleteTrip,
+  linkTripTransactions,
+  unlinkTripTransactions,
+  updateTrip,
+} from "./trips.api";
 
 function refreshTripQueries(client: QueryClient) {
   return Promise.all([
@@ -21,4 +27,20 @@ export function useUpdateTripMutation() {
 export function useDeleteTripMutation() {
   const client = useQueryClient();
   return useMutation({ mutationFn: deleteTrip, onSuccess: () => refreshTripQueries(client) });
+}
+
+export function useLinkTripTransactionsMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: linkTripTransactions,
+    onSuccess: () => refreshTripQueries(client),
+  });
+}
+
+export function useUnlinkTripTransactionsMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: unlinkTripTransactions,
+    onSuccess: () => refreshTripQueries(client),
+  });
 }
