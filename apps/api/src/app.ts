@@ -64,8 +64,8 @@ import {
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
-import { tripsRepository } from "./repositories/trips.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
+import { tripsRepository } from "./repositories/trips.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createAiChatsRoute } from "./routes/ai-chats";
 import { createAiDataSharingRoute } from "./routes/ai-data-sharing";
@@ -103,8 +103,8 @@ import { createRecurringTransactionsRoute } from "./routes/recurring-transaction
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createTagsRoute } from "./routes/tags";
-import { createTripsRoute } from "./routes/trips";
 import { createTransactionsRoute } from "./routes/transactions";
+import { createTripsRoute } from "./routes/trips";
 import { createAccountsService } from "./services/accounts.service";
 import { createAiChatsService } from "./services/ai-chats.service";
 import { createAiContextService } from "./services/ai-context.service";
@@ -149,8 +149,8 @@ import { createRecurringTransactionsService } from "./services/recurring-transac
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createTagsService } from "./services/tags.service";
-import { createTripsService } from "./services/trips.service";
 import { createTransactionsService } from "./services/transactions.service";
+import { createTripsService } from "./services/trips.service";
 import type { ApiVariables } from "./types/context";
 import { aiServiceGateway } from "./utils/ai-service";
 import { createEmailAssetReader, readEmailAssetsDirectory } from "./utils/email-assets";
