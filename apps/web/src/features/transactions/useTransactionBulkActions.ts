@@ -11,6 +11,7 @@ import {
   useCategorizeTransactionsMutation,
   useDeleteTransactionsMutation,
   useRenameTransactionsMutation,
+  useSetTransactionsTripMutation,
   useSettleTransactionsMutation,
   useTagTransactionsMutation,
 } from "./transactions.mutations";
@@ -30,6 +31,7 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
   const tagMutation = useTagTransactionsMutation();
   const deleteMutation = useDeleteTransactionsMutation();
   const settleMutation = useSettleTransactionsMutation();
+  const tripMutation = useSetTransactionsTripMutation();
   const [activeAction, setActiveAction] = useState<BulkTransactionActionKey | null>(null);
   const select = (accepts: (target: BulkTransactionTarget) => boolean) =>
     selectBulkTransactionIds(transactions, accepts);
@@ -37,6 +39,7 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
   const unsettleSelection = select((target) => canApplyBulkTransactionAction(target, "unsettle"));
   const renameSelection = select((target) => canApplyBulkTransactionAction(target, "rename"));
   const tagSelection = select((target) => canApplyBulkTransactionAction(target, "tag"));
+  const tripSelection = select((target) => canApplyBulkTransactionAction(target, "trip"));
   const deleteSelection = select((target) => canApplyBulkTransactionAction(target, "delete"));
   const reach = (selection: BulkTransactionSelection) => ({
     count: selection.ids.length,
@@ -78,6 +81,7 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
       // Category compatibility depends on the chosen category; editability bounds the reach.
       categorize: reach(renameSelection),
       tag: reach(tagSelection),
+      trip: reach(tripSelection),
       rename: reach(renameSelection),
       delete: reach(deleteSelection),
     } satisfies Record<BulkTransactionActionKey, { count: number; total: number }>,
@@ -96,6 +100,10 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
     tag: (tagId: string, operation: "add" | "remove") =>
       run("tag", operation === "add" ? "tagged" : "untagged", tagSelection, (ids) =>
         tagMutation.mutateAsync({ ids, operation, tagIds: [tagId] }),
+      ),
+    setTrip: (tripId: string | null) =>
+      run("trip", tripId ? "linked" : "unlinked", tripSelection, (ids) =>
+        tripMutation.mutateAsync({ ids, tripId }),
       ),
     settle: (isSettled: boolean) =>
       run(

@@ -18,6 +18,7 @@ import {
   previewTransactionImport,
   refundTransaction,
   renameTransactions,
+  setTransactionsTrip,
   settleRecurringOccurrence,
   settleTransactions,
   type TransactionsApiSearch,
@@ -168,6 +169,13 @@ export function useTagTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: tagTransactions,
+    onSuccess: () => refreshTransactionQueries(queryClient),
+  });
+}
+export function useSetTransactionsTripMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setTransactionsTrip,
     onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
