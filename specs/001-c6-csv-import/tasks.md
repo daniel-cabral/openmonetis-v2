@@ -8,6 +8,56 @@
 
 **Rules for every task**: AGENTS.md wins; code/identifiers English, UI copy PT-BR; no em-dashes in copy; no new dependency; domain has no I/O (no `node:crypto` in `packages/domain`); amounts parsed to integer cents in the domain.
 
+## Fixed interfaces (binding for all tasks)
+
+```ts
+// packages/domain/src/import-c6.ts
+export type C6InvoiceLineKind = "purchase" | "credit" | "invoice-payment";
+export function classifyC6InvoiceLine(input: { description: string; signedCents: number }): C6InvoiceLineKind;
+export function parseC6StatementCsv(content: string): ImportedStatement;
+export function parseC6InvoiceCsv(content: string): ImportedStatement;
+
+// packages/domain/src/import-profiles.ts
+export type ImportProfileId = "c6-statement" | "c6-invoice";
+export type ImportProfileKind = "statement" | "invoice";
+export type ImportProfileSummary = {
+  id: ImportProfileId; label: string; kind: ImportProfileKind; destinationType: "account" | "card";
+};
+export type ImportProfile = ImportProfileSummary & {
+  headerSignature: readonly string[];
+  readAccountIdentification: ((content: string) => string | null) | null;
+  parse: (content: string) => ImportedStatement;
+};
+export const importProfiles: readonly ImportProfile[];
+export function findImportProfile(id: string): ImportProfile | null;
+export function detectImportProfile(content: string): {
+  detectedProfileId: ImportProfileId | null;
+  profiles: ImportProfileSummary[]; // all profiles, registry order, without parse/signature
+  accountIdentification: string | null;
+};
+
+// packages/domain/src/import-row-identity.ts
+export function buildImportRowIdentityPayloads(input: {
+  kind: ImportProfileKind;
+  source: string;                       // always ImportedStatement.sourceName ("C6 Bank")
+  accountIdentification: string | null;
+  destination: { type: "account" | "card"; id: string };
+  rows: ImportedTransaction[];
+}): string[]; // JSON payload per row, same length and order as rows
+
+// apps/web/src/features/transactions/transactions.api.ts
+export type TransactionImportPreviewOptions = {
+  profileId: string; destinationType: "account" | "card"; destinationId: string;
+};
+export function detectTransactionImport(file: File): Promise<TransactionImportDetection>; // type from validators
+export function previewTransactionImport(file: File, options?: TransactionImportPreviewOptions): Promise<TransactionImportPreview>;
+// transactions.mutations.ts
+export function useDetectTransactionImportMutation(): UseMutationResult<TransactionImportDetection, Error, File>;
+// usePreviewTransactionImportMutation variables become { file: File; options?: TransactionImportPreviewOptions }
+```
+
+`TransactionImportDetection` = `z.infer<typeof TransactionImportDetectionSchema>` exported from `packages/validators/src/transactions.ts` (T008), mirroring `detectImportProfile`'s return.
+
 ## Phase 1: Setup
 
 - [ ] T001 Copy V1 fixtures `src/shared/lib/reconciliation/__fixtures__/c6-extrato.csv` and `c6-fatura.csv` byte-for-byte to `packages/domain/src/__fixtures__/` (keep BOM and line endings; verify with a byte compare).
@@ -24,7 +74,7 @@
 
 ## Phase 4: US3 registry and detection (P1)
 
-- [ ] T006 [US3] Implement `packages/domain/src/import-profiles.ts`: `importProfiles` (id `"c6-statement" | "c6-invoice"`, label "C6 Bank - Extrato de conta corrente" / "C6 Bank - Fatura de cartão", kind, `destinationType` account/card, `headerSignature`, optional `readAccountIdentification`, `parse`), `findImportProfile(id)`, `detectImportProfile(content) -> { detectedProfileId: string | null; profiles; accountIdentification: string | null }` (signature matched against the header lines, suggestion only, never throws on unknown text). Port V1 `registry.test.ts` (4) and `detect.test.ts` (3) to `packages/domain/src/import-profiles.test.ts`, including "each signature does not claim the other header" and account identification peek.
+- [ ] T006 [US3] Implement `packages/domain/src/import-profiles.ts`: `importProfiles` (id `"c6-statement" | "c6-invoice"`, label "C6 Bank - Extrato de conta corrente" / "C6 Bank - Fatura de cartão", kind, `destinationType` account/card, `headerSignature`, optional `readAccountIdentification`, `parse`), `findImportProfile(id)`, `detectImportProfile(content)` (signature in "Fixed interfaces") (signature matched against the header lines, suggestion only, never throws on unknown text). Port V1 `registry.test.ts` (4) and `detect.test.ts` (3) to `packages/domain/src/import-profiles.test.ts`, including "each signature does not claim the other header" and account identification peek.
 
 ## Phase 5: US4 row identity (P1)
 
