@@ -4,11 +4,11 @@ import { MobileSelect as Select } from "@/components/forms/mobile-select";
 import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-select-content";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldShell } from "@/features/transactions/components/transaction-field-shell";
-import { noneValue } from "@/features/transactions/components/transaction-form-options";
 import {
   resolveTransactionTripId,
   type TransactionFormValues,
 } from "@/features/transactions/components/transaction-form.validation";
+import { noneValue } from "@/features/transactions/components/transaction-form-options";
 import type { useTransactionForm } from "@/features/transactions/useTransactionForm";
 import { tripsQueryOptions } from "../trips.queries";
 

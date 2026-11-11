@@ -16,7 +16,7 @@
         <div class="flex items-center gap-2.5"><span class="text-brand-strong">&#9992;</span><h1 class="page-title">Viagens</h1></div>
         <p class="mt-2 max-w-2xl text-muted-foreground text-sm leading-relaxed">Quanto cada viagem custou, somando cartões e contas, mesmo quando a fatura cai no mês seguinte.</p>
       </div>
-      <button class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-primary-foreground text-sm font-medium">+ Nova viagem</button>
+      <button type="button" class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-primary-foreground text-sm font-medium">+ Nova viagem</button>
     </div>
   </header>
   <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -36,7 +36,7 @@
   <div class="items-center gap-3 rounded-xl border bg-card p-6 text-center grid place-items-center" role="status">
     <p class="font-medium">Nenhuma viagem ainda</p>
     <p class="text-muted-foreground text-sm">Crie uma viagem para juntar os gastos dela em um só lugar.</p>
-    <button class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-primary-foreground text-sm font-medium">+ Nova viagem</button>
+    <button type="button" class="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-primary-foreground text-sm font-medium">+ Nova viagem</button>
   </div>
 </section>
 
@@ -51,7 +51,7 @@
         <p class="eyebrow mt-6 text-current/70">Custo líquido</p>
         <p class="mt-2 font-heading text-4xl font-normal leading-none tracking-tight sm:text-5xl">R$ 8.412,30</p>
       </div>
-      <div class="flex gap-2"><button class="h-8 rounded-md border bg-background px-3 text-sm">Editar</button><button class="h-8 rounded-md border bg-background px-3 text-destructive text-sm">Excluir</button></div>
+      <div class="flex gap-2"><button type="button" class="h-8 rounded-md border bg-background px-3 text-sm">Editar</button><button type="button" class="h-8 rounded-md border bg-background px-3 text-destructive text-sm">Excluir</button></div>
     </div>
     <dl class="grid border-current/20 border-t sm:grid-cols-3">
       <div class="min-w-0 p-5 sm:p-6"><dt class="font-mono text-current/70 text-xs">Despesas</dt><dd class="mt-2 truncate font-heading text-xl leading-none">R$ 9.212,30</dd></div>
@@ -87,17 +87,17 @@
   <div class="rounded-xl border bg-card p-4 sm:p-6">
     <p class="text-lg font-medium">Lançamentos da viagem</p>
     <ul class="mt-3 divide-y text-sm">
-      <li class="flex items-center justify-between gap-3 py-2"><div><p>Passagem TAP (3/10)</p><p class="text-muted-foreground text-xs">02/03/2026 · Eu</p></div><div class="flex items-center gap-3"><span class="tabular-nums">R$ 412,00</span><button class="h-8 rounded-md px-2 text-sm hover:bg-accent">Desvincular</button></div></li>
-      <li class="flex items-center justify-between gap-3 py-2"><div><p>Jantar Time Out <span class="rounded bg-muted px-1 text-xs">dividido</span></p><p class="text-muted-foreground text-xs">14/05/2026 · Eu, Ana</p></div><div class="flex items-center gap-3"><span class="tabular-nums">R$ 300,00</span><button class="h-8 rounded-md px-2 text-sm hover:bg-accent">Desvincular</button></div></li>
+      <li class="flex items-center justify-between gap-3 py-2"><div><p>Passagem TAP (3/10)</p><p class="text-muted-foreground text-xs">02/03/2026 · Eu</p></div><div class="flex items-center gap-3"><span class="tabular-nums">R$ 412,00</span><button type="button" class="h-8 rounded-md px-2 text-sm hover:bg-accent">Desvincular</button></div></li>
+      <li class="flex items-center justify-between gap-3 py-2"><div><p>Jantar Time Out <span class="rounded bg-muted px-1 text-xs">dividido</span></p><p class="text-muted-foreground text-xs">14/05/2026 · Eu, Ana</p></div><div class="flex items-center gap-3"><span class="tabular-nums">R$ 300,00</span><button type="button" class="h-8 rounded-md px-2 text-sm hover:bg-accent">Desvincular</button></div></li>
     </ul>
   </div>
 
   <div class="rounded-xl border bg-card p-4 sm:p-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div><p class="text-lg font-medium">Sugestões (23)</p><p class="text-muted-foreground text-xs">Lançamentos sem viagem com data da compra no período, de cartões e contas.</p></div>
-      <div class="flex gap-2"><select class="h-8 rounded-md border bg-background px-2 text-sm" aria-label="Origem"><option>Origem: Todos</option><option>Só cartões</option><option>Só contas</option><option>C6 Black</option><option>Conta C6</option><option>Nubank</option></select><button class="h-8 rounded-md bg-primary px-3 text-primary-foreground text-sm">Vincular 20 selecionados</button></div>
+      <div class="flex gap-2"><select class="h-8 rounded-md border bg-background px-2 text-sm" aria-label="Origem"><option>Origem: Todos</option><option>Só cartões</option><option>Só contas</option><option>C6 Black</option><option>Conta C6</option><option>Nubank</option></select><button type="button" class="h-8 rounded-md bg-primary px-3 text-primary-foreground text-sm">Vincular 20 selecionados</button></div>
     </div>
-    <p class="mt-3 rounded-md bg-muted px-3 py-2 text-sm">Os 20 desta página estão selecionados. <button class="font-medium text-brand-strong">Selecionar todos os 23 do filtro</button></p>
+    <p class="mt-3 rounded-md bg-muted px-3 py-2 text-sm">Os 20 desta página estão selecionados. <button type="button" class="font-medium text-brand-strong">Selecionar todos os 23 do filtro</button></p>
     <table class="mt-3 w-full text-sm">
       <thead><tr class="border-b text-left"><th class="w-10 py-2 font-mono"><input type="checkbox" checked aria-label="Selecionar a página"></th><th class="font-mono">Data</th><th class="font-mono">Descrição</th><th class="font-mono">Origem</th><th class="font-mono">Categoria</th><th class="font-mono text-right">Valor</th></tr></thead>
       <tbody>
@@ -108,7 +108,7 @@
     </table>
     <div class="mt-3 flex flex-col items-center justify-between gap-3 border-t px-1 pt-3 text-sm sm:flex-row">
       <span class="text-muted-foreground">1 a 20 de 23</span>
-      <div class="flex items-center gap-1"><span class="mr-2 text-muted-foreground">Página 1 de 2</span><button class="size-8 rounded-md border">&lsaquo;</button><button class="size-8 rounded-md border">&rsaquo;</button></div>
+      <div class="flex items-center gap-1"><span class="mr-2 text-muted-foreground">Página 1 de 2</span><button type="button" class="size-8 rounded-md border">&lsaquo;</button><button type="button" class="size-8 rounded-md border">&rsaquo;</button></div>
     </div>
   </div>
 </section>

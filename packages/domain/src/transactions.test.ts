@@ -580,10 +580,7 @@ test("bulk actions only reach user-editable movements", () => {
   assert.equal(canApplyBulkTransactionAction(regular, "trip"), true);
   assert.equal(canApplyBulkTransactionAction(refund, "trip"), true);
   assert.equal(canApplyBulkTransactionAction(generated, "trip"), false);
-  assert.equal(
-    canApplyBulkTransactionAction({ ...regular, type: "transfer" }, "trip"),
-    false,
-  );
+  assert.equal(canApplyBulkTransactionAction({ ...regular, type: "transfer" }, "trip"), false);
 });
 
 test("bulk categorization requires a matching user category", () => {
