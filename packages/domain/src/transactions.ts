@@ -1,5 +1,6 @@
 import { type CardClosingRule, getInvoiceDates } from "./cards";
 import { resolveRecurringDueDate } from "./recurring-expenses";
+import { isTripLinkable } from "./trips";
 
 export const transactionTypes = ["income", "expense", "transfer"] as const;
 export const transactionOrigins = [
@@ -133,7 +134,14 @@ export function canDeleteTransactionOrigin(origin: TransactionOrigin) {
   return origin === "regular" || origin === "refund" || origin === "accountBalanceAdjustment";
 }
 
-export const bulkTransactionActions = ["rename", "tag", "delete", "settle", "unsettle"] as const;
+export const bulkTransactionActions = [
+  "rename",
+  "tag",
+  "trip",
+  "delete",
+  "settle",
+  "unsettle",
+] as const;
 export type BulkTransactionAction = (typeof bulkTransactionActions)[number];
 
 export type BulkTransactionTarget = {
@@ -162,6 +170,8 @@ export function canApplyBulkTransactionAction(
     case "rename":
     case "tag":
       return isUserEditableBulkTarget(target);
+    case "trip":
+      return isTripLinkable(target);
     case "delete":
       return (
         canDeleteTransactionOrigin(target.origin) &&
