@@ -74,7 +74,7 @@ export function useDetectTransactionImportMutation(): UseMutationResult<Transact
 
 ## Phase 4: US3 registry and detection (P1)
 
-- [ ] T006 [US3] Implement `packages/domain/src/import-profiles.ts`: `importProfiles` (id `"c6-statement" | "c6-invoice"`, label "C6 Bank - Extrato de conta corrente" / "C6 Bank - Fatura de cartão", kind, `destinationType` account/card, `headerSignature`, optional `readAccountIdentification`, `parse`), `findImportProfile(id)`, `detectImportProfile(content)` (signature in "Fixed interfaces") (signature matched against the header lines, suggestion only, never throws on unknown text). Port V1 `registry.test.ts` (4) and `detect.test.ts` (3) to `packages/domain/src/import-profiles.test.ts`, including "each signature does not claim the other header" and account identification peek.
+- [x] T006 [US3] Implement `packages/domain/src/import-profiles.ts`: `importProfiles` (id `"c6-statement" | "c6-invoice"`, label "C6 Bank - Extrato de conta corrente" / "C6 Bank - Fatura de cartão", kind, `destinationType` account/card, `headerSignature`, optional `readAccountIdentification`, `parse`), `findImportProfile(id)`, `detectImportProfile(content)` (signature in "Fixed interfaces") (signature matched against the header lines, suggestion only, never throws on unknown text). Port V1 `registry.test.ts` (4) and `detect.test.ts` (3) to `packages/domain/src/import-profiles.test.ts`, including "each signature does not claim the other header" and account identification peek.
 
 ## Phase 5: US4 row identity (P1)
 
