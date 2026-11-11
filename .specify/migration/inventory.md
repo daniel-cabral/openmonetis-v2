@@ -36,6 +36,13 @@ Cross-cutting:
 - **Subcategories:** accept the V2 child-category model; the ETL turns V1 subcategories into child
   categories.
 - **AI:** support both V2 CLI subscriptions and V1-style API-key providers (incl. Ollama).
+- **Autonomy:** per-feature goals run without pausing. Claude generates the mockups, picks the
+  option closest to V1 behaviour within V2 patterns, records the choice and rationale in the
+  spec, and Daniel reviews at the end of each feature.
+- **Reconciliation no-regression oracle:** port the V1 fixtures
+  (`src/shared/lib/reconciliation/__fixtures__/c6-extrato.csv`, `c6-fatura.csv`, `fixtures.test.ts`)
+  and the V1 matcher/closure/fingerprint/review/projection/parser test cases; V2 must produce the
+  same buckets, closure results and projections on them.
 
 Execution order (one `/goal` per item, each through spec-kit and the constitution):
 
