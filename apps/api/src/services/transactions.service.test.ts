@@ -59,6 +59,7 @@ function persistedTransaction(source: TransactionWithRelations) {
     frozenDueDate: source.frozenDueDate ?? null,
     dueDateAdjustment: source.dueDateAdjustment ?? null,
     categoryName: source.categoryName ?? "Category",
+    tripId: source.tripId ?? null,
   };
 }
 
@@ -2866,6 +2867,7 @@ test("copying an installment purchase creates an independent series with conserv
       ...f.source,
       ...record,
       tagIds: record.tagIds ?? [],
+      tripId: record.tripId ?? null,
       plannedAmount: record.amount,
       settledAmount: null,
       settledDate: null,
@@ -2947,6 +2949,7 @@ for (const selectedAmount of ["-33.34", "-33.33"]) {
         ...f.source,
         ...record,
         tagIds: record.tagIds ?? [],
+        tripId: record.tripId ?? null,
         plannedAmount: record.amount,
         settledAmount: null,
         settledDate: null,
