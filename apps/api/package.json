@@ -7,10 +7,10 @@
     "src"
   ],
   "scripts": {
-    "dev": "DOTENV_CONFIG_PATH=../../.env tsx watch --import dotenv/config src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc --noEmit",
-    "db:seed": "DOTENV_CONFIG_PATH=../../.env tsx --import dotenv/config src/scripts/mock-data.ts",
-    "worker:recurring-external-expenses": "DOTENV_CONFIG_PATH=../../.env tsx --import dotenv/config src/scripts/recurring-external-expenses.worker.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env src/scripts/mock-data.ts",
+    "worker:recurring-external-expenses": "tsx --env-file-if-exists=../../.env src/scripts/recurring-external-expenses.worker.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

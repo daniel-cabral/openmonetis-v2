@@ -7,6 +7,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Corrigido
+
+- `pnpm dev`, `pnpm db:seed` e o worker de despesas externas recorrentes funcionam no Windows: a
+  API e o serviço de IA carregam o `.env` da raiz com `--env-file-if-exists` do Node, sem prefixo
+  de variável de ambiente no script.
+
 ## [0.16.0] - 2026-11-07
 
 Adiciona o extrato mensal de cada pessoa externa, com envio por e-mail pelo Resend, envio
