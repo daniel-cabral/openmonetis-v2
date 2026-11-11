@@ -11,6 +11,7 @@ import {
   Landmark,
   NotebookText,
   Paperclip,
+  Plane,
   Repeat2,
   Sparkles,
   Tag,
@@ -120,6 +121,12 @@ export const navSections: NavSection[] = [
         description: "Assuntos e projetos dos lançamentos",
         icon: <Tag className="size-4" aria-hidden="true" />,
         preservePeriod: true,
+      },
+      {
+        href: "/trips",
+        label: "Viagens",
+        description: "Quanto custou cada viagem",
+        icon: <Plane className="size-4" aria-hidden="true" />,
       },
       {
         href: "/notes",
