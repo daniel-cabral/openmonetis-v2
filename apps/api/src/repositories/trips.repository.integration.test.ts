@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  ListTransactionsQuerySchema,
+  TransactionInputSchema,
+  UpdateRecurringRuleQuerySchema,
+} from "@openmonetis/validators/transactions";
 
 // Opt-in: uses the configured development PostgreSQL server, creating and dropping
 // a dedicated database. Existing databases and financial records are untouched.
@@ -38,6 +43,27 @@ test("trips persist links and summaries with database ownership", {
     const { tripsRepository } = await import("./trips.repository");
     const { createTripsService } = await import("../services/trips.service");
     const { ApiError } = await import("../utils/errors");
+    const txRepository = await import("./transactions.repository");
+    const accounts = await import("./accounts.repository");
+    const cards = await import("./cards.repository");
+    const categories = await import("./categories.repository");
+    const people = await import("./people.repository");
+    const recurring = await import("./recurring-transactions.repository");
+    const { createTransactionsService } = await import("../services/transactions.service");
+    const transactionsService = createTransactionsService(
+      {
+        ...txRepository,
+        ...accounts,
+        ...cards,
+        ...categories,
+        ...people,
+        transitionRecurringRuleForUser: recurring.transitionRecurringRuleForUser,
+        findTripByIdForUser: tripsRepository.findByIdForUser,
+        getAccountBalanceSnapshotForUser: async () => ({ displayed: 10000, persisted: 10000 }),
+      },
+      { cleanupOrphans: async () => ({ deletedCount: 0 }) },
+      { synchronize: async () => undefined },
+    );
     const [owner, stranger] = await db
       .insert(schema.user)
       .values([
@@ -64,9 +90,7 @@ test("trips persist links and summaries with database ownership", {
       ])
       .returning();
     const service = createTripsService(tripsRepository, {
-      getRecurringOccurrence: async () => {
-        throw new Error("no recurring occurrence is linked in this test");
-      },
+      getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
     });
     const expectError = async (promise: Promise<unknown>, code: string) => {
       await assert.rejects(promise, (error: unknown) => {
@@ -94,7 +118,7 @@ test("trips persist links and summaries with database ownership", {
       owner.id,
     );
     assert.equal(extended.endDate, "2026-05-23");
-    await service.create(
+    const santiago = await service.create(
       { name: "Santiago", startDate: "2026-09-01", endDate: "2026-09-01", note: null },
       owner.id,
     );
@@ -178,11 +202,173 @@ test("trips persist links and summaries with database ownership", {
     );
     await expectError(service.remove(lisboa.id, stranger.id), "TRIP_NOT_FOUND");
 
+    const linkedIdsOf = async (tripId: string) =>
+      new Set((await service.getDetail(tripId, owner.id)).linked.map((row) => row.id));
+    const expenseBase = {
+      type: "expense",
+      paymentMethod: "pix",
+      personId: person.id,
+      accountId: c6.id,
+      categoryId: restaurants.id,
+    } as const;
+
+    const purchase = await transactionsService.createTransaction({
+      ...TransactionInputSchema.parse({
+        ...expenseBase,
+        name: "Parcelado",
+        amount: 1000,
+        purchaseDate: "2026-05-13",
+        condition: "installment",
+        installmentCount: 10,
+        tripId: lisboa.id,
+      }),
+      userId: owner.id,
+    });
+    const installments = await txRepository.listTransactionSeriesForUser(
+      purchase.seriesId as string,
+      owner.id,
+    );
+    const missingFrom = (linked: Set<string>) =>
+      installments.filter((row) => !linked.has(row.id)).map((row) => row.id);
+    assert.equal(installments.length, 10);
+    assert.deepEqual(missingFrom(await linkedIdsOf(lisboa.id)), []);
+    // A row-level unlink touches only that installment.
+    await transactionsService.updateTransaction(installments[6].id, owner.id, { tripId: null });
+    assert.deepEqual(missingFrom(await linkedIdsOf(lisboa.id)), [installments[6].id]);
+    // An update that omits tripId keeps the existing link state.
+    await transactionsService.updateTransaction(installments[2].id, owner.id, {
+      name: "Parcelado renomeado",
+    });
+    assert.deepEqual(missingFrom(await linkedIdsOf(lisboa.id)), [installments[6].id]);
+    // Relinking one installment moves the whole series.
+    await transactionsService.updateTransaction(installments[6].id, owner.id, {
+      tripId: santiago.id,
+    });
+    assert.deepEqual(missingFrom(await linkedIdsOf(santiago.id)), []);
+    assert.equal(missingFrom(await linkedIdsOf(lisboa.id)).length, 10);
+
+    // Split expense: only the owner's share (R$ 150,00) reaches the net cost.
+    const [ana] = await db
+      .insert(schema.people)
+      .values({ userId: owner.id, name: "Ana", role: "external" })
+      .returning();
+    await transactionsService.createTransaction({
+      ...TransactionInputSchema.parse({
+        ...expenseBase,
+        name: "Jantar dividido",
+        amount: 300,
+        purchaseDate: "2026-05-13",
+        splitShares: [
+          { personId: person.id, amount: 150 },
+          { personId: ana.id, amount: 150 },
+        ],
+        tripId: lisboa.id,
+      }),
+      userId: owner.id,
+    });
+    const splitDetail = await service.getDetail(lisboa.id, owner.id);
+    assert.equal(splitDetail.summary.netCost, 8562.3);
+    assert.equal(splitDetail.summary.byPerson.find((item) => item.label === "Ana")?.amount, 150);
+
+    // Recurring: the entry occurrence is linked on create; other months stay unlinked.
+    const netflixInput = TransactionInputSchema.parse({
+      ...expenseBase,
+      name: "Netflix",
+      amount: 55.9,
+      purchaseDate: "2026-04-10",
+      condition: "recurring",
+      recurrenceFrequency: "monthly",
+      tripId: lisboa.id,
+    });
+    const netflixMay = { ...netflixInput, purchaseDate: "2026-05-10" };
+    const netflix = await transactionsService.createTransaction({
+      ...netflixInput,
+      userId: owner.id,
+    });
+    const ruleId = netflix.recurringRuleId as string;
+    const netflixTripOn = async (purchaseDate: string) =>
+      (
+        await transactionsService.listTransactions(
+          owner.id,
+          ListTransactionsQuerySchema.parse({ period: purchaseDate.slice(0, 7), pageSize: 100 }),
+          false,
+        )
+      ).items.find((item) => item.name === "Netflix" && item.purchaseDate === purchaseDate)
+        ?.tripId ?? null;
+    const occurrenceRowCount = async () =>
+      (
+        await db
+          .select({ id: schema.recurringTransactionOccurrences.id })
+          .from(schema.recurringTransactionOccurrences)
+          .where(eq(schema.recurringTransactionOccurrences.userId, owner.id))
+      ).length;
+    assert.equal(await netflixTripOn("2026-04-10"), lisboa.id);
+    assert.equal(await netflixTripOn("2026-05-10"), null);
+    const occurrenceRowsBefore = await occurrenceRowCount();
+    // Dated edits version the rule, so the returned id is the one to edit next.
+    const linkedRule = await transactionsService.updateRecurringRule(
+      ruleId,
+      owner.id,
+      netflixMay,
+      UpdateRecurringRuleQuerySchema.parse({ scope: "single", occurrenceDate: "2026-05-10" }),
+    );
+    const linkedRuleId = linkedRule.recurringRuleId as string;
+    assert.equal(await netflixTripOn("2026-05-10"), lisboa.id);
+    assert.equal(await netflixTripOn("2026-06-10"), null);
+    assert.equal(await occurrenceRowCount(), occurrenceRowsBefore);
+    await transactionsService.updateRecurringRule(
+      linkedRuleId,
+      owner.id,
+      { ...netflixMay, tripId: null },
+      UpdateRecurringRuleQuerySchema.parse({ scope: "single", occurrenceDate: "2026-05-10" }),
+    );
+    assert.equal(await netflixTripOn("2026-05-10"), null);
+    assert.equal(await netflixTripOn("2026-04-10"), lisboa.id);
+
+    // Transfers are not linkable; a foreign trip is not found.
+    const linkedBeforeRejects = (await linkedIdsOf(lisboa.id)).size;
+    await expectError(
+      transactionsService.createTransaction({
+        ...TransactionInputSchema.parse({
+          type: "transfer",
+          paymentMethod: "bank_transfer",
+          name: "Transferência",
+          amount: 50,
+          purchaseDate: "2026-05-13",
+          personId: person.id,
+          sourceAccountId: c6.id,
+          destinationAccountId: itau.id,
+          tripId: lisboa.id,
+        }),
+        userId: owner.id,
+      }),
+      "TRIP_NOT_LINKABLE",
+    );
+    assert.equal((await linkedIdsOf(lisboa.id)).size, linkedBeforeRejects);
+    const strangerTrip = await service.create(
+      { name: "Outra", startDate: "2026-07-01", endDate: "2026-07-05", note: null },
+      stranger.id,
+    );
+    await expectError(
+      transactionsService.createTransaction({
+        ...TransactionInputSchema.parse({
+          ...expenseBase,
+          name: "Café",
+          amount: 10,
+          purchaseDate: "2026-05-13",
+          tripId: strangerTrip.id,
+        }),
+        userId: owner.id,
+      }),
+      "TRIP_NOT_FOUND",
+    );
+
     const transactionsBefore = await db
       .select({ id: schema.transactions.id })
       .from(schema.transactions)
       .where(eq(schema.transactions.userId, owner.id));
     await service.remove(lisboa.id, owner.id);
+    await service.remove(santiago.id, owner.id);
     const transactionsAfter = await db
       .select({ id: schema.transactions.id })
       .from(schema.transactions)
