@@ -74,6 +74,55 @@ export function parseEntryKey(entryKey: string): EntryRef | null;
 
 The source fingerprint is the same for every line of a file and is passed by the service; plan items carry only `externalId`.
 
+```ts
+// apps/api/src/repositories/reconciliations.repository.ts (rows are plain arrays; amounts are DB decimal strings, sign applied)
+export type ReconciliationTransactionRow = {
+  id: string; name: string; purchaseDate: string; period: string; type: "income" | "expense";
+  effectiveAmount: string; // signed decimal string (expense negative) from effectiveTransactionAmountSql
+  installmentCount: number | null; currentInstallment: number | null;
+  importSourceFingerprint: string | null; importExternalId: string | null;
+  categoryId: string | null; isSettled: boolean | null; hasSplits: boolean;
+  transferId: string | null; transferSide: "source" | "destination" | null; // side relative to the target account
+  isGenerated: boolean; inPaidInvoice: boolean;
+};
+export function listReconciliationTransactionCandidates(input: { userId: string; targetType: "account" | "card"; targetId: string; from: string; to: string; periods: string[] }): Promise<ReconciliationTransactionRow[]>;
+export type ReconciliationRecurringRuleRow = Awaited<ReturnType<typeof listRecurringRulesForUser>>[number]; // reuse the existing recurring repository row shape, filtered to the target
+export function listReconciliationRecurringRules(input: { userId: string; targetType: "account" | "card"; targetId: string }): Promise<ReconciliationRecurringRuleRow[]>;
+export type ReconciliationOccurrenceRow = { ruleId: string; date: string; isSettled: boolean; settledAmount: string | null; importSourceFingerprint: string | null; importExternalId: string | null };
+export function listReconciliationOccurrences(input: { userId: string; ruleIds: string[]; from: string; to: string }): Promise<ReconciliationOccurrenceRow[]>;
+export function listReconciliationIgnores(userId: string, sourceFingerprint: string, externalIds: string[]): Promise<Map<string, string>>; // externalId -> reason
+export function listImportNameMappings(userId: string, keys: string[]): Promise<Record<string, string>>; // descriptionKey -> name
+// If the existing recurring repository exports a differently named list function, use it and keep this file's exported names.
+
+export type ReconciliationUndoJournal = {
+  stamped: { ref: EntryRef; externalId: string }[];
+  released: { ref: EntryRef; externalId: string }[];
+  amountChanges: { ref: EntryRef; field: "amount" | "settledAmount"; previous: string | null }[];
+  settledByApply: ({ ref: EntryRef } | { transferId: string })[];
+  stampOnlyOccurrences: { ruleId: string; date: string }[];
+};
+export type ApplyReconciliationTarget = { type: "account"; accountId: string } | { type: "card"; cardId: string };
+export function applyReconciliationPlan(input: { userId: string; batchId: string; target: ApplyReconciliationTarget; sourceFingerprint: string; plan: ReconciliationPlan; paymentMethod: string; invoicePeriod: string | null }): Promise<{ created: number; skipped: number; reconciled: number; ignored: number }>;
+export function undoReconciliationBatch(batchId: string, userId: string): Promise<{ removed: number; restored: number }>; // throws RepositoryError code RECONCILIATION_BATCH_NOT_FOUND (or the existing typed-error pattern of the repositories)
+// `paymentMethod` uses the same value type the 001 import uses for the target (import its existing type if one is exported).
+
+// apps/web/src/features/reconciliations/components/reconciliation-review.ts
+type Preview = ReconciliationPreview; // z.infer of the preview output schema from packages/validators/src/reconciliations.ts (T007)
+type PreviewLine = Preview["lines"][number];
+export type UiLineDecision = { lineIndex: number; action: "keep" | "create" | "link" | "ignore" | "skip";
+  entryKey: string | null; name: string; categoryId: string | null; personId: string | null; ignoreReason: string };
+export type UiDecisions = Record<number, UiLineDecision>; // keyed by line index, one per line
+export function initialDecisions(preview: Preview, adminPersonId: string | null): UiDecisions;
+export function markAllBankOnlyAsCreate(decisions: UiDecisions, preview: Preview): UiDecisions; // returns a new object
+export function consumedEntryKeys(decisions: UiDecisions, preview: Preview): Map<string, number>; // entryKey -> consuming lineIndex
+export type LinkOption = { entryKey: string; name: string; date: string; amount: string; unavailable: boolean };
+export function linkOptions(line: PreviewLine, preview: Preview, consumed: Map<string, number>): LinkOption[]; // consumed by another line -> unavailable: true
+export function applyBlockReason(decisions: UiDecisions): string | null; // "N criação(ões) sem nome" or null
+export function hasApplicableDecision(decisions: UiDecisions, preview: Preview): boolean;
+export function toApplyDecisions(decisions: UiDecisions, preview: Preview): LineDecision[]; // LineDecision = input schema item from T007 validators, sparse
+export function defaultProfileId(detection: { detectedProfileId: string | null; profiles: { id: string }[] }): string | null;
+```
+
 ## Phase 1: Setup
 
 - [ ] T001 Schema and migration per data-model.md "Schema changes": in `packages/db/src/schema.ts` add `reconciliationIgnores` (`reconciliation_ignores`: `user_id` uuid not null FK users cascade, `source_fingerprint` varchar(64) not null, `external_id` varchar(255) not null, `reason` varchar(160) not null, `created_at` timestamp not null default now; PK `(user_id, source_fingerprint, external_id)`), `importNameMappings` (`import_name_mappings`: `user_id`, `description_key` varchar(160) not null, `name` varchar(160) not null, `updated_at` timestamp not null default now; PK `(user_id, description_key)`), `reconciliationBatches` (`reconciliation_batches`: `id` uuid PK, `user_id` uuid not null FK users cascade, `target_type` varchar(16) not null, `target_id` uuid not null, `undo` jsonb not null, `created_at` timestamp not null default now; index `(user_id, created_at)`), and on `recurringTransactionOccurrences` nullable `import_source_fingerprint` varchar(64), `import_external_id` varchar(255) with partial unique index `(user_id, import_source_fingerprint, import_external_id) where import_external_id is not null`. Follow neighbouring table style (relations, inferred types). Generate with `pnpm db:generate` (creates `packages/db/drizzle/0032_*.sql` + meta), never push; run `pnpm db:migrations:check` and apply to the lane DB (`pnpm db:migrate`). Test: none, because schema shape is locked by `apps/api/src/migrations.integration.test.ts` applying all migrations and by T011/T013 integration writes.
