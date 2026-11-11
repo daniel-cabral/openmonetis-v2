@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viagens: campo no lançamento e ação em lote</title>
+<link rel="stylesheet" href="./app.css">
+</head>
+<body class="bg-background text-foreground font-sans">
+<main class="app-page project-container min-w-0">
+  <!-- Campo "Viagem" no bloco recolhível de detalhes do formulário, antes de Etiquetas -->
+  <div class="max-w-lg rounded-xl border bg-card p-6">
+    <details class="group" open>
+      <summary class="cursor-pointer text-sm font-medium">Mais detalhes</summary>
+      <div class="mt-4 grid gap-4">
+        <fieldset class="flex min-w-0 flex-col gap-1.5">
+          <legend class="font-mono mb-1.5 text-sm font-medium">Viagem</legend>
+          <button class="flex h-9 w-full items-center justify-between rounded-md border bg-background px-3 text-sm">Lisboa (12/05 a 22/05)<span class="text-muted-foreground">&#9662;</span></button>
+          <p class="text-muted-foreground text-xs">Sugerida pela data da compra. Escolha "Nenhuma" para não vincular.</p>
+        </fieldset>
+        <fieldset class="flex min-w-0 flex-col gap-1.5">
+          <legend class="font-mono mb-1.5 text-sm font-medium">Etiquetas</legend>
+          <button class="flex h-9 w-full items-center justify-between rounded-md border bg-background px-3 text-muted-foreground text-sm">Selecionar etiquetas<span>&#9662;</span></button>
+        </fieldset>
+      </div>
+    </details>
+  </div>
+
+  <!-- Barra de ações em lote: novo ícone "Definir viagem" com picker (copia o picker de categoria) -->
+  <div class="dark mx-auto w-full md:max-w-max" role="toolbar">
+    <div class="flex flex-wrap items-center justify-center gap-x-1 gap-y-1.5 rounded-2xl border bg-popover p-1.5 text-popover-foreground shadow-2xl md:flex-nowrap md:rounded-full">
+      <div class="flex items-center gap-2 pr-2"><span class="grid h-5 min-w-5 place-items-center rounded-full bg-success px-1.5 font-semibold text-background text-xs tabular-nums">4</span><span class="text-sm">selecionados</span></div>
+      <span class="h-5 w-px bg-border"></span>
+      <div class="flex items-center gap-0.5 text-sm"><span class="rounded-full px-2 py-1">Categoria</span><span class="rounded-full px-2 py-1">Etiquetas</span><span class="rounded-full bg-accent px-2 py-1">&#9992; Viagem</span></div>
+    </div>
+    <div class="mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-md border bg-popover p-2 text-popover-foreground text-sm">
+      <p class="px-2 py-1 text-muted-foreground text-xs">Definir viagem</p>
+      <p class="rounded px-2 py-2 hover:bg-accent">Sem viagem</p>
+      <p class="rounded bg-accent px-2 py-2">Lisboa</p>
+      <p class="rounded px-2 py-2 hover:bg-accent">Santiago</p>
+    </div>
+  </div>
+  <p class="text-muted-foreground text-sm">Toast após aplicar: "3 lançamentos atualizados · 1 ignorado (transferência ou recorrência)".</p>
+</main>
+</body>
+</html>
