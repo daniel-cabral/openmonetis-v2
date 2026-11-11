@@ -543,6 +543,12 @@ export const BulkTagTransactionsInputSchema = BulkTransactionsInputSchema.extend
   .strict()
   .openapi("BulkTagTransactionsInput");
 export type BulkTagTransactionsInput = z.infer<typeof BulkTagTransactionsInputSchema>;
+export const BulkTripTransactionsInputSchema = BulkTransactionsInputSchema.extend({
+  tripId: z.uuid().nullable(),
+})
+  .strict()
+  .openapi("BulkTripTransactionsInput");
+export type BulkTripTransactionsInput = z.infer<typeof BulkTripTransactionsInputSchema>;
 export const BulkRenameTransactionsInputSchema = z
   .object({
     items: z

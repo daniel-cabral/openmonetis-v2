@@ -196,6 +196,91 @@ export const tripsRepository: TripsRepository = {
       .where(and(eq(people.userId, userId), eq(people.role, "admin")));
     return admin?.id ?? null;
   },
+  async resolveLinkTargetsForUser(userId, { transactionIds, ruleIds }) {
+    const transactionRows = transactionIds.length
+      ? await db
+          .select({
+            id: transactions.id,
+            seriesId: transactions.seriesId,
+            type: transactions.type,
+            origin: transactions.origin,
+            condition: transactions.condition,
+            tripId: transactionTrips.tripId,
+          })
+          .from(transactions)
+          .leftJoin(
+            transactionTrips,
+            and(
+              eq(transactionTrips.transactionId, transactions.id),
+              eq(transactionTrips.userId, transactions.userId),
+            ),
+          )
+          .where(and(eq(transactions.userId, userId), inArray(transactions.id, transactionIds)))
+      : [];
+
+    const rules = ruleIds.length
+      ? await db
+          .select({
+            id: recurringTransactionRules.id,
+            seriesId: recurringTransactionRules.seriesId,
+          })
+          .from(recurringTransactionRules)
+          .where(
+            and(
+              eq(recurringTransactionRules.userId, userId),
+              inArray(recurringTransactionRules.id, ruleIds),
+            ),
+          )
+      : [];
+
+    const seriesIds = [...new Set(rules.map((rule) => rule.seriesId))];
+    const occurrenceRows = seriesIds.length
+      ? await db
+          .select({
+            recurringSeriesId: recurringOccurrenceTrips.recurringSeriesId,
+            occurrenceDate: recurringOccurrenceTrips.occurrenceDate,
+            tripId: recurringOccurrenceTrips.tripId,
+          })
+          .from(recurringOccurrenceTrips)
+          .where(
+            and(
+              eq(recurringOccurrenceTrips.userId, userId),
+              inArray(recurringOccurrenceTrips.recurringSeriesId, seriesIds),
+            ),
+          )
+      : [];
+
+    return {
+      transactions: transactionRows,
+      rules,
+      occurrenceLinks: occurrenceRows.map((link) => ({
+        ...link,
+        occurrenceDate: toDateString(link.occurrenceDate),
+      })),
+    };
+  },
+  async linkTransactionsForUser(userId, tripId, { transactionIds, seriesIds, occurrences }) {
+    return db.transaction(async (tx) => {
+      const linkedIds = await linkTransactionsToTrip(tx, {
+        userId,
+        tripId,
+        transactionIds,
+        seriesIds,
+      });
+      for (const occurrence of occurrences) {
+        await setOccurrenceTrip(tx, { userId, tripId, ...occurrence });
+      }
+      return linkedIds;
+    });
+  },
+  async unlinkTransactionsForUser(userId, { transactionIds, occurrences }) {
+    await db.transaction(async (tx) => {
+      await unlinkTransactions(tx, userId, transactionIds);
+      for (const occurrence of occurrences) {
+        await setOccurrenceTrip(tx, { userId, tripId: null, ...occurrence });
+      }
+    });
+  },
 };
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -209,7 +294,7 @@ export async function linkTransactionsToTrip(
     seriesIds,
   }: { userId: string; tripId: string; transactionIds: string[]; seriesIds: string[] },
 ) {
-  if (transactionIds.length === 0 && seriesIds.length === 0) return;
+  if (transactionIds.length === 0 && seriesIds.length === 0) return [];
 
   const ownedRows = await tx
     .select({ id: transactions.id })
@@ -223,12 +308,13 @@ export async function linkTransactionsToTrip(
         ),
       ),
     );
-  if (ownedRows.length === 0) return;
+  if (ownedRows.length === 0) return [];
 
   await tx
     .insert(transactionTrips)
     .values(ownedRows.map((row) => ({ transactionId: row.id, userId, tripId })))
     .onConflictDoUpdate({ target: transactionTrips.transactionId, set: { tripId } });
+  return ownedRows.map((row) => row.id);
 }
 
 export async function unlinkTransactions(

@@ -3,9 +3,13 @@ import { ok } from "@openmonetis/shared/api";
 import {
   CreateTripInputSchema,
   TripDetailOutputSchema,
+  TripLinkIdsInputSchema,
+  TripLinkIdsOutputSchema,
   TripListItemOutputSchema,
   TripOutputSchema,
   TripParamsSchema,
+  TripSuggestionsPageOutputSchema,
+  TripSuggestionsQuerySchema,
   UpdateTripInputSchema,
 } from "@openmonetis/validators/trips";
 import type { TripsService } from "../services/trips.service";
@@ -104,6 +108,81 @@ export function createTripsRoute(service: TripsService) {
       },
     }),
     async (c) => c.json(ok(await service.remove(c.req.valid("param").id, c.get("userId"))), 200),
+  );
+  route.openapi(
+    createRoute({
+      method: "get",
+      path: "/{id}/suggestions",
+      tags: ["Trips"],
+      request: { params: TripParamsSchema, query: TripSuggestionsQuerySchema },
+      responses: {
+        200: response(TripSuggestionsPageOutputSchema, "Unlinked entries within the trip period"),
+        400: error("Invalid request"),
+        401: error("Authentication required"),
+        404: error("Trip not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await service.listSuggestions(
+            c.req.valid("param").id,
+            c.req.valid("query"),
+            c.get("userId"),
+          ),
+        ),
+        200,
+      ),
+  );
+  route.openapi(
+    createRoute({
+      method: "post",
+      path: "/{id}/links",
+      tags: ["Trips"],
+      request: {
+        params: TripParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: TripLinkIdsInputSchema } },
+        },
+      },
+      responses: {
+        200: response(TripLinkIdsOutputSchema, "Linked transaction and occurrence ids"),
+        400: error("Transaction cannot be linked to a trip"),
+        401: error("Authentication required"),
+        404: error("Trip, transaction or recurring occurrence not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(await service.link(c.req.valid("param").id, c.req.valid("json").ids, c.get("userId"))),
+        200,
+      ),
+  );
+  route.openapi(
+    createRoute({
+      method: "post",
+      path: "/{id}/links/remove",
+      tags: ["Trips"],
+      request: {
+        params: TripParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: TripLinkIdsInputSchema } },
+        },
+      },
+      responses: {
+        200: response(TripLinkIdsOutputSchema, "Unlinked transaction and occurrence ids"),
+        400: error("Invalid request"),
+        401: error("Authentication required"),
+        404: error("Trip, transaction or recurring rule not found"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(await service.unlink(c.req.valid("param").id, c.req.valid("json").ids, c.get("userId"))),
+        200,
+      ),
   );
   return route;
 }

@@ -1943,6 +1943,34 @@ export async function removeTransactionsTagsForUser(
   return ids;
 }
 
+export async function setTransactionsTripForUser(
+  ids: string[],
+  userId: string,
+  tripId: string | null,
+) {
+  return db.transaction(async (transaction) => {
+    if (tripId === null) {
+      await unlinkTransactions(transaction, userId, ids);
+      return ids;
+    }
+    const rows = await transaction
+      .select({
+        id: transactions.id,
+        seriesId: transactions.seriesId,
+        condition: transactions.condition,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, ids)));
+    const installmentRows = rows.filter((row) => row.condition === "installment" && row.seriesId);
+    return linkTransactionsToTrip(transaction, {
+      userId,
+      tripId,
+      transactionIds: rows.filter((row) => !installmentRows.includes(row)).map((row) => row.id),
+      seriesIds: [...new Set(installmentRows.map((row) => row.seriesId as string))],
+    });
+  });
+}
+
 export async function deleteTransactionsForUser(ids: string[], userId: string) {
   return db.transaction(async (transaction) => {
     const targets = await transaction

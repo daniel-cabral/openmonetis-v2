@@ -7,6 +7,7 @@ import {
   TransactionInputSchema,
   UpdateRecurringRuleQuerySchema,
 } from "@openmonetis/validators/transactions";
+import { TripSuggestionsQuerySchema } from "@openmonetis/validators/trips";
 
 // Opt-in: uses the configured development PostgreSQL server, creating and dropping
 // a dedicated database. Existing databases and financial records are untouched.
@@ -89,8 +90,23 @@ test("trips persist links and summaries with database ownership", {
         { userId: owner.id, name: "Transporte", type: "expense" },
       ])
       .returning();
+    await db
+      .insert(schema.categories)
+      .values({ userId: owner.id, name: "Transferência interna", type: "income", isSystem: true });
     const service = createTripsService(tripsRepository, {
       getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+      listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+        (
+          await transactionsService.listTransactions(
+            userId,
+            ListTransactionsQuerySchema.parse({
+              dateStart: startDate,
+              dateEnd: endDate,
+              pageSize: 100,
+            }),
+            false,
+          )
+        ).items,
     });
     const expectError = async (promise: Promise<unknown>, code: string) => {
       await assert.rejects(promise, (error: unknown) => {
@@ -324,6 +340,146 @@ test("trips persist links and summaries with database ownership", {
     );
     assert.equal(await netflixTripOn("2026-05-10"), null);
     assert.equal(await netflixTripOn("2026-04-10"), lisboa.id);
+
+    // Suggestions: unlinked, linkable rows dated inside Lisboa (12 to 23 May).
+    const createExpense = (input: Record<string, unknown>) =>
+      transactionsService.createTransaction({
+        ...TransactionInputSchema.parse({ ...expenseBase, ...input }),
+        userId: owner.id,
+      });
+    const uber = await createExpense({ name: "Uber", amount: 35, purchaseDate: "2026-05-13" });
+    const pingo = await createExpense({
+      name: "Pingo Doce",
+      amount: 42.5,
+      purchaseDate: "2026-05-14",
+    });
+    const mercado = await createExpense({
+      name: "Mercado",
+      amount: 80,
+      purchaseDate: "2026-06-01",
+    });
+    const curso = await transactionsService.createTransaction({
+      ...TransactionInputSchema.parse({
+        ...expenseBase,
+        name: "Curso",
+        amount: 300,
+        purchaseDate: "2026-05-15",
+        condition: "installment",
+        installmentCount: 3,
+      }),
+      userId: owner.id,
+    });
+    await createExpense({
+      name: "Academia",
+      amount: 80,
+      purchaseDate: "2026-05-18",
+      condition: "recurring",
+      recurrenceFrequency: "monthly",
+    });
+    const transfer = await transactionsService.createTransaction({
+      ...TransactionInputSchema.parse({
+        type: "transfer",
+        paymentMethod: "bank_transfer",
+        name: "Transferência",
+        amount: 50,
+        purchaseDate: "2026-05-16",
+        personId: person.id,
+        sourceAccountId: c6.id,
+        destinationAccountId: itau.id,
+      }),
+      userId: owner.id,
+    });
+    const suggestionRows = () =>
+      service.listSuggestions(lisboa.id, TripSuggestionsQuerySchema.parse({}), owner.id);
+    const suggestionId = async (name: string) =>
+      (await suggestionRows()).items.find((item) => item.name === name)?.id as string;
+    const pending = await suggestionRows();
+    assert.deepEqual(
+      pending.items.map((item) => item.name),
+      ["Uber", "Pingo Doce", "Curso", "Academia"],
+    );
+    assert.equal(pending.total, 4);
+    assert.equal(pending.filteredIds.length, 4);
+    assert.equal(
+      pending.items.some((item) => item.id === transfer.id),
+      false,
+    );
+    const linkCount = async () =>
+      (
+        await db
+          .select({ id: schema.transactionTrips.transactionId })
+          .from(schema.transactionTrips)
+          .where(eq(schema.transactionTrips.userId, owner.id))
+      ).length;
+
+    await service.link(
+      lisboa.id,
+      [await suggestionId("Uber"), await suggestionId("Pingo Doce")],
+      owner.id,
+    );
+    assert.deepEqual(
+      (await suggestionRows()).items.map((item) => item.name),
+      ["Curso", "Academia"],
+    );
+    // Linking the installment representative links every installment of the series.
+    await service.link(lisboa.id, [await suggestionId("Curso")], owner.id);
+    const cursoRows = await txRepository.listTransactionSeriesForUser(
+      curso.seriesId as string,
+      owner.id,
+    );
+    assert.equal(cursoRows.length, 3);
+    const linkedAfterCurso = await linkedIdsOf(lisboa.id);
+    assert.deepEqual(
+      cursoRows.filter((row) => !linkedAfterCurso.has(row.id)),
+      [],
+    );
+    await service.link(lisboa.id, [await suggestionId("Academia")], owner.id);
+    assert.equal(
+      (await service.getDetail(lisboa.id, owner.id)).linked.some((row) => row.name === "Academia"),
+      true,
+    );
+    assert.equal((await suggestionRows()).total, 0);
+    // Unlinking one row leaves the others linked.
+    await service.unlink(lisboa.id, [uber.id], owner.id);
+    const afterUnlink = await linkedIdsOf(lisboa.id);
+    assert.equal(afterUnlink.has(uber.id), false);
+    assert.equal(afterUnlink.has(pingo.id), true);
+    assert.deepEqual(
+      (await suggestionRows()).items.map((item) => item.name),
+      ["Uber"],
+    );
+    // A transfer is never linked, and a stranger neither sees the suggestions nor links.
+    const linksBeforeStranger = await linkCount();
+    await expectError(service.link(lisboa.id, [transfer.id], owner.id), "TRIP_NOT_LINKABLE");
+    assert.equal(await linkCount(), linksBeforeStranger);
+    await expectError(
+      service.listSuggestions(lisboa.id, TripSuggestionsQuerySchema.parse({}), stranger.id),
+      "TRIP_NOT_FOUND",
+    );
+    await expectError(service.link(lisboa.id, [mercado.id], stranger.id), "TRIP_NOT_FOUND");
+    assert.equal(await linkCount(), linksBeforeStranger);
+
+    // Bulk trip: a single expense plus one installment row link the whole series.
+    await transactionsService.setTransactionsTrip(
+      { ids: [uber.id, installments[0].id], tripId: lisboa.id },
+      owner.id,
+    );
+    assert.deepEqual(missingFrom(await linkedIdsOf(lisboa.id)), []);
+    assert.equal((await linkedIdsOf(lisboa.id)).has(uber.id), true);
+    // A batch with a transfer is rejected as a whole.
+    await expectError(
+      transactionsService.setTransactionsTrip(
+        { ids: [mercado.id, transfer.id], tripId: lisboa.id },
+        owner.id,
+      ),
+      "BULK_ACTION_UNSUPPORTED",
+    );
+    assert.equal((await linkedIdsOf(lisboa.id)).has(mercado.id), false);
+    // tripId null unlinks only the selected rows.
+    await transactionsService.setTransactionsTrip({ ids: [uber.id], tripId: null }, owner.id);
+    const afterBulkUnlink = await linkedIdsOf(lisboa.id);
+    assert.equal(afterBulkUnlink.has(uber.id), false);
+    assert.deepEqual(missingFrom(afterBulkUnlink), []);
 
     // Transfers are not linkable; a foreign trip is not found.
     const linkedBeforeRejects = (await linkedIdsOf(lisboa.id)).size;

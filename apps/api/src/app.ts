@@ -240,6 +240,18 @@ const tagsRoute = createTagsRoute(
 const tripsRoute = createTripsRoute(
   createTripsService(tripsRepository, {
     getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+    listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+      (
+        await transactionsService.listTransactions(
+          userId,
+          ListTransactionsQuerySchema.parse({
+            dateStart: startDate,
+            dateEnd: endDate,
+            pageSize: 100,
+          }),
+          false,
+        )
+      ).items,
   }),
 );
 const peopleRoute = createPeopleRoute(

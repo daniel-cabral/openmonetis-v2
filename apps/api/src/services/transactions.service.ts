@@ -65,6 +65,7 @@ import type {
   BulkDeleteTransactionsInput,
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
+  BulkTripTransactionsInput,
   CreateTransactionRefundInput,
   ExportTransactionsQuery,
   ImportTransactionsInput,
@@ -129,6 +130,7 @@ export type TransactionsServiceDependencies = Pick<
   | "listTransactionSplitsForUser"
   | "listTransactionsByPeriod"
   | "removeTransactionsTagsForUser"
+  | "setTransactionsTripForUser"
   | "renameTransactionsForUser"
   | "listTransactionsByDueDateRange"
   | "listAccountStatementTransactionsForUser"
@@ -321,6 +323,7 @@ export function createTransactionsService(
     listAccountStatementTransactionsForUser,
     listTransactionsByPurchaseDateRange,
     listSettledRecurringBoletoOccurrencesByPaymentDateForUser,
+    setTransactionsTripForUser,
     settleRecurringOccurrenceForUser,
     settleTransactionsForUser,
     updateRecurringRuleWithSplitsForUser,
@@ -2439,6 +2442,23 @@ export function createTransactionsService(
     return { ids: await addTransactionsTagsForUser(ids, userId, input.tagIds) };
   }
 
+  async function setTransactionsTrip(input: BulkTripTransactionsInput, userId: string) {
+    if (input.tripId) {
+      const trip = await dependencies.findTripByIdForUser?.(input.tripId, userId);
+      if (!trip) throw notFound("Trip not found", "TRIP_NOT_FOUND");
+    }
+    const targets = await listBulkTargets(input.ids, userId);
+    if (!targets.every((target) => canApplyBulkTransactionAction(target, "trip")))
+      throw badRequest("Bulk action is not supported", "BULK_ACTION_UNSUPPORTED");
+    return {
+      ids: await setTransactionsTripForUser(
+        targets.map((target) => target.id),
+        userId,
+        input.tripId,
+      ),
+    };
+  }
+
   async function deleteTransactions(input: BulkDeleteTransactionsInput, userId: string) {
     const targets = await listBulkTargets(input.ids, userId);
     if (!targets.every((target) => canApplyBulkTransactionAction(target, "delete")))
@@ -2951,6 +2971,7 @@ export function createTransactionsService(
     previewTransactionImport,
     renameTransactions,
     settleRecurringOccurrence,
+    setTransactionsTrip,
     settleTransactions,
     tagTransactions,
     undoTransactionImport,
