@@ -40,6 +40,19 @@ V2 starting point: the import pipeline accepts only OFX, QFX and XLSX, dedupes o
 | Naive comma splitting of statement rows | Changed | Quoted fields must stay in one field. |
 | Credit and payment invoice lines importable as plain income | Dropped for this feature | That was the V1 bug fixed by a typed credit origin, delivered in 003. |
 
+## Clarifications
+
+### Session 2026-11-11
+
+Answered autonomously by the lane worker from the V1 code, the inventory and the V2 import pipeline.
+
+- Q: When does the user choose the destination of a CSV file, given that the row identity includes it? → A: Before parsing. A CSV upload first runs a detection step (profile suggestion, full profile list, account identification); the user confirms the profile and picks a destination of the profile's kind; only then the file is parsed and previewed with that destination, which stays locked in the review. OFX/QFX/XLSX keep the current single-step flow. This mirrors V1 ("Perfil de banco e destino do arquivo") and gives 002 the place to prefill the destination.
+- Q: How are invoice-only fields (installment, FX, card, holder, raw category) persisted when importing? → A: They are returned by the preview and shown in the review table; the transaction is imported as today (single, regular, name = parsed description). The raw issuer category feeds the existing `categoryName` fallback. Creating installment series from `N/M` is out of scope (002 matches lines against existing installments).
+- Q: Where is the "credit and invoice-payment lines are not importable" rule enforced? → A: In both places: the preview marks each line with `lineKind` and `importable`; the review shows non-importable lines disabled with a PT-BR label; the import contract carries `lineKind` per row and the API rejects the whole request (`IMPORT_ROW_NOT_IMPORTABLE`) when a row is `credit` or `invoice-payment`.
+- Q: How do category suggestions learned under the old key keep working (FR-016)? → A: No data migration. The preview looks up both the merchant-aware key and the legacy key (trimmed, lowercased, spaces collapsed); the merchant-aware key wins when both exist. New imports store the merchant-aware key. Applies to all import formats.
+- Q: How are invalid lines reported? → A: The preview returns `invalidLines` (1-based file line number and a reason `invalid_date` or `invalid_amount`); the review shows one PT-BR message with the count and line numbers. A file with no valid line is rejected with the generic unreadable-file message.
+- Q: How is the row identity stored? → A: `importExternalId` = SHA-256 hex of the V1 identity payload (fields of FR-010 plus the occurrence, destination included); `importSourceFingerprint` = SHA-256 of `csv:<profileId>:<accountIdentification or empty>`. The existing unique index (`userId`, source fingerprint, external id) guards duplicates; no migration.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Import a C6 account statement CSV (Priority: P1)
@@ -186,12 +199,12 @@ The import screen accepts files with the `.xls` extension in addition to `.xlsx`
 - **FR-011**: Lines with identical identity inputs MUST be separated by an occurrence index counted inside the group of identical lines, in file order. Processing the same file twice MUST yield identical identities.
 - **FR-012**: The identity MUST be stored in the existing import identity fields of a transaction, scoped by user, so that re-importing the same file flags every previously imported line as already imported and creates no duplicate. No parallel dedupe model is introduced.
 - **FR-013**: C6 files MUST flow through the existing V2 import (review table, destination, person, category suggestions, batch id, undo of the whole batch, file limits) with no change in behavior for OFX, QFX and XLSX.
-- **FR-014**: In the plain import, `invoice-payment` lines MUST NOT be importable, and `credit` lines MUST NOT be importable as ordinary income; both are shown as informational until the typed credit origin of feature 003 exists.
+- **FR-014**: In the plain import, `invoice-payment` lines MUST NOT be importable, and `credit` lines MUST NOT be importable as ordinary income; both are shown as informational until the typed credit origin of feature 003 exists. The API MUST reject an import request containing such a row (`IMPORT_ROW_NOT_IMPORTABLE`).
 - **FR-015**: The category memory key MUST be merchant-aware: lowercase and trim; drop the country marker (`BRA`/`BR`) and the city before it (city delimited by a run of spaces, else the last token), only when the country marker is present; for `ACQUIRER*MERCHANT` keep the longer side of `*`; drop a leading numeric code; drop a numeric store suffix attached to or separated from the name; collapse spaces.
 - **FR-016**: Learned category suggestions created before this feature MUST keep being suggested for the same descriptions after the key changes.
 - **FR-017**: A category suggested from memory MUST be preselected but editable and MUST NOT be applied without the user confirming the import; the issuer's raw category is used only when no learned memory exists, and learned memory always wins.
 - **FR-018**: Invalid or unreadable lines MUST produce a brief PT-BR message and be skipped without aborting the rest of the file; an unreadable file MUST produce a generic PT-BR message without internal detail.
-- **FR-019**: The import screen MUST accept the `.xls` extension in addition to `.xlsx` as described in User Story 6 (scope pending clarification).
+- **FR-019**: The import screen MUST accept the `.xls` extension in addition to `.xlsx` as described in User Story 6: `.xls` files whose content is `.xlsx` are read like `.xlsx`; binary Excel 97-2003 content is rejected with a PT-BR message (`IMPORT_XLS_BINARY_NOT_SUPPORTED`).
 - **FR-020**: All user-facing text MUST be PT-BR; all identifiers, contracts and stored values MUST be English; amounts MUST be computed in integer cents.
 
 ### Key Entities *(include if feature involves data)*
@@ -223,3 +236,12 @@ The import screen accepts files with the `.xls` extension in addition to `.xlsx`
 - V2 limits stay as they are (5 MB, 1000 lines per file).
 - Deliverables follow constitution II (product code, migrations only if the plan proves the existing import identity fields are insufficient, tests, `CHANGELOG.md` `Unreleased` under `### Fork`, `docs/` contract). Row identity storage reuses the existing import fields per the inventory decision.
 - Upstream overlap check (CHANGELOG, code) is recorded in the plan, per the roadmap.
+
+## UI decisions
+
+Chosen autonomously (mockup-ui, 2026-11-11): **option A**. Previews (local, not committed): `option-a.html` and `option-b.html`, rendered with the app's compiled `apps/web/src/styles/app.css`.
+
+- CSV upload leads to a separate "Confirmar arquivo" Card that replaces the upload Card: profile Select (detected profile preselected; when none is detected, a PT-BR notice "Não reconhecemos o formato. Escolha o perfil do banco." and no preselection), account identification text when present, destination Select filtered by the profile's destination kind, actions "Escolher outro arquivo" and "Ler arquivo" (disabled until profile and destination are set).
+- Review: the destination chosen in the confirmation step is shown locked; credit and invoice-payment rows show a `Badge` with the line kind ("Crédito na fatura", "Pagamento de fatura anterior"), a disabled checkbox and "Disponível na conciliação"; installment (`7/8`) and FX (`US$ 50,00`) as muted text under the description; a notice for skipped invalid lines in the summary.
+- No `Alert` component exists in the app; notices reuse the existing bordered text pattern of the import screen.
+- Discarded: option B (confirmation inline in the upload Card footer, installment/FX as table columns), because it widens the already dense review table and hides the profile decision inside the upload area; option A mirrors the V1 step order (profile and destination before reading).
