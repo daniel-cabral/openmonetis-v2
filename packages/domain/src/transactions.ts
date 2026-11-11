@@ -208,10 +208,17 @@ export function calculateExpenseImpact(input: {
 export type ImportedTransaction = {
   externalId: string | null;
   purchaseDate: string;
+  postedDate: string | null;
   amount: number;
   name: string;
   type: "income" | "expense";
   categoryName: string | null;
+  dayBalance: number | null;
+  installment: { current: number; total: number } | null;
+  cardLastDigits: string | null;
+  holderName: string | null;
+  fx: { currency: "USD"; amount: number } | null;
+  lineKind: "purchase" | "credit" | "invoice-payment" | null;
 };
 
 export type ImportedStatement = {
@@ -220,7 +227,10 @@ export type ImportedStatement = {
   accountNumber: string | null;
   period: { from: string; to: string } | null;
   isCreditCard: boolean;
+  profileId: string | null;
+  accountIdentification: string | null;
   transactions: ImportedTransaction[];
+  invalidLines: { lineNumber: number; reason: "invalid_date" | "invalid_amount" }[];
 };
 
 const frequencyMonths: Partial<Record<RecurrenceFrequency, number>> = {
@@ -334,10 +344,17 @@ export function parseOfxStatement(content: string): ImportedStatement {
       {
         externalId: readOfxField(block, "FITID")?.slice(0, 255) ?? null,
         purchaseDate,
+        postedDate: null,
         amount: Math.abs(amount),
         name: name.slice(0, 160),
         type: amount > 0 ? "income" : "expense",
         categoryName: null,
+        dayBalance: null,
+        installment: null,
+        cardLastDigits: null,
+        holderName: null,
+        fx: null,
+        lineKind: null,
       },
     ];
   });
@@ -350,7 +367,10 @@ export function parseOfxStatement(content: string): ImportedStatement {
     accountNumber: maskAccountNumber(accountNumber),
     period: from && to ? { from, to } : deriveImportedPeriod(transactions),
     isCreditCard,
+    profileId: null,
+    accountIdentification: null,
     transactions,
+    invalidLines: [],
   };
 }
 

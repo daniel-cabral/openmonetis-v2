@@ -914,6 +914,7 @@ export function createTransactionsService(
       transactions.push({
         externalId: null,
         purchaseDate,
+        postedDate: null,
         amount,
         name,
         type: normalizeImportedType(
@@ -923,6 +924,12 @@ export function createTransactionsService(
         categoryName: categoryColumn
           ? String(readSpreadsheetValue(row.getCell(categoryColumn).value) ?? "").trim() || null
           : null,
+        dayBalance: null,
+        installment: null,
+        cardLastDigits: null,
+        holderName: null,
+        fx: null,
+        lineKind: null,
       });
     });
     if (!transactions.length) throw new Error("Spreadsheet has no valid transactions");
@@ -933,7 +940,10 @@ export function createTransactionsService(
       accountNumber: null,
       period: deriveImportedPeriod(transactions),
       isCreditCard: false,
+      profileId: null,
+      accountIdentification: null,
       transactions,
+      invalidLines: [],
     };
   }
 
