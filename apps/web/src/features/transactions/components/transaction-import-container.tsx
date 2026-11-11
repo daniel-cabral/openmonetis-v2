@@ -7,6 +7,7 @@ import { cardsQueryOptions } from "@/features/cards/cards.queries";
 import { categoriesQueryOptions } from "@/features/categories/categories.queries";
 import { peopleQueryOptions } from "@/features/people/people.queries";
 import {
+  useDetectTransactionImportMutation,
   useImportTransactionsMutation,
   usePreviewTransactionImportMutation,
   useTransactionImportTemplateMutation,
@@ -16,6 +17,7 @@ import { TransactionImportScreen } from "./transaction-import-screen";
 
 export function TransactionImportContainer() {
   const navigate = useNavigate();
+  const detect = useDetectTransactionImportMutation();
   const preview = usePreviewTransactionImportMutation();
   const importMutation = useImportTransactionsMutation();
   const undoMutation = useUndoTransactionImportMutation();
@@ -60,7 +62,8 @@ export function TransactionImportContainer() {
           },
         );
       }}
-      onPreview={(file) => preview.mutateAsync(file)}
+      onDetect={(file) => detect.mutateAsync(file)}
+      onPreview={(file, options) => preview.mutateAsync({ file, options })}
       onDownloadTemplate={() => templateMutation.mutateAsync()}
       people={people.data?.filter((person) => person.status === "active") ?? []}
       isImporting={importMutation.isPending}

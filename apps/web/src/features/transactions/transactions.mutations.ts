@@ -12,10 +12,12 @@ import {
   createTransaction,
   deleteTransaction,
   deleteTransactions,
+  detectTransactionImport,
   exportTransactions,
   getTransactionImportTemplate,
   importTransactions,
   previewTransactionImport,
+  type TransactionImportPreviewOptions,
   refundTransaction,
   renameTransactions,
   settleRecurringOccurrence,
@@ -70,8 +72,15 @@ export function useRefundTransactionMutation() {
   });
 }
 
+export function useDetectTransactionImportMutation() {
+  return useMutation({ mutationFn: detectTransactionImport });
+}
+
 export function usePreviewTransactionImportMutation() {
-  return useMutation({ mutationFn: previewTransactionImport });
+  return useMutation({
+    mutationFn: ({ file, options }: { file: File; options?: TransactionImportPreviewOptions }) =>
+      previewTransactionImport(file, options),
+  });
 }
 
 export function useTransactionImportTemplateMutation() {

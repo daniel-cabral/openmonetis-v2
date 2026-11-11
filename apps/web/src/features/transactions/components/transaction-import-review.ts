@@ -3,6 +3,11 @@ import type { Dispatch, SetStateAction } from "react";
 import { getCategoryLabel } from "../../categories/categories.presentation";
 import type { PreviewRow, ReviewRow } from "./transaction-import-screen.types";
 
+// Credit and invoice-payment lines stay visible but cannot be imported (FR-014); duplicates are already imported.
+export function isSelectableImportRow(row: Pick<PreviewRow, "isDuplicate" | "importable">) {
+  return !row.isDuplicate && row.importable;
+}
+
 export function getCommonRowValue(rows: ReviewRow[], selectValue: (row: ReviewRow) => string) {
   const firstValue = rows[0] ? selectValue(rows[0]) : "";
   return firstValue && rows.every((row) => selectValue(row) === firstValue) ? firstValue : "";

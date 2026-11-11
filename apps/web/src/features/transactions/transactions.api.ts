@@ -15,6 +15,7 @@ import type {
   RecurringOccurrenceActionInput,
   TransactionActionScope,
   TransactionExportOutput,
+  TransactionImportDetection,
   TransactionImportPreview,
   TransactionImportResult,
   TransactionInput,
@@ -139,12 +140,31 @@ export function refundTransaction(id: string, data: CreateTransactionRefundInput
   });
 }
 
-export async function previewTransactionImport(file: File) {
+export type TransactionImportPreviewOptions = {
+  profileId: string;
+  destinationType: "account" | "card";
+  destinationId: string;
+};
+
+async function readImportFileBody(file: File) {
   if (file.size > 5 * 1024 * 1024) throw new Error("IMPORT_FILE_TOO_LARGE");
-  const contentBase64 = await readFileAsBase64(file);
+  return { fileName: file.name, contentBase64: await readFileAsBase64(file) };
+}
+
+export async function detectTransactionImport(file: File) {
+  return request<TransactionImportDetection>("/transactions/imports/detect", {
+    method: "POST",
+    body: JSON.stringify(await readImportFileBody(file)),
+  });
+}
+
+export async function previewTransactionImport(
+  file: File,
+  options?: TransactionImportPreviewOptions,
+) {
   return request<TransactionImportPreview>("/transactions/imports/preview", {
     method: "POST",
-    body: JSON.stringify({ fileName: file.name, contentBase64 }),
+    body: JSON.stringify({ ...(await readImportFileBody(file)), ...options }),
   });
 }
 
