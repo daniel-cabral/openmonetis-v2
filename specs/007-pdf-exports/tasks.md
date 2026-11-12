@@ -189,7 +189,7 @@ report PDF and Excel, US3 consistent and safe files.
 
 ## Phase 5: Polish
 
-- [ ] T009 [P] Docs and changelog. New `docs/exports.md` (PT-BR, maintainer style like
+- [x] T009 [P] Docs and changelog. New `docs/exports.md` (PT-BR, maintainer style like
   `docs/transaction-bulk-actions.md`): formats per screen, PDF layout and columns, file names,
   period labels, category report totals per type and variation, Excel layout, formula safety,
   where files are built (device, lazy-loaded, nothing sent to third parties), endpoint
