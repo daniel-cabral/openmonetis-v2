@@ -170,10 +170,7 @@ export function DashboardQuickActions({ period }: { period: string }) {
         key={noteOpen ? "new-note-open" : "new-note-closed"}
         note={null}
         onOpenChange={setNoteOpen}
-        onSubmit={async (input) => {
-          await createNote.mutateAsync(input as CreateNoteInput);
-          setNoteOpen(false);
-        }}
+        onSubmit={(input) => createNote.mutateAsync(input as CreateNoteInput)}
         open={noteOpen}
         pending={createNote.isPending}
       />

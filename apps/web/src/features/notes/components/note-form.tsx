@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNoteForm } from "../useNoteForm";
+import { NoteAttachmentsField } from "./note-attachments-field";
 import { NoteCharacterCount } from "./note-character-count";
 import { NoteChecklistEditor } from "./note-checklist-editor";
 import type { NoteFormProps } from "./note-form.types";
@@ -18,7 +19,15 @@ import { NoteTaskFields } from "./note-task-fields";
 
 export type { NoteFormHandle } from "./note-form.types";
 
-export function NoteForm({ note, onCancel, onSubmit, ref }: NoteFormProps) {
+export function NoteForm({
+  note,
+  onCancel,
+  onSubmit,
+  pendingFiles,
+  onPendingFilesChange,
+  onAttachmentsBusyChange,
+  ref,
+}: NoteFormProps) {
   const { newItemText, setNewItemText, submissionError, isEditing, form, fieldId, addItem } =
     useNoteForm({ note, onCancel, onSubmit, ref });
   return (
@@ -50,6 +59,20 @@ export function NoteForm({ note, onCancel, onSubmit, ref }: NoteFormProps) {
         className="grid min-h-0 flex-1 gap-5 overflow-y-auto overscroll-contain px-2 py-1"
       >
         <NoteKindField note={note} form={form} fieldId={fieldId} />
+
+        <form.Subscribe selector={(state) => state.values.kind}>
+          {(kind) =>
+            kind === "text" || (note?.attachmentCount ?? 0) > 0 ? (
+              <NoteAttachmentsField
+                canAdd={kind === "text"}
+                note={note}
+                onBusyChange={onAttachmentsBusyChange}
+                onPendingFilesChange={onPendingFilesChange}
+                pendingFiles={pendingFiles}
+              />
+            ) : null
+          }
+        </form.Subscribe>
 
         <form.Field
           name="title"

@@ -53,6 +53,16 @@ export function formatAttachmentCount(count: number) {
   return `${Intl.NumberFormat("pt-BR").format(count)} anexos`;
 }
 
+export function formatAttachmentUploadResult(count: number) {
+  if (count === 1) return "Anexo enviado.";
+  return `${count} anexos enviados.`;
+}
+
+export function formatPendingUploadFailure(count: number) {
+  if (count === 1) return "A nota foi salva, mas 1 anexo não pôde ser enviado.";
+  return `A nota foi salva, mas ${count} anexos não puderam ser enviados.`;
+}
+
 export function formatAttachmentDate(value: string) {
   return formatDateInBrazil(dateOnlyToSafeInstant(value), {});
 }

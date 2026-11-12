@@ -4,6 +4,7 @@ import {
   fetchAttachmentsSummary,
   getAttachments,
   getAttachmentUrl,
+  getNoteAttachments,
   getTransactionAttachments,
 } from "./attachments.api";
 
@@ -13,6 +14,7 @@ export const attachmentKeys = {
   list: (query: ListAttachmentsQuery) => [...attachmentKeys.lists(), query] as const,
   summary: (period: string) => [...attachmentKeys.all, "summary", period] as const,
   transaction: (id: string) => [...attachmentKeys.all, "transaction", id] as const,
+  note: (id: string) => [...attachmentKeys.all, "note", id] as const,
   url: (id: string, disposition: "inline" | "attachment") =>
     [...attachmentKeys.all, "url", id, disposition] as const,
 };
@@ -34,6 +36,13 @@ export const transactionAttachmentsQueryOptions = (id: string) =>
   queryOptions({
     queryKey: attachmentKeys.transaction(id),
     queryFn: () => getTransactionAttachments(id),
+    enabled: Boolean(id),
+  });
+
+export const noteAttachmentsQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: attachmentKeys.note(id),
+    queryFn: () => getNoteAttachments(id),
     enabled: Boolean(id),
   });
 
