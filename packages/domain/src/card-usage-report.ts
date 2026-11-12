@@ -218,7 +218,8 @@ export function calculateCardUsageOverview(input: {
     Math.max(
       0,
       countedRows.reduce(
-        (sum, row) => (row.cardId === cardId && row.period === period ? sum + row.impactCents : sum),
+        (sum, row) =>
+          row.cardId === cardId && row.period === period ? sum + row.impactCents : sum,
         0,
       ),
     );
@@ -268,9 +269,7 @@ export function calculateCardUsageOverview(input: {
 
 function compareOverviewCards(a: CardUsageOverviewCard, b: CardUsageOverviewCard) {
   return (
-    b.usedCents - a.usedCents ||
-    a.name.localeCompare(b.name, "pt-BR") ||
-    a.id.localeCompare(b.id)
+    b.usedCents - a.usedCents || a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
   );
 }
 
@@ -318,15 +317,18 @@ export function calculateCardUsageDetail(input: {
   const monthRows = rowsInPeriod(input.period);
   const monthUsedCents = usedCentsIn(input.period);
 
-  const history = Array.from({ length: cardUsageHistoryMonths }, (_, index): CardUsageHistoryItem => {
-    const period = addMonthsToPeriod(input.period, index - (cardUsageHistoryMonths - 1));
-    const usedCents = usedCentsIn(period);
-    return {
-      period,
-      usedCents,
-      usagePercentage: calculateUsagePercentage(usedCents, limitCents),
-    };
-  });
+  const history = Array.from(
+    { length: cardUsageHistoryMonths },
+    (_, index): CardUsageHistoryItem => {
+      const period = addMonthsToPeriod(input.period, index - (cardUsageHistoryMonths - 1));
+      const usedCents = usedCentsIn(period);
+      return {
+        period,
+        usedCents,
+        usagePercentage: calculateUsagePercentage(usedCents, limitCents),
+      };
+    },
+  );
 
   const categoryGroups = new Map<string, Omit<CardUsageCategory, "percentage">>();
   for (const row of monthRows) {

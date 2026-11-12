@@ -125,9 +125,7 @@ test("card usage report ranks active cards by limit use over real rows and isola
         }),
         201,
       );
-      const detailed = await api.data<CardUsageReportOutput>(
-        await api.request(reportPath, owner),
-      );
+      const detailed = await api.data<CardUsageReportOutput>(await api.request(reportPath, owner));
       const detail = detailed.detail;
       assert.equal(detail?.cardId, cardA.id);
       assert.deepEqual(
@@ -190,7 +188,6 @@ test("card usage report ranks active cards by limit use over real rows and isola
       const foreignBody = await foreignReport.text();
       assert.equal(JSON.parse(foreignBody).data.selectedCardId, cardA.id);
       assert.doesNotMatch(foreignBody, new RegExp(strangerCard.id));
-
     },
     { migrationsFolder },
   );
