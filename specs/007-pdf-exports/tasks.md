@@ -101,7 +101,7 @@ report PDF and Excel, US3 consistent and safe files.
 
 ## Phase 3: User Story 1 - Transactions PDF (P1)
 
-- [ ] T005 [US1] [US3] Transactions presentation (research.md R3, R7, data-model.md "Web types").
+- [x] T005 [US1] [US3] Transactions presentation (research.md R3, R7, data-model.md "Web types").
   `apps/web/src/features/transactions/transactions.presentation.ts`: `type
   TransactionsExportFormat = ExportTransactionsQuery["format"] | "pdf"`;
   `getTransactionsExportPeriodLabel(search)` ("outubro 2026"; "01/10/2026 até 15/10/2026";

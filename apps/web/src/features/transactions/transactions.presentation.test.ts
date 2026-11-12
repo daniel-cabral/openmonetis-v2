@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { TransactionOutput } from "@openmonetis/validators/transactions";
 import {
   describeBulkTransactionAction,
   formatBulkTransactionResult,
@@ -17,9 +18,12 @@ import {
   getTransactionMutationErrorMessage,
   getTransactionSettlementAction,
   getTransactionSettlementLabel,
+  getTransactionsExportPeriodLabel,
+  getTransactionsPdfFileName,
   groupTransactionRows,
   labelTransactionExportFileName,
   selectBulkTransactionIds,
+  toTransactionPdfRow,
   validateTransactionsSearch,
 } from "./transactions.presentation";
 
@@ -320,5 +324,163 @@ test("mass-add and bulk-edit errors use their own copy while other screens keep 
   assert.equal(
     getTransactionMutationErrorMessage({ code: "INVOICE_ALREADY_PAID" }),
     "A fatura selecionada já foi paga. Escolha outra fatura.",
+  );
+});
+
+test("PDF export period label and file name follow the month or date range", () => {
+  const cases = [
+    {
+      search: { period: "2026-10" },
+      label: "outubro 2026",
+      fileName: "lancamentos-2026-10.pdf",
+    },
+    {
+      search: { dateStart: "2026-10-01", dateEnd: "2026-10-15" },
+      label: "01/10/2026 até 15/10/2026",
+      fileName: "lancamentos-2026-10-01-2026-10-15.pdf",
+    },
+    {
+      search: { dateEnd: "2026-10-15" },
+      label: "Início até 15/10/2026",
+      fileName: "lancamentos-inicio-2026-10-15.pdf",
+    },
+    {
+      search: { dateStart: "2026-10-01" },
+      label: "01/10/2026 até hoje",
+      fileName: "lancamentos-2026-10-01-hoje.pdf",
+    },
+  ];
+  for (const { search, label, fileName } of cases) {
+    assert.equal(getTransactionsExportPeriodLabel(search), label);
+    assert.equal(getTransactionsPdfFileName(search), fileName);
+  }
+});
+
+test("PDF rows show the nine V1 columns with literal text", () => {
+  const pdfTransaction = (patch: Record<string, unknown>) =>
+    ({
+      name: "Mercado",
+      type: "expense",
+      origin: "regular",
+      condition: "single",
+      paymentMethod: "pix",
+      amount: -150,
+      allocation: null,
+      purchaseDate: "2026-09-05",
+      personName: "Ana",
+      isRecurring: false,
+      installmentCount: null,
+      currentInstallment: null,
+      categoryName: "Alimentação",
+      accountName: "Conta A",
+      cardName: null,
+      sourceAccountName: null,
+      destinationAccountName: null,
+      ...patch,
+    }) as unknown as TransactionOutput;
+
+  assert.deepEqual(
+    toTransactionPdfRow(
+      pdfTransaction({
+        name: "Notebook",
+        condition: "installment",
+        installmentCount: 10,
+        currentInstallment: 2,
+        paymentMethod: "credit_card",
+        amount: -500,
+        categoryName: null,
+        accountName: null,
+        cardName: "Nubank",
+      }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        "Notebook (2/10)",
+        "Despesa",
+        "Parcelada",
+        "Cartão de crédito",
+        "-R$ 500,00",
+        "-",
+        "Nubank",
+        "Ana",
+      ],
+      tone: "expense",
+    },
+  );
+  assert.deepEqual(
+    toTransactionPdfRow(
+      pdfTransaction({
+        name: "Pagamento poupança",
+        type: "transfer",
+        paymentMethod: null,
+        amount: -200,
+        categoryName: null,
+        accountName: null,
+        sourceAccountName: "Conta A",
+        destinationAccountName: "Conta B",
+      }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        "Pagamento poupança",
+        "Transferência",
+        "Única",
+        "-",
+        "-R$ 200,00",
+        "-",
+        "Conta A para Conta B",
+        "Ana",
+      ],
+      tone: null,
+    },
+  );
+  assert.deepEqual(
+    toTransactionPdfRow(
+      pdfTransaction({
+        name: "Jantar",
+        amount: -300,
+        allocation: {
+          personId: "a0000000-0000-4000-8000-000000000002",
+          personName: "Bia",
+          personAvatarUrl: null,
+          amount: -120,
+        },
+      }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        "Jantar",
+        "Despesa",
+        "Única",
+        "Pix",
+        "-R$ 120,00",
+        "Alimentação",
+        "Conta A",
+        "Bia",
+      ],
+      tone: "expense",
+    },
+  );
+  assert.deepEqual(
+    toTransactionPdfRow(
+      pdfTransaction({ name: '=HYPERLINK("x")', type: "income", amount: 900, categoryName: null }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        '=HYPERLINK("x")',
+        "Receita",
+        "Única",
+        "Pix",
+        "R$ 900,00",
+        "-",
+        "Conta A",
+        "Ana",
+      ],
+      tone: "income",
+    },
   );
 });

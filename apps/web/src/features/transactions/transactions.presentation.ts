@@ -1,6 +1,11 @@
 import type { BulkTransactionTarget } from "@openmonetis/domain/transactions";
-import { dateOnlyToSafeInstant, formatDateInBrazil } from "@openmonetis/shared/date-time";
+import {
+  dateOnlyToSafeInstant,
+  formatDateInBrazil,
+  getCurrentPeriodInBrazil,
+} from "@openmonetis/shared/date-time";
 import type {
+  ExportTransactionsQuery,
   InstallmentOptionOutput,
   TransactionInput,
   TransactionOutput,
@@ -17,6 +22,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatCurrency } from "../../lib/money-presentation";
+import { formatPeriod } from "../../lib/period-presentation";
 
 export { formatCurrency as formatTransactionFilterAmount } from "../../lib/money-presentation";
 
@@ -309,6 +315,75 @@ export function labelTransactionExportFileName(fileName: string, label?: string)
   const slug = label ? slugifyUrlValue(label) : "";
   if (!slug || !fileName.startsWith(transactionsExportFilePrefix)) return fileName;
   return `${transactionsExportFilePrefix}${slug}-${fileName.slice(transactionsExportFilePrefix.length)}`;
+}
+
+export type TransactionsExportFormat = ExportTransactionsQuery["format"] | "pdf";
+
+type TransactionsExportScope = Pick<TransactionsSearch, "period" | "dateStart" | "dateEnd">;
+
+function hasTransactionsExportDateRange(scope: TransactionsExportScope) {
+  return Boolean(scope.dateStart || scope.dateEnd);
+}
+
+export function getTransactionsExportPeriodLabel(scope: TransactionsExportScope) {
+  if (!hasTransactionsExportDateRange(scope)) {
+    return formatPeriod(scope.period ?? getCurrentPeriodInBrazil())
+      .replace(" de ", " ")
+      .toLocaleLowerCase("pt-BR");
+  }
+  const start = scope.dateStart ? formatDate(scope.dateStart) : "Início";
+  const end = scope.dateEnd ? formatDate(scope.dateEnd) : "hoje";
+  return `${start} até ${end}`;
+}
+
+export function getTransactionsPdfFileName(scope: TransactionsExportScope) {
+  if (!hasTransactionsExportDateRange(scope)) {
+    return `${transactionsExportFilePrefix}${scope.period ?? getCurrentPeriodInBrazil()}.pdf`;
+  }
+  return `${transactionsExportFilePrefix}${scope.dateStart ?? "inicio"}-${scope.dateEnd ?? "hoje"}.pdf`;
+}
+
+export function formatExportGeneratedAt(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+export type TransactionPdfRow = {
+  cells: [string, string, string, string, string, string, string, string, string];
+  tone: "expense" | "income" | null;
+};
+
+export function toTransactionPdfRow(item: TransactionOutput): TransactionPdfRow {
+  const installment =
+    item.currentInstallment !== null && item.installmentCount !== null
+      ? ` (${item.currentInstallment}/${item.installmentCount})`
+      : "";
+  const showsPaymentMethod =
+    item.paymentMethod !== null || item.origin === "accountBalanceAdjustment";
+  const accountOrCard =
+    item.type === "transfer"
+      ? `${item.sourceAccountName || "-"} para ${item.destinationAccountName || "-"}`
+      : item.accountName || item.cardName || "-";
+
+  return {
+    cells: [
+      formatDate(item.purchaseDate),
+      `${item.name}${installment}`,
+      transactionTypeLabels[item.type],
+      item.isRecurring
+        ? transactionConditionLabels.recurring
+        : transactionConditionLabels[item.condition],
+      showsPaymentMethod ? formatPaymentMethod(item.paymentMethod, item.origin) : "-",
+      formatCurrency(item.allocation?.amount ?? item.amount),
+      item.categoryName || "-",
+      accountOrCard,
+      (item.allocation?.personName ?? item.personName) || "-",
+    ],
+    tone: item.type === "transfer" ? null : item.type,
+  };
 }
 
 export function buildFilterSlugMap(items: Array<{ id: string; name: string }>) {
