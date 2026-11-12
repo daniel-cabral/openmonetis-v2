@@ -4,6 +4,7 @@ import type { CategoryTrendsOutput } from "@openmonetis/validators/category-tren
 import {
   addCategoryToHistory,
   buildCategoryHistorySeries,
+  buildCategoryTrendsExportTable,
   categoryHistoryWindow,
   categoryTrendsCsv,
   parseCategoryHistorySelection,
@@ -132,4 +133,140 @@ test("category history prune drops categories that left the catalog", () => {
 
   assert.deepEqual(pruneCategoryHistory(selected, ["a"]), ["a"]);
   assert.equal(pruneCategoryHistory(selected, ["a", "b", "c"]), selected);
+});
+
+test("export table lists expense then income categories with API totals and variations", () => {
+  const expenseId = "10000000-0000-4000-8000-000000000001";
+  const incomeId = "10000000-0000-4000-8000-000000000002";
+  const trends = {
+    periods: [
+      {
+        period: "2026-01",
+        incomeAmount: 500,
+        expenseAmount: 300,
+        netAmount: 200,
+        actualAmount: 300,
+        recurringAmount: 0,
+      },
+      {
+        period: "2026-02",
+        incomeAmount: 400,
+        expenseAmount: 340,
+        netAmount: 60,
+        actualAmount: 340,
+        recurringAmount: 0,
+      },
+    ],
+    categories: [
+      {
+        categoryId: expenseId,
+        name: "Mercado",
+        icon: null,
+        type: "expense",
+        totalAmount: 235,
+        averageAmount: 117.5,
+        values: [
+          {
+            period: "2026-01",
+            actualAmount: 100,
+            recurringAmount: 0,
+            totalAmount: 100,
+            previousAmount: 0,
+            changeAmount: 0,
+            changePercentage: null,
+            changeKind: "stable",
+          },
+          {
+            period: "2026-02",
+            actualAmount: 135,
+            recurringAmount: 0,
+            totalAmount: 135,
+            previousAmount: 120,
+            changeAmount: 15,
+            changePercentage: 12.5,
+            changeKind: "increase",
+          },
+        ],
+      },
+      {
+        categoryId: incomeId,
+        name: "Freelance",
+        icon: null,
+        type: "income",
+        totalAmount: 200,
+        averageAmount: 100,
+        values: [
+          {
+            period: "2026-01",
+            actualAmount: 0,
+            recurringAmount: 0,
+            totalAmount: 0,
+            previousAmount: 0,
+            changeAmount: 0,
+            changePercentage: null,
+            changeKind: "stable",
+          },
+          {
+            period: "2026-02",
+            actualAmount: 200,
+            recurringAmount: 0,
+            totalAmount: 200,
+            previousAmount: 0,
+            changeAmount: 200,
+            changePercentage: null,
+            changeKind: "started",
+          },
+        ],
+      },
+    ],
+    availableCategories: [],
+    summary: { incomeAmount: 900, expenseAmount: 400 } as CategoryTrendsOutput["summary"],
+  } as CategoryTrendsOutput;
+
+  assert.deepEqual(buildCategoryTrendsExportTable(trends), {
+    periodLabel: "Janeiro 2026 - Fevereiro 2026",
+    columns: ["Categoria", "Jan 2026", "Fev 2026", "Total"],
+    rows: [
+      {
+        label: "Mercado",
+        type: "expense",
+        emphasis: false,
+        cells: [
+          { amount: 100, variation: null, trend: null },
+          { amount: 135, variation: "+12,5%", trend: "up" },
+        ],
+        total: 235,
+      },
+      {
+        label: "Total Geral - Despesas",
+        type: "expense",
+        emphasis: true,
+        cells: [
+          { amount: 300, variation: null, trend: null },
+          { amount: 340, variation: null, trend: null },
+        ],
+        total: 400,
+      },
+      {
+        label: "Freelance",
+        type: "income",
+        emphasis: false,
+        cells: [
+          { amount: 0, variation: null, trend: null },
+          { amount: 200, variation: "Novo", trend: null },
+        ],
+        total: 200,
+      },
+      {
+        label: "Total Geral - Receitas",
+        type: "income",
+        emphasis: true,
+        cells: [
+          { amount: 500, variation: null, trend: null },
+          { amount: 400, variation: null, trend: null },
+        ],
+        total: 900,
+      },
+    ],
+  });
 });

@@ -146,7 +146,7 @@ report PDF and Excel, US3 consistent and safe files.
 
 ## Phase 4: User Story 2 - Category report PDF and Excel (P1)
 
-- [ ] T007 [US2] [US3] Category export presentation (spec Clarifications "Total Geral",
+- [x] T007 [US2] [US3] Category export presentation (spec Clarifications "Total Geral",
   data-model.md `CategoryTrendsExportTable`, plan.md "Excel layout decision").
   `apps/web/src/features/category-trends/category-trends.presentation.ts`:
   `buildCategoryTrendsExportTable(report)` (expense categories, "Total Geral - Despesas" from
