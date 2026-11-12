@@ -34,7 +34,7 @@ A fork-only operator CLI, `pnpm etl:v1 validate|load|reconcile|rehearse`, under
    and listed row by row.
 
 Details: [research.md](research.md), [data-model.md](data-model.md),
-[contracts/cli.md](contracts/cli.md), [contracts/output-formats.md](contracts/output-formats.md),
+[contracts/cli.md](contracts/cli.md), [contracts/output-formats.md](contracts/output-formats.md), [contracts/internal-types.md](contracts/internal-types.md),
 [quickstart.md](quickstart.md).
 
 ## Technical Context
@@ -92,7 +92,7 @@ design added no new deviation. The research open questions were resolved by Dani
 ```text
 specs/016-v1-etl/
 ├── plan.md, research.md, data-model.md, quickstart.md
-├── contracts/cli.md, contracts/output-formats.md
+├── contracts/cli.md, contracts/output-formats.md, contracts/internal-types.md
 └── tasks.md (next step)
 ```
 
