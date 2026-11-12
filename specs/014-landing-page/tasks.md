@@ -69,9 +69,9 @@ Goal: landing content per spec FR-001/FR-006/FR-008/FR-009/FR-011/FR-012 and "UI
 
 - [x] T013 [P] Document `LANDING_PAGE_ENABLED` (Web, default `false`, only `true` enables, restart the web) in the "Configurações de execução" table of `docs/environment-variables.md` (also mention `/login`), add `LANDING_PAGE_ENABLED: ${LANDING_PAGE_ENABLED:-false}` to the `web` service `environment` in `compose.yml` and update the sentence listing what Compose forwards, and add a commented `# LANDING_PAGE_ENABLED=false` line to `.env.example` near the web settings.
 - [x] T014 [P] Add a PT-BR entry under `### Fork` at the end of `## [Unreleased]` in `CHANGELOG.md`: landing page pública opcional (`LANDING_PAGE_ENABLED`), login sempre em `/login`.
-- [ ] T015 Confirm no `preview-landing` route remains (preview moved to `specs/014-landing-page/previews/`), then run the quickstart SSR checks on port 7102 (setting off, then on) and record the output; with the setting on, check SC-005 (no horizontal scroll at 320 px and 1440 px: `document.documentElement.scrollWidth <= innerWidth`) and, if the browser tool works, an automated accessibility/best-practices audit for SC-003/SC-004; if the browser is unavailable, record SC-003/SC-004 as manual follow-ups in the report. Stop the server.
-- [ ] T016 Gate: `npx biome check <touched files>`, `pnpm --filter @openmonetis/web lint:ui`, `pnpm typecheck`, T003 tests, `pnpm test:auth:integration` (lane DB). Show output.
-- [ ] T017 Commit on `014-landing-page` (PT-BR messages, explicit paths, `git status --short` first); include spec artifacts and `routeTree.gen.ts`.
+- [x] T015 Confirm no `preview-landing` route remains (preview moved to `specs/014-landing-page/previews/`), then run the quickstart SSR checks on port 7102 (setting off, then on) and record the output; with the setting on, check SC-005 (no horizontal scroll at 320 px and 1440 px: `document.documentElement.scrollWidth <= innerWidth`) and, if the browser tool works, an automated accessibility/best-practices audit for SC-003/SC-004; if the browser is unavailable, record SC-003/SC-004 as manual follow-ups in the report. Stop the server.
+- [x] T016 Gate: `npx biome check <touched files>`, `pnpm --filter @openmonetis/web lint:ui`, `pnpm typecheck`, T003 tests, `pnpm test:auth:integration` (lane DB). Show output.
+- [x] T017 Commit on `014-landing-page` (PT-BR messages, explicit paths, `git status --short` first); include spec artifacts and `routeTree.gen.ts`.
 
 ## Dependencies
 
@@ -80,3 +80,10 @@ T009 → T002 → T003, T004 → T005 → T006/T007 → T008 → T010 → T011; 
 ## Implementation strategy
 
 MVP = Phases 2-4 (landing + routing). US3 and polish are small and land in the same branch.
+
+## Gate record (2026-11-12)
+
+- SSR off: `/` title "Entrar · OpenMonetis", root `noindex`; `robots.txt` = `Disallow: /`; `/login` login screen.
+- SSR on: `/` hero h1 "Suas finanças, no seu servidor.", landing title, `robots` `index, follow`, `og:title`, canonical `<origin>/`; `robots.txt` = `Allow: /$` + `Disallow: /`; with a session cookie `/` renders the loading state; `/login` login screen.
+- Biome on the 14 touched sources (outside `.claude`, since `biome.json` ignores `**/.claude`): no errors. `lint:ui` pass, `pnpm typecheck` pass, landing unit tests 4/4, `test:auth:integration` 1/1 on `openmonetis_lane_a`.
+- Manual follow-ups (browser screenshots unavailable in this run): SC-003 (Lighthouse a11y/best practices >= 90), SC-004 (first view < 2 s), SC-005 (no horizontal scroll 320-1440 px).
