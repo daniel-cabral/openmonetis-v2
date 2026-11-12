@@ -64,6 +64,7 @@ import {
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
+import * as reconciliationsRepository from "./repositories/reconciliations.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createAiChatsRoute } from "./routes/ai-chats";
@@ -102,6 +103,7 @@ import { createRecurringTransactionsRoute } from "./routes/recurring-transaction
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createTagsRoute } from "./routes/tags";
+import { createReconciliationsRoute } from "./routes/reconciliations";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createAccountsService } from "./services/accounts.service";
 import { createAiChatsService } from "./services/ai-chats.service";
@@ -147,6 +149,7 @@ import { createRecurringTransactionsService } from "./services/recurring-transac
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createTagsService } from "./services/tags.service";
+import { createReconciliationsService } from "./services/reconciliations.service";
 import { createTransactionsService } from "./services/transactions.service";
 import type { ApiVariables } from "./types/context";
 import { aiServiceGateway } from "./utils/ai-service";
@@ -227,6 +230,17 @@ const transactionsService = createTransactionsService(
   },
 );
 const transactionsRoute = createTransactionsRoute(transactionsService);
+const reconciliationsRoute = createReconciliationsRoute(
+  createReconciliationsService({
+    repository: reconciliationsRepository,
+    transactions: transactionsService,
+    listImportCategoryMappingsForUser: transactionsRepository.listImportCategoryMappingsForUser,
+    listPaidInvoicePeriodsForUser: transactionsRepository.listPaidInvoicePeriodsForUser,
+    findCardByIdForUser,
+    listAccountsForUser: (userId) => accountsRepository.listByUser(userId),
+    listCategoriesForUser: (userId) => categoriesRepository.listByUser(userId),
+  }),
+);
 const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {
     const query = ListTransactionsQuerySchema.parse({ period, pageSize: 100 });
@@ -541,6 +555,10 @@ app.use("/transactions", privateCache);
 app.use("/transactions/*", privateCache);
 app.use("/transactions", requireAuth);
 app.use("/transactions/*", requireAuth);
+app.use("/reconciliations", privateCache);
+app.use("/reconciliations/*", privateCache);
+app.use("/reconciliations", requireAuth);
+app.use("/reconciliations/*", requireAuth);
 app.use(
   "/transactions/bulk/*",
   createMutationRateLimit({
@@ -802,6 +820,7 @@ app.route("/notes", notesRoute);
 app.route("/recurring-transactions", recurringTransactionsRoute);
 app.route("/recurring-expenses", recurringExpensesRoute);
 app.route("/transactions", transactionsRoute);
+app.route("/reconciliations", reconciliationsRoute);
 app.route("/dashboard", dashboardRoute);
 app.route("/ai-providers", aiProvidersRoute);
 app.route("/ai-tools", aiToolsRoute);
