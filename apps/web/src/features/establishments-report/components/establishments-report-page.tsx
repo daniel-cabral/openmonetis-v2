@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { TripFilterSelect } from "@/features/trips/components/trip-filter-select";
+import { cn } from "@/lib/utils";
 import {
   formatEstablishmentsPeriodLabel,
   type ResolvedEstablishmentsReportSearch,
@@ -31,6 +33,7 @@ export function EstablishmentsReportPage({
 }: EstablishmentsReportPageProps) {
   const reportQuery = useQuery(establishmentsReportQueryOptions(filters));
   const report = reportQuery.data;
+  const isSpecificTripSelected = filters.trip !== undefined && filters.trip !== "none";
 
   return (
     <ProtectedRoute>
@@ -48,13 +51,23 @@ export function EstablishmentsReportPage({
             aria-label="Filtros do relatório"
             className="flex min-w-0 flex-wrap items-center gap-3"
           >
-            <MonthNavigation
-              compact
-              onPeriodChange={(period) => onFiltersChange({ ...filters, period })}
-              period={filters.period}
+            <TripFilterSelect
+              onChange={(trip) => onFiltersChange({ ...filters, trip })}
+              value={filters.trip}
             />
+            <div
+              inert={isSpecificTripSelected}
+              className={cn(isSpecificTripSelected && "pointer-events-none opacity-50")}
+            >
+              <MonthNavigation
+                compact
+                onPeriodChange={(period) => onFiltersChange({ ...filters, period })}
+                period={filters.period}
+              />
+            </div>
             <ToggleGroup
               aria-label="Janela de meses"
+              disabled={isSpecificTripSelected}
               onValueChange={(value) => {
                 const months = monthOptions.find((option) => String(option) === value[0]);
                 if (months) onFiltersChange({ ...filters, months });
