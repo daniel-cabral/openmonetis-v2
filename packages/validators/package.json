@@ -30,6 +30,7 @@
     "./recurring-expenses": "./src/recurring-expenses.ts",
     "./releases": "./src/releases.ts",
     "./establishments": "./src/establishments.ts",
+    "./establishments-report": "./src/establishments-report.ts",
     "./settings": "./src/settings.ts",
     "./external-expenses": "./src/external-expenses.ts",
     "./inbox": "./src/inbox.ts",

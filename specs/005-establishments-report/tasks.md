@@ -19,8 +19,8 @@ query, PT-BR UI copy, shadcn components, TanStack Query). Feature name everywher
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `"./establishments-report": "./src/establishments-report.ts"` to the `exports` map of `packages/domain/package.json` and of `packages/validators/package.json`, in alphabetical position. Verify: `node -e "require('./packages/domain/package.json').exports['./establishments-report']||process.exit(1)"`.
-- [ ] T002 Add the root script `"test:establishments-report:integration": "ESTABLISHMENTS_REPORT_INTEGRATION_TEST=1 tsx --test apps/api/src/establishments-report.integration.test.ts"` to `package.json` next to `test:financial-distribution:integration`, and list `pnpm test:establishments-report:integration` in the integration suite list of `docs/testing.md` (update "todas as quinze suítes" to "todas as dezesseis suítes"). Verify: `node -e "require('./package.json').scripts['test:establishments-report:integration']||process.exit(1)"`.
+- [x] T001 Add `"./establishments-report": "./src/establishments-report.ts"` to the `exports` map of `packages/domain/package.json` and of `packages/validators/package.json`, in alphabetical position. Verify: `node -e "require('./packages/domain/package.json').exports['./establishments-report']||process.exit(1)"`.
+- [x] T002 Add the root script `"test:establishments-report:integration": "ESTABLISHMENTS_REPORT_INTEGRATION_TEST=1 tsx --test apps/api/src/establishments-report.integration.test.ts"` to `package.json` next to `test:financial-distribution:integration`, and list `pnpm test:establishments-report:integration` in the integration suite list of `docs/testing.md` (update "todas as quinze suítes" to "todas as dezesseis suítes"). Verify: `node -e "require('./package.json').scripts['test:establishments-report:integration']||process.exit(1)"`.
 
 ## Phase 2: Foundational (blocks every story)
 
