@@ -32,7 +32,10 @@ test("calendar grid spans 42 Monday-first days and marks only the given day as t
   );
 
   const march = buildCalendarDays("2026-03", "2026-10-12");
-  assert.equal(march.some((day) => day.isToday), false);
+  assert.equal(
+    march.some((day) => day.isToday),
+    false,
+  );
 });
 
 const adminPersonId = "admin";
@@ -94,6 +97,26 @@ const academia = item({
   purchaseDate: "2026-10-01",
   paymentMethod: "boleto",
   dueDate: "2026-10-20",
+});
+
+const aluguel = item({
+  id: "aluguel",
+  name: "Aluguel",
+  amount: -1200,
+  purchaseDate: "2026-09-22",
+  paymentMethod: "boleto",
+  isRecurring: true,
+  dueDate: "2026-10-22",
+});
+const condominio = item({
+  id: "condominio",
+  name: "Condominio",
+  amount: -300,
+  purchaseDate: "2026-09-22",
+  paymentMethod: "boleto",
+  isRecurring: true,
+  dueDate: "2026-10-22",
+  isSettled: false,
 });
 
 const cards: CalendarCardItem[] = [
@@ -222,7 +245,7 @@ const octoberInput: CalendarMonthInput = {
     internet,
     carro,
   ],
-  boletoItems: [internet, luz, academia, carro],
+  boletoItems: [internet, luz, academia, carro, aluguel, condominio],
   cards,
 };
 
@@ -368,45 +391,64 @@ test("boletos land once on their due date, flag overdue bills, never installment
       },
     ],
   );
+  assert.deepEqual(
+    eventsOn(october, "2026-10-22").map((event) => [
+      eventLabel(event),
+      "transactionId" in event ? event.transactionId : undefined,
+    ]),
+    [
+      ["Aluguel", "aluguel"],
+      ["Condominio", null],
+    ],
+  );
 });
 
 test("invoices sit on their due date with state and payment date, zero totals dropped", () => {
-  assert.deepEqual(eventsOn(october, "2026-10-20").find((event) => event.kind === "invoice"), {
-    id: "invoice:nubank",
-    kind: "invoice",
-    date: "2026-10-20",
-    cardId: "nubank",
-    cardName: "Nubank",
-    cardLogo: "nubank.png",
-    cardBrand: "mastercard",
-    amount: 1200,
-    state: "pending",
-    paidAt: null,
-  });
-  assert.deepEqual(eventsOn(october, "2026-10-25").find((event) => event.kind === "invoice"), {
-    id: "invoice:inter",
-    kind: "invoice",
-    date: "2026-10-25",
-    cardId: "inter",
-    cardName: "Inter",
-    cardLogo: null,
-    cardBrand: "visa",
-    amount: 800,
-    state: "paid",
-    paidAt: "2026-10-12",
-  });
-  assert.deepEqual(eventsOn(october, "2026-10-08").find((event) => event.kind === "invoice"), {
-    id: "invoice:itau",
-    kind: "invoice",
-    date: "2026-10-08",
-    cardId: "itau",
-    cardName: "Itau",
-    cardLogo: "itau.png",
-    cardBrand: "visa",
-    amount: 300,
-    state: "overdue",
-    paidAt: null,
-  });
+  assert.deepEqual(
+    eventsOn(october, "2026-10-20").find((event) => event.kind === "invoice"),
+    {
+      id: "invoice:nubank",
+      kind: "invoice",
+      date: "2026-10-20",
+      cardId: "nubank",
+      cardName: "Nubank",
+      cardLogo: "nubank.png",
+      cardBrand: "mastercard",
+      amount: 1200,
+      state: "pending",
+      paidAt: null,
+    },
+  );
+  assert.deepEqual(
+    eventsOn(october, "2026-10-25").find((event) => event.kind === "invoice"),
+    {
+      id: "invoice:inter",
+      kind: "invoice",
+      date: "2026-10-25",
+      cardId: "inter",
+      cardName: "Inter",
+      cardLogo: null,
+      cardBrand: "visa",
+      amount: 800,
+      state: "paid",
+      paidAt: "2026-10-12",
+    },
+  );
+  assert.deepEqual(
+    eventsOn(october, "2026-10-08").find((event) => event.kind === "invoice"),
+    {
+      id: "invoice:itau",
+      kind: "invoice",
+      date: "2026-10-08",
+      cardId: "itau",
+      cardName: "Itau",
+      cardLogo: "itau.png",
+      cardBrand: "visa",
+      amount: 300,
+      state: "overdue",
+      paidAt: null,
+    },
+  );
   assert.deepEqual(eventsOn(october, "2026-10-28"), []);
 });
 

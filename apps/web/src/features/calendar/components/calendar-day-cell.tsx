@@ -1,6 +1,6 @@
+import type { CalendarOutput } from "@openmonetis/validators/calendar";
 import { MoneyValue } from "@/components/money-value";
 import { cn } from "@/lib/utils";
-import type { CalendarOutput } from "../calendar.api";
 import { calendarEventMarkerClassName, splitDayPreview } from "../calendar.presentation";
 
 export type CalendarDay = CalendarOutput["days"][number];
@@ -56,10 +56,7 @@ export function CalendarDayCell({ day, onOpen }: CalendarDayCellProps) {
             key={`${event.kind}-${event.id}`}
           >
             <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                calendarEventMarkerClassName(event),
-              )}
+              className={cn("size-1.5 shrink-0 rounded-full", calendarEventMarkerClassName(event))}
             />
             <span className="truncate">{calendarEventTitle(event)}</span>
             <MoneyValue

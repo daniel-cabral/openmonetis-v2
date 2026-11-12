@@ -7,6 +7,11 @@ import { withIntegrationDatabase } from "./test-support/integration-database";
 
 const migrationsFolder = fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url));
 
+type CalendarEventOutput = CalendarOutput["days"][number]["events"][number];
+
+const eventName = (event: CalendarEventOutput) =>
+  event.kind === "invoice" ? event.cardName : event.name;
+
 test("calendar month places each owner's money events on their days and isolates users", {
   skip: process.env.CALENDAR_INTEGRATION_TEST !== "1",
 }, async () => {
@@ -115,21 +120,21 @@ test("calendar month places each owner's money events on their days and isolates
       const eventsOn = (date: string) =>
         calendar.days.find((day) => day.date === date)?.events ?? [];
       assert.deepEqual(
-        eventsOn("2026-10-12").map((event) => [event.kind, event.name, event.amount]),
+        eventsOn("2026-10-12").map((event) => [event.kind, eventName(event), event.amount]),
         [["transaction", "Mercado", 42.5]],
       );
       assert.deepEqual(eventsOn("2026-10-14"), []);
       assert.deepEqual(
-        eventsOn("2026-10-20").map((event) => [event.kind, event.name, event.amount]),
+        eventsOn("2026-10-20").map((event) => [event.kind, eventName(event), event.amount]),
         [["boleto", "Energia", 120]],
       );
       assert.deepEqual(
-        eventsOn("2026-10-08").map((event) => [event.kind, event.name, event.amount]),
+        eventsOn("2026-10-08").map((event) => [event.kind, eventName(event), event.amount]),
         [["installment", "Notebook", 30]],
       );
       assert.deepEqual(
         eventsOn("2026-10-05")
-          .filter((event) => event.name === "Academia")
+          .filter((event) => eventName(event) === "Academia")
           .map((event) => [event.kind, event.amount]),
         [["transaction", 99.9]],
       );
@@ -152,11 +157,10 @@ test("calendar month places each owner's money events on their days and isolates
         await api.request(calendarPath, stranger),
       );
       assert.equal(strangerCalendar.days.flatMap((day) => day.events).length, 0);
-      assert.deepEqual(
-        refreshedStranger.days.flatMap((day) => day.events).map((event) => event.name),
-        ["Outro"],
-      );
-      const ownerNames = calendar.days.flatMap((day) => day.events).map((event) => event.name);
+      assert.deepEqual(refreshedStranger.days.flatMap((day) => day.events).map(eventName), [
+        "Outro",
+      ]);
+      const ownerNames = calendar.days.flatMap((day) => day.events).map(eventName);
       assert.equal(ownerNames.includes("Outro"), false);
     },
     { migrationsFolder },

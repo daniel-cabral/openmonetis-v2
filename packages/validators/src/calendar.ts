@@ -90,3 +90,5 @@ export const CalendarOutputSchema = z
     days: z.array(CalendarDaySchema).length(42),
   })
   .openapi("CalendarOutput");
+
+export type CalendarOutput = z.infer<typeof CalendarOutputSchema>;

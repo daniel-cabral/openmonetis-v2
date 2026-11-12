@@ -135,11 +135,7 @@ export function buildCalendarMonth(input: CalendarMonthInput): CalendarMonth {
 }
 
 function uniqueEventsInMonth(input: CalendarMonthInput): CalendarEvent[] {
-  const events = [
-    ...purchaseEvents(input),
-    ...boletoEvents(input),
-    ...invoiceEvents(input.cards),
-  ];
+  const events = [...purchaseEvents(input), ...boletoEvents(input), ...invoiceEvents(input.cards)];
   const seenIds = new Set<string>();
   return events.filter((event) => {
     if (seenIds.has(event.id) || !event.date.startsWith(input.period)) return false;

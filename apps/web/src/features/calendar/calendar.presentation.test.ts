@@ -140,9 +140,7 @@ test("calendar search keeps a valid period and falls back to the current one", a
 });
 
 test("day preview shows the first three events and counts the rest", () => {
-  const events = [1, 2, 3, 4, 5].map((index) =>
-    transactionEvent({ id: `transaction-${index}` }),
-  );
+  const events = [1, 2, 3, 4, 5].map((index) => transactionEvent({ id: `transaction-${index}` }));
 
   const preview = splitDayPreview(events);
 

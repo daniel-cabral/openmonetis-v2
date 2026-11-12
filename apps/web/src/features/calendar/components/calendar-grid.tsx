@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { weekdayLabels } from "../calendar.presentation";
-import { CalendarDayCell, type CalendarDay } from "./calendar-day-cell";
+import { type CalendarDay, CalendarDayCell } from "./calendar-day-cell";
 
 type CalendarGridProps = {
   days: CalendarDay[];
