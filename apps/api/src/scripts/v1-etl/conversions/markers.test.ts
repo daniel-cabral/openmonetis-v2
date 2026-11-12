@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { V1Transaction } from "../types";
 import type { CatalogRefs } from "./catalog";
-import { buildInvoicePayment, parseMarker } from "./markers";
+import { buildInvoicePayment, type Marker, parseMarker } from "./markers";
 
 const refs: CatalogRefs = {
   userId: "00000000-0000-4000-8000-000000000001",
@@ -136,7 +136,10 @@ function expectedPayment(ids: { tx: string; payment: string; allocation: string 
 }
 
 test("parseMarker recognises V1 markers and buildInvoicePayment builds the V2 payment records", () => {
-  const cases = [
+  const cases: Array<
+    | { note: string; marker: Marker | null; payment?: undefined }
+    | { note: string; marker: Marker | null; payment: ReturnType<typeof expectedPayment>; v1Id: string; valor: string }
+  > = [
     {
       note: "AUTO_FATURA:v1-card:2025-02",
       marker: { kind: "invoicePayment", cardId: "v1-card", period: "2025-02", partialId: null },
@@ -177,7 +180,7 @@ test("parseMarker recognises V1 markers and buildInvoicePayment builds the V2 pa
 
   for (const c of cases) {
     const marker = parseMarker(c.note);
-    assert.deepEqual(marker, c.marker, c.note);
+    assert.deepEqual<Marker | null>(marker, c.marker, c.note);
     if (c.payment && marker?.kind === "invoicePayment") {
       assert.deepEqual(buildInvoicePayment(paymentRow(c.v1Id, c.note, c.valor), marker, refs), c.payment, c.note);
     }
