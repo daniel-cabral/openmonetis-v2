@@ -251,6 +251,8 @@ const reconciliationsRoute = createReconciliationsRoute(
     findCardByIdForUser,
     listAccountsForUser: (userId) => accountsRepository.listByUser(userId),
     listCategoriesForUser: (userId) => categoriesRepository.listByUser(userId),
+    getAccountBalanceThroughDate: (accountId, userId, date) =>
+      accountsService.getBalanceThroughDate(accountId, userId, date),
   }),
 );
 const tagsRoute = createTagsRoute(
