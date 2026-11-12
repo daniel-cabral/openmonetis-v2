@@ -123,7 +123,7 @@ report PDF and Excel, US3 consistent and safe files.
   `node --import tsx --test apps/web/src/features/transactions/transactions.presentation.test.ts`
   passes.
 
-- [ ] T006 [US1] Transactions PDF wiring (plan.md "Design > Web > Transactions", FR-001, FR-011,
+- [x] T006 [US1] Transactions PDF wiring (plan.md "Design > Web > Transactions", FR-001, FR-011,
   FR-012). `apps/web/src/features/transactions/transactions.api.ts`:
   `getTransactionExportItems(search)` (GET `/transactions/export/items`, params as
   `exportTransactions` without `format`). `transactions.mutations.ts`:

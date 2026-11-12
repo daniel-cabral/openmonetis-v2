@@ -1,4 +1,11 @@
-import { ChevronDown, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,6 +45,10 @@ export function TransactionsExportMenu({
           <DropdownMenuItem onClick={() => onExport("xlsx")}>
             <FileSpreadsheet aria-hidden="true" />
             Exportar Excel (.xlsx)
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onExport("pdf")}>
+            <FileDown aria-hidden="true" />
+            Exportar como PDF
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

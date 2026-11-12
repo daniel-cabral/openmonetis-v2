@@ -1,10 +1,10 @@
 import type {
   CreateTransactionRefundInput,
-  ExportTransactionsQuery,
   TransactionActionScope,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
+import { downloadBlob } from "@/lib/download-blob";
 import { refreshFinancialQueries } from "@/lib/financial-query-invalidation";
 import {
   applyRecurringRuleAction,
@@ -15,6 +15,7 @@ import {
   deleteTransactions,
   detectTransactionImport,
   exportTransactions,
+  getTransactionExportItems,
   getTransactionImportTemplate,
   importTransactions,
   previewTransactionImport,
@@ -33,8 +34,16 @@ import {
 } from "./transactions.api";
 import {
   downloadTransactionExport,
+  formatExportGeneratedAt,
+  getTransactionsExportPeriodLabel,
+  getTransactionsPdfFileName,
   labelTransactionExportFileName,
+  toTransactionPdfRow,
+  type TransactionsExportFormat,
 } from "./transactions.presentation";
+
+/** Index of the "Valor" column, the only cell that carries the expense or income tone. */
+const PDF_AMOUNT_COLUMN_INDEX = 5;
 
 function refreshTransactionQueries(queryClient: QueryClient) {
   return Promise.all([
@@ -51,9 +60,48 @@ export function useExportTransactionsMutation() {
       fileLabel,
     }: {
       search: TransactionsApiSearch;
-      format: ExportTransactionsQuery["format"];
+      format: TransactionsExportFormat;
       fileLabel?: string;
     }) => {
+      if (format === "pdf") {
+        const [file, { buildBrandedPdf }, { resolveExportBranding }] = await Promise.all([
+          getTransactionExportItems(search),
+          import("@/lib/pdf-export"),
+          import("@/lib/export-branding"),
+        ]);
+        const { blob } = await buildBrandedPdf({
+          title: "Lançamentos",
+          periodLabel: getTransactionsExportPeriodLabel(search),
+          generatedAt: formatExportGeneratedAt(new Date()),
+          branding: await resolveExportBranding(),
+          columns: [
+            { header: "Data" },
+            { header: "Nome" },
+            { header: "Tipo" },
+            { header: "Condição" },
+            { header: "Pagamento" },
+            { header: "Valor", align: "right" },
+            { header: "Categoria" },
+            { header: "Conta/Cartão" },
+            { header: "Pessoa" },
+          ],
+          rows: file.items.map((item) => {
+            const { cells, tone } = toTransactionPdfRow(item);
+            return {
+              cells: cells.map((text, index) => ({
+                text,
+                tone: index === PDF_AMOUNT_COLUMN_INDEX ? tone : null,
+              })),
+            };
+          }),
+        });
+        downloadBlob(
+          blob,
+          labelTransactionExportFileName(getTransactionsPdfFileName(search), fileLabel),
+        );
+        return { rowCount: file.rowCount };
+      }
+
       const file = await exportTransactions(search, format);
       downloadTransactionExport({
         ...file,
