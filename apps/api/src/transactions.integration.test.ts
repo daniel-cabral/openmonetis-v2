@@ -1423,6 +1423,35 @@ test("assembled API protects financial endpoints and persists transfers and refu
         );
         assert.deepEqual((await details(singleIds)).map(keep), singlesAfter.map(keep));
 
+        // A stored row of a recurring rule (as reconciliation stamps it) rejects the whole selection.
+        const recurrence = await create({
+          name: "Recurring edit",
+          condition: "recurring",
+          recurrenceFrequency: "monthly",
+          purchaseDate: "2020-03-10",
+        });
+        assert.ok(recurrence.recurringRuleId);
+        const occurrenceId = (await create({ name: "Recurring stamped" })).recordId as string;
+        await db
+          .update(schema.transactions)
+          .set({ recurringRuleId: recurrence.recurringRuleId })
+          .where(
+            and(
+              eq(schema.transactions.id, occurrenceId),
+              eq(schema.transactions.userId, editor.id),
+            ),
+          );
+        await error(
+          await edit([...singleIds, occurrenceId], { note: "Recurring" }),
+          400,
+          "BULK_UPDATE_RECURRING",
+        );
+        assert.deepEqual(
+          (await details(singleIds)).map((item) => item.note),
+          [null, null, null],
+        );
+        assert.equal((await detail(occurrenceId)).note, null);
+
         // Every related id must belong to the owner, even when the transactions do.
         const strangerAccount = await data<Account>(
           await request("/accounts", stranger, "POST", {
