@@ -69,6 +69,7 @@ import { isTripLinkable, planTripLinkChange } from "@openmonetis/domain/trips";
 import { getCurrentDateInBrazil, getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   BulkCategorizeTransactionsInput,
+  BulkCreateTransactionsInput,
   BulkDeleteTransactionsInput,
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
@@ -227,6 +228,16 @@ function normalizeNullableText(value: string | null | undefined) {
   const normalized = value?.trim();
 
   return normalized ? normalized : null;
+}
+
+function isCategoryUsableForType(
+  category: { name: string; type: string; isSystem: boolean | null },
+  type: TransactionInput["type"],
+) {
+  return (
+    category.type === type &&
+    !(category.name === invoicePaymentCategoryName && category.isSystem !== false)
+  );
 }
 
 function assertBoletoPaymentDateIsNotFuture(data: TransactionInput) {
@@ -623,9 +634,7 @@ export function createTransactionsService(
 
     if (
       !category ||
-      (data.type !== "transfer" &&
-        (category.type !== data.type ||
-          (category.name === invoicePaymentCategoryName && category.isSystem !== false)))
+      (data.type !== "transfer" && !isCategoryUsableForType(category, data.type))
     ) {
       throw notFound("Category not found", "CATEGORY_NOT_FOUND");
     }
@@ -676,7 +685,7 @@ export function createTransactionsService(
 
   function buildBaseRecord(
     data: TransactionInput & { userId: string },
-    context: OwnershipContext,
+    context: Omit<OwnershipContext, "person"> & { person: Pick<OwnershipContext["person"], "id"> },
   ): Omit<
     TransactionCreateRecord,
     "purchaseDate" | "period" | "amount" | "seriesId" | "installmentCount" | "currentInstallment"
@@ -717,7 +726,11 @@ export function createTransactionsService(
     };
   }
 
-  function derivePeriod(data: TransactionInput, context: OwnershipContext, purchaseDate: string) {
+  function derivePeriod(
+    data: TransactionInput,
+    context: Pick<OwnershipContext, "card">,
+    purchaseDate: string,
+  ) {
     if (data.paymentMethod === "credit_card" && data.invoicePeriod) return data.invoicePeriod;
     return deriveTransactionPeriod({
       paymentMethod: data.paymentMethod,
@@ -2560,6 +2573,79 @@ export function createTransactionsService(
     return targets.map((target) => ({ ...target, refundedAmount: Number(target.refundedAmount) }));
   }
 
+  async function createTransactions(input: BulkCreateTransactionsInput, userId: string) {
+    const account = input.accountId ? await findAccountByIdForUser(input.accountId, userId) : null;
+    if (input.accountId && (!account || account.isArchived))
+      throw notFound("Account not found", "ACCOUNT_NOT_FOUND");
+    const card = input.cardId ? await findCardByIdForUser(input.cardId, userId) : null;
+    if (input.cardId && (!card || card.status === "inactive"))
+      throw notFound("Card not found", "CARD_NOT_FOUND");
+
+    const [ownedCategories, ownedPeople] = await Promise.all([
+      listCategoriesByIdsForUser([...new Set(input.rows.map((row) => row.categoryId))], userId),
+      listPeopleByIdsForUser([...new Set(input.rows.map((row) => row.personId))], userId),
+    ]);
+    const categoriesById = new Map(ownedCategories.map((category) => [category.id, category]));
+    const peopleById = new Map(ownedPeople.map((person) => [person.id, person]));
+    if (
+      input.rows.some((row) => {
+        const category = categoriesById.get(row.categoryId);
+        return !category || !isCategoryUsableForType(category, input.type);
+      })
+    )
+      throw notFound("Category not found", "CATEGORY_NOT_FOUND");
+    if (input.rows.some((row) => peopleById.get(row.personId)?.status !== "active"))
+      throw notFound("Person not found", "PERSON_NOT_FOUND");
+
+    const records: TransactionCreateRecord[] = input.rows.map((row) => {
+      const data: TransactionInput & { userId: string } = {
+        userId,
+        type: input.type,
+        paymentMethod: input.paymentMethod,
+        condition: "single",
+        name: row.name,
+        amount: row.amount,
+        purchaseDate: row.purchaseDate,
+        invoicePeriod: input.invoicePeriod,
+        personId: row.personId,
+        accountId: input.accountId,
+        cardId: input.cardId,
+        categoryId: row.categoryId,
+        isSettled: false,
+      };
+      const context = {
+        person: { id: row.personId },
+        category: { id: row.categoryId, type: input.type },
+        card,
+      };
+      return {
+        ...buildBaseRecord(data, context),
+        amount: normalizeTransactionAmount(input.type, row.amount).toFixed(2),
+        purchaseDate: toDate(row.purchaseDate),
+        period: derivePeriod(data, context, row.purchaseDate),
+        installmentCount: null,
+        currentInstallment: null,
+        seriesId: null,
+      };
+    });
+
+    if (card) {
+      const periods = [...new Set(records.map((record) => record.period))];
+      const paidPeriods = await listPaidInvoicePeriodsForUser(card.id, periods, userId);
+      if (paidPeriods.length)
+        throw badRequest("Paid invoices cannot receive transactions", "INVOICE_ALREADY_PAID");
+      if (input.type === "expense") {
+        const used = await getCardExpenseTotalForUser(card.id, userId);
+        const total = input.rows.reduce((sum, row) => sum + row.amount, 0);
+        if (used + total > Number(card.limit))
+          throw badRequest("Card limit exceeded", "CARD_LIMIT_EXCEEDED");
+      }
+    }
+
+    const inserted = await insertTransactionsWithSplits(records, []);
+    return { ids: inserted.map((row) => row.id) };
+  }
+
   async function categorizeTransactions(input: BulkCategorizeTransactionsInput, userId: string) {
     const [category] = await listCategoriesByIdsForUser([input.categoryId], userId);
     if (!category) throw notFound("Category not found", "CATEGORY_NOT_FOUND");
@@ -3088,6 +3174,7 @@ export function createTransactionsService(
     }),
     applyRecurringRuleAction,
     categorizeTransactions,
+    createTransactions,
     copyRecurringRule,
     copyTransaction,
     createTransaction,
