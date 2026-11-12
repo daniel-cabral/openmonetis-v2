@@ -4,7 +4,10 @@ import {
   invoicePaymentCategoryName,
   yieldCategoryName,
 } from "@openmonetis/domain/categories";
-import { canDeleteTransactionOrigin } from "@openmonetis/domain/transactions";
+import {
+  canDeleteTransactionOrigin,
+  canEditTransactionOrigin,
+} from "@openmonetis/domain/transactions";
 import { Circle, CircleCheck, CreditCard, Loader2, Minus, Scale } from "lucide-react";
 import { useState } from "react";
 import { MoneyValue } from "@/components/money-value";
@@ -94,7 +97,7 @@ export function TransactionRow({
       ? (transaction.cardName ?? "cartão")
       : (transaction.accountName ?? transaction.cardName ?? "conta");
   const isRefund = transaction.origin === "refund";
-  const isGenerated = transaction.origin !== "regular";
+  const isGenerated = !canEditTransactionOrigin(transaction.origin);
   const isLastInstallment =
     transaction.condition === "installment" &&
     transaction.currentInstallment !== null &&

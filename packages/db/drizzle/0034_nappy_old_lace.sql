@@ -1,0 +1,1 @@
+ALTER TYPE "public"."transaction_origin" ADD VALUE 'invoiceCredit';

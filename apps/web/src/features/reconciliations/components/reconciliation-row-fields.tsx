@@ -7,6 +7,7 @@ import { MobileSelectContent as SelectContent } from "@/components/forms/mobile-
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TextOption } from "@/features/transactions/components/transaction-import-options";
 import { formatCurrency } from "@/lib/money-presentation";
+import { invoiceCreditLineLabel } from "../reconciliations.presentation";
 import type { LinkOption, UiLineDecision } from "./reconciliation-review";
 
 type Preview = ReconciliationPreview;
@@ -32,7 +33,8 @@ export function formatSignedAmount(amount: number, type: "income" | "expense") {
 }
 
 export function formatLineMeta(line: PreviewLine) {
-  return `${formatShortDate(line.purchaseDate)} · ${formatSignedAmount(line.amount, line.type)}`;
+  const meta = `${formatShortDate(line.purchaseDate)} · ${formatSignedAmount(line.amount, line.type)}`;
+  return line.lineKind === "credit" ? `${meta} · ${invoiceCreditLineLabel}` : meta;
 }
 
 export function ReconciliationEntryItem({ option, value }: { option: LinkOption; value: string }) {

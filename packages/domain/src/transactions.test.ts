@@ -11,6 +11,8 @@ import {
   calculateRefund,
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
+  canDeleteTransactionOrigin,
+  canEditTransactionOrigin,
   deriveTransactionPostingDate,
   getImportedDescriptionKey,
   getPeriodEndDate,
@@ -411,16 +413,39 @@ test("selection excludes technical and neutral movements", () => {
     { amount: -100, origin: "invoicePayment", type: "expense" },
     { amount: 250, origin: "accountBalanceAdjustment", type: "income" },
     { amount: -50, origin: "regular", type: "transfer" },
+    { amount: 300, origin: "invoiceCredit", type: "income" },
   ] satisfies TransactionSelectionItem[];
 
-  assert.deepEqual(items.map(isTransactionSelectionItemSelectable), [true, false, false, false]);
+  assert.deepEqual(items.map(isTransactionSelectionItemSelectable), [
+    true,
+    false,
+    false,
+    false,
+    false,
+  ]);
   assert.deepEqual(summarizeTransactionSelection(items), {
-    selectedCount: 4,
+    selectedCount: 5,
     inflow: 0,
     outflow: 100,
     balance: -100,
-    neutralCount: 3,
+    neutralCount: 4,
   });
+});
+
+test("invoice credits are editable and deletable while invoice payments stay locked", () => {
+  assert.deepEqual(
+    [
+      canEditTransactionOrigin("regular"),
+      canEditTransactionOrigin("invoiceCredit"),
+      canEditTransactionOrigin("refund"),
+      canEditTransactionOrigin("invoicePayment"),
+    ],
+    [true, true, false, false],
+  );
+  assert.deepEqual(
+    [canDeleteTransactionOrigin("invoiceCredit"), canDeleteTransactionOrigin("invoicePayment")],
+    [true, false],
+  );
 });
 
 test("two amount shares conserve cents when editing either participant", () => {

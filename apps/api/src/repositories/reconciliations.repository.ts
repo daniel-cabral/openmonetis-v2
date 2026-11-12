@@ -3,6 +3,7 @@ import {
   importCategoryMappings,
   importNameMappings,
   invoices,
+  people,
   reconciliationBatches,
   reconciliationIgnores,
   recurringTransactionOccurrences,
@@ -37,6 +38,8 @@ export type ReconciliationTransactionRow = {
   importExternalId: string | null;
   categoryId: string | null;
   isSettled: boolean | null;
+  settledDate: string | null;
+  personIsAdmin: boolean;
   hasSplits: boolean;
   transferId: string | null;
   transferSide: "source" | "destination" | null;
@@ -51,6 +54,7 @@ export type ReconciliationOccurrenceRow = {
   date: string;
   isSettled: boolean;
   settledAmount: string | null;
+  settledDate: string | null;
   importSourceFingerprint: string | null;
   importExternalId: string | null;
 };
@@ -93,8 +97,19 @@ export async function listReconciliationTransactionCandidates(input: {
       importExternalId: transactions.importExternalId,
       categoryId: transactions.categoryId,
       isSettled: transactions.isSettled,
+      settledDate: sql<string | null>`to_char(${transactions.settledDate}, 'YYYY-MM-DD')`,
       // Built with the query builder: a raw correlated subquery in a select list renders
       // transactions.id unqualified, so it binds to the subquery's own id column.
+      personIsAdmin: sql<boolean>`exists (${db
+        .select({ one: sql`1` })
+        .from(people)
+        .where(
+          and(
+            eq(people.id, transactions.personId),
+            eq(people.userId, userId),
+            eq(people.role, "admin"),
+          ),
+        )})`,
       hasSplits: sql<boolean>`exists (${db
         .select({ one: sql`1` })
         .from(transactionSplits)
@@ -174,6 +189,9 @@ export async function listReconciliationOccurrences(input: {
       date: sql<string>`to_char(${recurringTransactionOccurrences.purchaseDate}, 'YYYY-MM-DD')`,
       isSettled: recurringTransactionOccurrences.isSettled,
       settledAmount: recurringTransactionOccurrences.settledAmount,
+      settledDate: sql<
+        string | null
+      >`to_char(${recurringTransactionOccurrences.settledDate}, 'YYYY-MM-DD')`,
       importSourceFingerprint: recurringTransactionOccurrences.importSourceFingerprint,
       importExternalId: recurringTransactionOccurrences.importExternalId,
     })
@@ -449,7 +467,7 @@ export async function applyReconciliationPlan(input: {
             userId,
             personId: creation.personId,
             type: creation.signedCents < 0 ? ("expense" as const) : ("income" as const),
-            origin: "regular" as const,
+            origin: creation.origin,
             condition: "single" as const,
             paymentMethod: input.paymentMethod,
             name: creation.name,

@@ -17,6 +17,7 @@ import {
 import { decodeImportText } from "@openmonetis/domain/import-csv";
 import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
 import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
+import { isPaidButUnreconciled } from "@openmonetis/domain/reconciliations";
 import {
   getNextRecurringOccurrenceDate,
   getRecurringDueDate,
@@ -42,6 +43,7 @@ import {
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
   canDeleteTransactionOrigin,
+  canEditTransactionOrigin,
   deriveImportedPeriod,
   deriveTransactionPeriod,
   deriveTransactionPostingDate,
@@ -133,6 +135,7 @@ export type TransactionsServiceDependencies = Pick<
   | "deleteTransferPairForUser"
   | "findRecurringRuleByIdForUser"
   | "findInstallmentSeriesByIdForUser"
+  | "findFirstReconciledDateForAccount"
   | "findTransactionByIdForUser"
   | "getCardExpenseTotalForUser"
   | "insertImportedTransactions"
@@ -317,6 +320,7 @@ export function createTransactionsService(
     findRecurringRuleByIdForUser,
     findInstallmentSeriesByIdForUser,
     findSystemCategoryByNameForUser,
+    findFirstReconciledDateForAccount,
     findTransactionByIdForUser,
     getCardExpenseTotalForUser,
     getAccountBalanceSnapshotForUser,
@@ -1506,43 +1510,47 @@ export function createTransactionsService(
       hasAttachments: query.hasAttachments,
       isDivided: query.isDivided,
     };
-    const [transactions, scheduledRecurringRules, paidBoletoOccurrences] = await Promise.all([
-      accountStatement
-        ? listAccountStatementTransactionsForUser(
-            userId,
-            period,
-            periodStart,
-            periodEnd,
-            Boolean(query.dateStart || query.dateEnd),
-            persistedFilters,
-          )
-        : query.dateStart || query.dateEnd
-          ? listTransactionsByPurchaseDateRange(
+    const [transactions, scheduledRecurringRules, paidBoletoOccurrences, firstReconciledDate] =
+      await Promise.all([
+        accountStatement
+          ? listAccountStatementTransactionsForUser(
               userId,
-              query.dateStart ? toDate(query.dateStart) : undefined,
-              query.dateEnd ? toDate(query.dateEnd) : undefined,
+              period,
+              periodStart,
+              periodEnd,
+              Boolean(query.dateStart || query.dateEnd),
               persistedFilters,
             )
-          : query.payables
-            ? listTransactionsByDueDateRange(
+          : query.dateStart || query.dateEnd
+            ? listTransactionsByPurchaseDateRange(
                 userId,
-                `${addMonthsToPeriod(period, -13)}-01`,
-                toDateString(getPeriodEndDate(addMonthsToPeriod(period, 13))),
+                query.dateStart ? toDate(query.dateStart) : undefined,
+                query.dateEnd ? toDate(query.dateEnd) : undefined,
+                persistedFilters,
               )
-            : listTransactionsByPeriod(userId, period, persistedFilters),
-      listRecurringRulesForPeriod(
-        userId,
-        query.payables ? getPeriodEndDate(addMonthsToPeriod(period, 13)) : periodEnd,
-      ),
-      accountStatement
-        ? listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
-            userId,
-            query.accountIds[0] as string,
-            periodStart,
-            periodEnd,
-          )
-        : Promise.resolve([]),
-    ]);
+            : query.payables
+              ? listTransactionsByDueDateRange(
+                  userId,
+                  `${addMonthsToPeriod(period, -13)}-01`,
+                  toDateString(getPeriodEndDate(addMonthsToPeriod(period, 13))),
+                )
+              : listTransactionsByPeriod(userId, period, persistedFilters),
+        listRecurringRulesForPeriod(
+          userId,
+          query.payables ? getPeriodEndDate(addMonthsToPeriod(period, 13)) : periodEnd,
+        ),
+        accountStatement
+          ? listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
+              userId,
+              query.accountIds[0] as string,
+              periodStart,
+              periodEnd,
+            )
+          : Promise.resolve([]),
+        accountStatement
+          ? findFirstReconciledDateForAccount(userId, query.accountIds[0] as string)
+          : Promise.resolve(null),
+      ]);
     const scheduledRuleIds = new Set(scheduledRecurringRules.map((rule) => rule.id));
     const additionalRuleIds = [
       ...new Set(paidBoletoOccurrences.map((occurrence) => occurrence.recurringRuleId)),
@@ -1723,6 +1731,16 @@ export function createTransactionsService(
         : undefined;
       return {
         ...item,
+        isPaidUnreconciled: accountStatement
+          ? isPaidButUnreconciled(
+              {
+                isSettled: item.isSettled,
+                hasIdentity: Boolean(persisted?.importExternalId ?? occurrence?.importExternalId),
+                date: item.postingDate ?? item.purchaseDate,
+              },
+              firstReconciledDate,
+            )
+          : undefined,
         dueDateRuleExcluded: occurrence?.dueDateRuleExcluded ?? item.dueDateRuleExcluded,
         ...resolveDueDate(
           {
@@ -2128,10 +2146,21 @@ export function createTransactionsService(
         "BALANCE_ADJUSTMENT_IMMUTABLE",
       );
     }
-    if (current.origin !== "regular") {
+    if (!canEditTransactionOrigin(current.origin)) {
       throw badRequest(
         "Generated transactions cannot be edited",
         "GENERATED_TRANSACTION_IMMUTABLE",
+      );
+    }
+    if (
+      current.origin === "invoiceCredit" &&
+      ((data.type !== undefined && data.type !== "income") ||
+        (data.paymentMethod !== undefined && data.paymentMethod !== "credit_card") ||
+        (data.cardId !== undefined && data.cardId !== current.cardId))
+    ) {
+      throw badRequest(
+        "Invoice credits keep their type, payment method and card",
+        "INVOICE_CREDIT_SHAPE_LOCKED",
       );
     }
 
@@ -2273,6 +2302,7 @@ export function createTransactionsService(
     );
     const values: TransactionUpdateRecord = {
       ...base,
+      origin: current.origin,
       settledDate: current.settledDate ?? null,
       tagIds: data.tagIds,
       amount: normalizeTransactionAmount(validatedMerged.type, validatedMerged.amount).toFixed(2),

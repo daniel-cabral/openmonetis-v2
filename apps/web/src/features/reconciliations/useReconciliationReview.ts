@@ -1,3 +1,4 @@
+import { parseAmountInputToCents } from "@openmonetis/domain/reconciliations-closure";
 import type {
   ReconciliationApplyResult,
   ReconciliationDetection,
@@ -42,6 +43,7 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
   const [preview, setPreview] = useState<ReconciliationPreview | null>(null);
   const [decisions, setDecisions] = useState<UiDecisions>({});
   const [applyResult, setApplyResult] = useState<ReconciliationApplyResult | null>(null);
+  const [invoiceTotalText, setInvoiceTotalText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const detectMutation = useDetectReconciliationMutation();
   const previewMutation = usePreviewReconciliationMutation();
@@ -80,6 +82,7 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
       resetReview();
       setFile(selected);
       setDetection(result);
+      setInvoiceTotalText("");
     } catch {
       setError("Não foi possível ler o arquivo. Verifique o formato e tente novamente.");
     }
@@ -175,6 +178,9 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
     markAllBankOnly,
     applyResult,
     setApplyResult,
+    invoiceTotalText,
+    setInvoiceTotalText,
+    invoiceTotalCents: parseAmountInputToCents(invoiceTotalText),
     error,
     isDetecting: detectMutation.isPending,
     isReading: previewMutation.isPending,

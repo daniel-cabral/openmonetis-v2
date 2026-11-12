@@ -1522,6 +1522,7 @@ test("account statement lists a paid boleto in its payment month while transacti
       listTransactionsByPeriod: async (_userId: string, period: string) =>
         period === "2026-09" ? [paidBoleto] : [],
       listRecurringRulesForPeriod: async () => [],
+      findFirstReconciledDateForAccount: async () => null,
       listSettledRecurringBoletoOccurrencesByPaymentDateForUser: async () => [],
       listRecurringSplitsForUser: async () => [],
       listRecurringOccurrencesForUser: async () => [],
@@ -1627,6 +1628,7 @@ test("account statement includes an early recurring boleto payment before the ru
       listRecurringRulesForPeriod: async (_userId: string, end: Date) =>
         end.toISOString().startsWith("2026-09") ? [rule] : [],
       listRecurringRulesByIdsForUser: async () => [rule],
+      findFirstReconciledDateForAccount: async () => null,
       listSettledRecurringBoletoOccurrencesByPaymentDateForUser: async (
         _userId: string,
         _accountId: string,

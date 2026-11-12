@@ -239,6 +239,13 @@
       "when": 1794446548793,
       "tag": "0033_windy_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794448663561,
+      "tag": "0034_nappy_old_lace",
+      "breakpoints": true
     }
   ]
 }

@@ -75,6 +75,7 @@ const ReconciliationPreviewLineSchema = z.object({
   purchaseDate: dateSchema,
   postedDate: dateSchema.nullable(),
   amount: amountSchema,
+  signedCents: z.number().int(),
   type: transactionTypeSchema,
   name: z.string(),
   installment: z
@@ -103,12 +104,63 @@ const ReconciliationPreviewEntrySchema = z.object({
   categoryId: z.uuid().nullable(),
 });
 
+const StatementDayClosureSchema = z.object({
+  day: dateSchema,
+  balanceCents: z.number().int(),
+  previousBalanceCents: z.number().int(),
+  movementCents: z.number().int(),
+  sumCents: z.number().int(),
+  differenceCents: z.number().int(),
+  closes: z.boolean(),
+});
+
+const ReconciliationClosureSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("statement"),
+    closes: z.boolean(),
+    days: z.array(StatementDayClosureSchema),
+    unverifiedDays: z.array(dateSchema),
+    divergences: z.array(StatementDayClosureSchema),
+    finalBalance: z.object({ date: dateSchema, cents: z.number().int() }).nullable(),
+  }),
+  z.object({
+    kind: z.literal("invoice"),
+    netCents: z.number().int(),
+  }),
+]);
+
+const ReconciliationProjectionEntrySchema = z.object({
+  entryKey: z.string().max(80),
+  name: z.string(),
+  postingDate: dateSchema,
+  period: periodSchema,
+  signedCents: z.number().int(),
+  alignable: z.boolean(),
+  status: z.enum(["in-balance", "unsettled", "after-end"]).nullable(),
+});
+
+const ReconciliationProjectionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("account"),
+    cutoffDate: dateSchema,
+    baselineCents: z.number().int(),
+    entries: z.array(ReconciliationProjectionEntrySchema),
+  }),
+  z.object({
+    kind: z.literal("card"),
+    invoicePeriod: periodSchema,
+    entries: z.array(ReconciliationProjectionEntrySchema),
+  }),
+]);
+
 export const ReconciliationPreviewSchema = z
   .object({
     fileRange: z.object({ start: dateSchema, end: dateSchema }).nullable(),
     invoicePeriod: periodSchema.nullable(),
     lines: z.array(ReconciliationPreviewLineSchema),
     entries: z.array(ReconciliationPreviewEntrySchema),
+    closure: ReconciliationClosureSchema.nullable(),
+    projection: ReconciliationProjectionSchema.nullable(),
     appOnlyKeys: z.array(z.string().max(80)),
     counts: z.object({
       needsDecision: countSchema,

@@ -8,6 +8,7 @@ import { formatCompactDate } from "../transactions.presentation";
 import { TransactionCategory } from "./transaction-category";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionPeople } from "./transaction-people";
+import { TransactionUnreconciledBadge } from "./transaction-unreconciled-badge";
 
 import type { TransactionRowProps } from "./transactions-table.types";
 
@@ -93,6 +94,9 @@ export function TransactionRowDescription({
                 </TooltipTrigger>
                 <TooltipContent>Última parcela!</TooltipContent>
               </Tooltip>
+            ) : null}
+            {accountStatement && transaction.isPaidUnreconciled ? (
+              <TransactionUnreconciledBadge />
             ) : null}
             {transaction.hasAttachments ? (
               <Paperclip className="size-3.5" aria-label="Possui anexos" />

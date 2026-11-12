@@ -20,6 +20,7 @@ import { formatCompactDate } from "../transactions.presentation";
 import { useTransactionSelection } from "../useTransactionSelection";
 import { TransactionBulkActionDock } from "./transaction-bulk-action-dock";
 import { TransactionDueDate } from "./transaction-due-date";
+import { TransactionUnreconciledBadge } from "./transaction-unreconciled-badge";
 import {
   TransactionsMobileActionsMenu,
   type TransactionsMobileExport,
@@ -289,6 +290,9 @@ function MobileTransactionRow({
                 <Landmark aria-hidden="true" className="size-4 shrink-0" />
               ) : null}
               <span className="truncate">{transaction.categoryName ?? "Sem categoria"}</span>
+              {accountStatement && transaction.isPaidUnreconciled ? (
+                <TransactionUnreconciledBadge />
+              ) : null}
             </span>
             {transaction.paymentMethod === "boleto" && transaction.boletoPaymentDate ? (
               <span className="mt-1 block text-muted-foreground text-xs">

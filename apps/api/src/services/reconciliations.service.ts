@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { moneyToCents } from "@openmonetis/domain/installments";
 import {
+  amountKeptReason,
   assignReconciliationBuckets,
   filterAppOnlyByScope,
   type MatchContext,
@@ -15,10 +16,24 @@ import {
   suggestLineName,
 } from "@openmonetis/domain/reconciliations";
 import {
+  type ClosureLine,
+  checkStatementClosure,
+  invoiceNetCents,
+  statementFinalBalance,
+} from "@openmonetis/domain/reconciliations-closure";
+import {
   buildReconciliationPlan,
   ReconciliationPlanError,
 } from "@openmonetis/domain/reconciliations-plan";
-import { addMonthsToPeriod, getImportedDescriptionKey } from "@openmonetis/domain/transactions";
+import {
+  type ProjectionEntry,
+  toBalanceStatus,
+} from "@openmonetis/domain/reconciliations-projection";
+import {
+  addMonthsToPeriod,
+  getImportedDescriptionKey,
+  type ImportedTransaction,
+} from "@openmonetis/domain/transactions";
 import type {
   ApplyReconciliationInput,
   DetectReconciliationInput,
@@ -65,6 +80,11 @@ export type ReconciliationsServiceDependencies = {
   listCategoriesForUser: (
     userId: string,
   ) => Promise<{ id: string; name: string; type: "income" | "expense" }[]>;
+  getAccountBalanceThroughDate: (
+    accountId: string,
+    userId: string,
+    date: string,
+  ) => Promise<number>;
 };
 
 const accountReadMarginDays = 3;
@@ -93,6 +113,10 @@ function periodEndDate(period: string) {
 function toSignedCents(value: string | number) {
   const cents = moneyToCents(Math.abs(Number(value)));
   return Number(value) < 0 ? -cents : cents;
+}
+
+function signedCentsOfRow(row: Pick<ImportedTransaction, "type" | "amount">) {
+  return row.type === "expense" ? -moneyToCents(row.amount) : moneyToCents(row.amount);
 }
 
 function signedToDisplay(cents: number) {
@@ -159,7 +183,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
       identity: { sourceFingerprint: csv.sourceFingerprint, externalId: row.externalId ?? "" },
       purchaseDate: row.purchaseDate,
       postedDate: row.postedDate,
-      signedCents: row.type === "expense" ? -moneyToCents(row.amount) : moneyToCents(row.amount),
+      signedCents: signedCentsOfRow(row),
       name: row.name,
       installment: row.installment,
       lineKind: row.lineKind,
@@ -229,6 +253,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
       learnedCategories,
       categories,
       paidPeriods,
+      admin,
     ] = await Promise.all([
       repository.listReconciliationTransactionCandidates({
         userId,
@@ -251,6 +276,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
       isCard
         ? dependencies.listPaidInvoicePeriodsForUser(input.targetId, periodsInScope, userId)
         : Promise.resolve([]),
+      dependencies.findAdminPersonByUserId(userId),
     ]);
     const paidPeriodSet = new Set(paidPeriods.map((paid) => paid.period));
 
@@ -317,6 +343,24 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
         ];
       }),
     ];
+
+    // Posting date and admin ownership per entry, kept out of ReconciliationEntry (projection only).
+    const postingByKey = new Map<string, { postingDate: string; isAdmin: boolean }>();
+    for (const row of transactionRows) {
+      postingByKey.set(`t:${row.id}`, {
+        postingDate: row.settledDate ?? row.purchaseDate,
+        isAdmin: row.personIsAdmin,
+      });
+    }
+    for (const output of expandedOccurrences) {
+      const rule = rulesById.get(output.recurringRuleId ?? "");
+      if (!rule) continue;
+      const state = occurrenceStates.get(`${rule.seriesId}:${output.purchaseDate}`);
+      postingByKey.set(`o:${rule.id}:${output.purchaseDate}`, {
+        postingDate: state?.settledDate ?? output.purchaseDate,
+        isAdmin: rule.personId === admin?.id,
+      });
+    }
 
     const learnedNameByKey: Record<string, string> = {};
     const learnedCategoryByKey = new Map(
@@ -388,6 +432,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
         purchaseDate: line.purchaseDate,
         postedDate: line.postedDate,
         amount: signedToDisplay(line.signedCents),
+        signedCents: line.signedCents,
         type: lineTypeOf(line.signedCents),
         name: line.name,
         installment: line.installment,
@@ -416,6 +461,66 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
     const countOf = (bucket: (typeof buckets)[number]["bucket"]) =>
       buckets.filter((outcome) => outcome.bucket === bucket).length;
 
+    const projectionEntriesOf = (cutoffDate: string | null): ProjectionEntry[] =>
+      entries.map((entry) => {
+        const posting = postingByKey.get(entry.entryKey) ?? {
+          postingDate: entry.date,
+          isAdmin: false,
+        };
+        return {
+          entryKey: entry.entryKey,
+          name: entry.name,
+          postingDate: cutoffDate === null ? entry.date : posting.postingDate,
+          period: entry.period,
+          signedCents: entry.signedCents,
+          alignable: amountKeptReason(entry, input.targetType) === null,
+          status:
+            cutoffDate === null
+              ? null
+              : toBalanceStatus(
+                  {
+                    isSettled: entry.isSettled,
+                    isAdmin: posting.isAdmin,
+                    postingDate: posting.postingDate,
+                  },
+                  cutoffDate,
+                ),
+        };
+      });
+
+    const closureLines: ClosureLine[] = csv.rows.map((row) => ({
+      accountingDate: row.postedDate ?? row.purchaseDate,
+      signedCents: signedCentsOfRow(row),
+      dayBalanceCents: row.dayBalance === null ? null : Math.round(row.dayBalance * 100),
+    }));
+    const closure: ReconciliationPreview["closure"] =
+      lines.length === 0
+        ? null
+        : isCard
+          ? { kind: "invoice", netCents: invoiceNetCents(lines) }
+          : {
+              kind: "statement",
+              ...checkStatementClosure(closureLines),
+              finalBalance: statementFinalBalance(closureLines),
+            };
+
+    const projection: ReconciliationPreview["projection"] = isCard
+      ? { kind: "card", invoicePeriod: cardPeriod, entries: projectionEntriesOf(null) }
+      : fileRange === null
+        ? null
+        : {
+            kind: "account",
+            cutoffDate: fileRange.end,
+            baselineCents: toSignedCents(
+              await dependencies.getAccountBalanceThroughDate(
+                input.targetId,
+                userId,
+                fileRange.end,
+              ),
+            ),
+            entries: projectionEntriesOf(fileRange.end),
+          };
+
     const preview: ReconciliationPreview = {
       fileRange,
       invoicePeriod: isCard ? cardPeriod : null,
@@ -429,6 +534,8 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
         type: lineTypeOf(entry.signedCents),
         categoryId: entry.categoryId,
       })),
+      closure,
+      projection,
       appOnlyKeys: appOnlyScopedKeys,
       counts: {
         needsDecision: countOf("needs-decision"),
