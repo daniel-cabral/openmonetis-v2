@@ -38,8 +38,8 @@ import {
   getTransactionsExportPeriodLabel,
   getTransactionsPdfFileName,
   labelTransactionExportFileName,
-  toTransactionPdfRow,
   type TransactionsExportFormat,
+  toTransactionPdfRow,
 } from "./transactions.presentation";
 
 /** Index of the "Valor" column, the only cell that carries the expense or income tone. */

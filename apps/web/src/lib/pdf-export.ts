@@ -91,9 +91,7 @@ export async function buildBrandedPdf(
     startY: cursorY + 4,
     margin: { left: PAGE_MARGIN_MM, right: PAGE_MARGIN_MM, bottom: PAGE_MARGIN_MM },
     head: [table.columns.map((column) => column.header)],
-    body: table.rows.map((row) =>
-      row.cells.map((cell) => toBodyCell(cell, row.emphasis === true)),
-    ),
+    body: table.rows.map((row) => row.cells.map((cell) => toBodyCell(cell, row.emphasis === true))),
     styles: {
       font: "helvetica",
       fontSize: TABLE_FONT_SIZE_PT,

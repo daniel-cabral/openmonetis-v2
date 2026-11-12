@@ -199,7 +199,7 @@ report PDF and Excel, US3 consistent and safe files.
   `pnpm exec biome check CHANGELOG.md docs/exports.md` exits 0 (or the files are outside Biome's
   scope).
 
-- [ ] T010 Final gate (no code changes except fixes for failures found). Run, one at a time,
+- [x] T010 Final gate (no code changes except fixes for failures found). Run, one at a time,
   from bash at the worktree root: `pnpm lint`; `pnpm typecheck`;
   `node --import tsx --test apps/web/src/lib/pdf-export.test.ts apps/web/src/lib/xlsx-export.test.ts`;
   `node --import tsx --test apps/web/src/features/transactions/transactions.presentation.test.ts`;
