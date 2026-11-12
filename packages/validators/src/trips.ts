@@ -147,6 +147,7 @@ export const TripPeriodRangeOutputSchema = z
   })
   .openapi("TripPeriodRange");
 
+export type TripPeriodRangeOutput = z.infer<typeof TripPeriodRangeOutputSchema>;
 export type CreateTripInput = z.infer<typeof CreateTripInputSchema>;
 export type UpdateTripInput = z.infer<typeof UpdateTripInputSchema>;
 export type TripLinkIdsInput = z.infer<typeof TripLinkIdsInputSchema>;

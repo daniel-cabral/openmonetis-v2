@@ -1,9 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getTrip, getTripSuggestions, getTrips } from "./trips.api";
+import { getTrip, getTripPeriodRange, getTripSuggestions, getTrips } from "./trips.api";
 
 export const tripsQueryOptions = () => queryOptions({ queryKey: ["trips"], queryFn: getTrips });
 export const tripQueryOptions = (id: string) =>
   queryOptions({ queryKey: ["trips", id], queryFn: () => getTrip(id) });
+export const tripPeriodRangeQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: ["trips", id, "period-range"],
+    queryFn: () => getTripPeriodRange(id),
+  });
 export const tripSuggestionsQueryOptions = (id: string, query: { page: number; origin: string }) =>
   queryOptions({
     queryKey: ["trips", id, "suggestions", query],

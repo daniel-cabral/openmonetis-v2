@@ -3,6 +3,7 @@ import type {
   TripDetailOutput,
   TripListItemOutput,
   TripOutput,
+  TripPeriodRangeOutput,
   TripSuggestionsPageOutput,
   UpdateTripInput,
 } from "@openmonetis/validators/trips";
@@ -10,6 +11,8 @@ import { requestApi } from "@/lib/api-client";
 
 export const getTrips = () => requestApi<TripListItemOutput[]>("/trips");
 export const getTrip = (id: string) => requestApi<TripDetailOutput>(`/trips/${id}`);
+export const getTripPeriodRange = (id: string) =>
+  requestApi<TripPeriodRangeOutput | null>(`/trips/${id}/period-range`);
 export const createTrip = (input: CreateTripInput) =>
   requestApi<TripOutput>("/trips", { method: "POST", body: JSON.stringify(input) });
 export const updateTrip = ({ id, input }: { id: string; input: UpdateTripInput }) =>

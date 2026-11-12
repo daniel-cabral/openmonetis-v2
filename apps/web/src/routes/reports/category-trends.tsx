@@ -27,6 +27,7 @@ function CategoryTrendsRoute() {
             period: undefined,
             startPeriod: nextFilters.startPeriod,
             endPeriod: nextFilters.endPeriod,
+            trip: nextFilters.trip,
             categoryIds: nextFilters.categoryIds.length
               ? nextFilters.categoryIds.join(",")
               : undefined,

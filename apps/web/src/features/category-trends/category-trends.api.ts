@@ -15,6 +15,7 @@ export function getCategoryTrends(query: ListCategoryTrendsQuery) {
   });
   if (query.categoryIds.length) params.set("categoryIds", query.categoryIds.join(","));
   if (query.personScope) params.set("personScope", query.personScope);
+  if (query.trip) params.set("trip", query.trip);
 
   return request<CategoryTrendsOutput>(`/reports/category-trends?${params.toString()}`);
 }
