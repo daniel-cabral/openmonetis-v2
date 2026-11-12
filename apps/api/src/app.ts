@@ -14,6 +14,7 @@ import { accountsRepository, findAccountByIdForUser } from "./repositories/accou
 import { aiChatsRepository } from "./repositories/ai-chats.repository";
 import { aiDataSharingRepository } from "./repositories/ai-data-sharing.repository";
 import { aiDiagnosesRepository } from "./repositories/ai-diagnoses.repository";
+import { aiProviderCredentialsRepository } from "./repositories/ai-provider-credentials.repository";
 import { aiProvidersRepository } from "./repositories/ai-providers.repository";
 import { aiToolsRepository } from "./repositories/ai-tools.repository";
 import { attachmentsRepository } from "./repositories/attachments.repository";
@@ -162,7 +163,7 @@ import { createTagsService } from "./services/tags.service";
 import { createTransactionsService } from "./services/transactions.service";
 import { createTripsService } from "./services/trips.service";
 import type { ApiVariables } from "./types/context";
-import { aiServiceGateway } from "./utils/ai-service";
+import { aiKeyCipher, aiServiceGateway } from "./utils/ai-service";
 import { createEmailAssetReader, readEmailAssetsDirectory } from "./utils/email-assets";
 import { assertProductionSecret, getRequiredProductionEnv, parseCsvEnv } from "./utils/env";
 import { logoDevGateway } from "./utils/logo-dev";
@@ -417,7 +418,10 @@ const dashboardService = createDashboardService(dashboardRepository, accountsSer
   invoices: invoicesService,
 });
 const dashboardRoute = createDashboardRoute(dashboardService);
-const aiProvidersService = createAiProvidersService(aiProvidersRepository, aiServiceGateway);
+const aiProvidersService = createAiProvidersService(aiProvidersRepository, aiServiceGateway, {
+  credentials: aiProviderCredentialsRepository,
+  cipher: aiKeyCipher,
+});
 const aiProvidersRoute = createAiProvidersRoute(aiProvidersService);
 const aiToolsRoute = createAiToolsRoute(createAiToolsService(aiToolsRepository, aiServiceGateway));
 const aiTransactionsPageSize = 100;
@@ -641,6 +645,14 @@ for (const path of [
   app.use(path, privateCache);
   app.use(path, requireAuth);
 }
+app.use(
+  "/ai-providers/:provider/key",
+  createMutationRateLimit({
+    windowMs: 15 * 60_000,
+    max: 10,
+    key: (context) => `ai-provider-key:${context.get("userId")}`,
+  }),
+);
 app.use(
   "/ai-providers/*",
   createMutationRateLimit({

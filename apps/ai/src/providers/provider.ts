@@ -4,6 +4,7 @@ import type { ProcessResult } from "../utils/process";
 export type RunFailureCode =
   | "providerDisconnected"
   | "providerLimitReached"
+  | "providerUnavailable"
   | "invalidOutput"
   | "runFailed"
   | "timedOut"

@@ -3,7 +3,10 @@ import { constants } from "node:fs";
 import { access, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { type AiProvider, aiProviders } from "@openmonetis/domain/ai-providers";
+import {
+  type AiSubscriptionProvider,
+  aiSubscriptionProviders,
+} from "@openmonetis/domain/ai-providers";
 import {
   type AiToolEventStatus,
   type AiToolFailureCode,
@@ -28,7 +31,7 @@ const stagingPrefix = ".staging-";
 
 export type ToolJob = {
   jobId: string;
-  provider: AiProvider;
+  provider: AiSubscriptionProvider;
   version: string;
   status: AiToolEventStatus;
   step: AiToolInstallStep;
@@ -37,7 +40,7 @@ export type ToolJob = {
 };
 
 export type ToolSummary = {
-  provider: AiProvider;
+  provider: AiSubscriptionProvider;
   bundledVersion: string | null;
   activeVersion: string | null;
   previousVersion: string | null;
@@ -64,7 +67,7 @@ const providerStateSchema = z.object({
     .default({}),
 });
 const stateSchema = z.object({
-  providers: z.partialRecord(z.enum(aiProviders), providerStateSchema).default({}),
+  providers: z.partialRecord(z.enum(aiSubscriptionProviders), providerStateSchema).default({}),
 });
 type ProviderState = z.infer<typeof providerStateSchema>;
 
@@ -83,9 +86,9 @@ const canarySchema = {
 export function createToolManager(options: {
   directory: string;
   /** Command of the build shipped with the image, per provider. */
-  bundled: Record<AiProvider, string>;
+  bundled: Record<AiSubscriptionProvider, string>;
   sources: ToolSource[];
-  createAdapter: (provider: AiProvider, command: string) => ProviderAdapter;
+  createAdapter: (provider: AiSubscriptionProvider, command: string) => ProviderAdapter;
   request?: typeof fetch;
   now?: () => Date;
 }) {
@@ -95,12 +98,12 @@ export function createToolManager(options: {
   const now = options.now ?? (() => new Date());
   let state: z.infer<typeof stateSchema> = { providers: {} };
   const leases = new Map<string, number>();
-  const jobs = new Map<AiProvider, ToolJob>();
-  const latest = new Map<AiProvider, { version: string; checkedAt: number }>();
-  const bundledVersions = new Map<AiProvider, Promise<string | null>>();
+  const jobs = new Map<AiSubscriptionProvider, ToolJob>();
+  const latest = new Map<AiSubscriptionProvider, { version: string; checkedAt: number }>();
+  const bundledVersions = new Map<AiSubscriptionProvider, Promise<string | null>>();
   let running: ToolJob | null = null;
 
-  function providerState(provider: AiProvider): ProviderState {
+  function providerState(provider: AiSubscriptionProvider): ProviderState {
     let current = state.providers[provider];
     if (!current) {
       current = providerStateSchema.parse({});
@@ -115,11 +118,11 @@ export function createToolManager(options: {
     await rename(temporary, statePath);
   }
 
-  function installationOf(provider: AiProvider, version: string) {
+  function installationOf(provider: AiSubscriptionProvider, version: string) {
     return path.join(directory, provider, version);
   }
 
-  function binaryOf(provider: AiProvider, version: string) {
+  function binaryOf(provider: AiSubscriptionProvider, version: string) {
     const source = sources.get(provider);
     return source ? path.join(installationOf(provider, version), source.binary) : null;
   }
@@ -145,7 +148,7 @@ export function createToolManager(options: {
     }
   }
 
-  function bundledVersion(provider: AiProvider) {
+  function bundledVersion(provider: AiSubscriptionProvider) {
     let version = bundledVersions.get(provider);
     if (!version) {
       version = probe(options.bundled[provider], ["--version"])
@@ -157,7 +160,7 @@ export function createToolManager(options: {
     return version;
   }
 
-  async function releaseOf(provider: AiProvider, version: string) {
+  async function releaseOf(provider: AiSubscriptionProvider, version: string) {
     const current = providerState(provider);
     let release = current.releases[version];
     if (!release) {
@@ -173,7 +176,7 @@ export function createToolManager(options: {
     return new Date(release.publishedAt ?? release.seenAt);
   }
 
-  async function latestOf(provider: AiProvider, force = false) {
+  async function latestOf(provider: AiSubscriptionProvider, force = false) {
     const cached = latest.get(provider) ?? null;
     if (cached && !force && now().getTime() - cached.checkedAt < latestLifetimeMs) {
       return cached.version;
@@ -189,7 +192,7 @@ export function createToolManager(options: {
     return release.version;
   }
 
-  async function blockerOf(provider: AiProvider, version: string) {
+  async function blockerOf(provider: AiSubscriptionProvider, version: string) {
     const current = providerState(provider);
     return aiToolUpdateBlocker({
       candidate: version,
@@ -199,7 +202,7 @@ export function createToolManager(options: {
     });
   }
 
-  async function summary(provider: AiProvider): Promise<ToolSummary> {
+  async function summary(provider: AiSubscriptionProvider): Promise<ToolSummary> {
     const current = providerState(provider);
     const version = await latestOf(provider);
     let release: ToolSummary["latest"] = null;
@@ -222,13 +225,13 @@ export function createToolManager(options: {
     };
   }
 
-  function inUse(provider: AiProvider) {
+  function inUse(provider: AiSubscriptionProvider) {
     return [...leases.entries()]
       .filter(([key, count]) => count > 0 && key.startsWith(`${provider}@`))
       .map(([key]) => key.slice(provider.length + 1));
   }
 
-  async function cleanup(provider: AiProvider) {
+  async function cleanup(provider: AiSubscriptionProvider) {
     const current = providerState(provider);
     const removable = aiToolVersionsToRemove({
       installed: current.installed,
@@ -246,7 +249,7 @@ export function createToolManager(options: {
     await save();
   }
 
-  async function setActive(provider: AiProvider, version: string | null) {
+  async function setActive(provider: AiSubscriptionProvider, version: string | null) {
     const current = providerState(provider);
     const old = current.active;
     if (old === version) return;
@@ -272,7 +275,7 @@ export function createToolManager(options: {
   }
 
   /** A short diagnosis with the admin's own sign-in, to catch a changed output format. */
-  async function canary(provider: AiProvider, binary: string, home: string) {
+  async function canary(provider: AiSubscriptionProvider, binary: string, home: string) {
     const workDirectory = await mkdtemp(path.join(os.tmpdir(), "openmonetis-ai-canary-"));
     try {
       const result = await options.createAdapter(provider, binary).run(home, {
@@ -337,7 +340,7 @@ export function createToolManager(options: {
       const saved = await readFile(statePath, "utf8").catch(() => null);
       const parsed = saved ? stateSchema.safeParse(JSON.parse(saved)) : null;
       state = parsed?.success ? parsed.data : { providers: {} };
-      for (const provider of aiProviders) {
+      for (const provider of aiSubscriptionProviders) {
         const providerDirectory = path.join(directory, provider);
         const entries = await readdir(providerDirectory).catch(() => [] as string[]);
         for (const entry of entries) {
@@ -359,13 +362,13 @@ export function createToolManager(options: {
     },
 
     /** The command a provider runs now: the active installed build or the image's. */
-    command(provider: AiProvider) {
+    command(provider: AiSubscriptionProvider) {
       const active = state.providers[provider]?.active;
       return (active && binaryOf(provider, active)) || options.bundled[provider];
     },
 
     /** Marks the active build as in use until the returned function is called. */
-    hold(provider: AiProvider) {
+    hold(provider: AiSubscriptionProvider) {
       const key = `${provider}@${state.providers[provider]?.active ?? "bundled"}`;
       leases.set(key, (leases.get(key) ?? 0) + 1);
       let released = false;
@@ -380,17 +383,17 @@ export function createToolManager(options: {
     },
 
     list() {
-      return Promise.all(aiProviders.map((provider) => summary(provider)));
+      return Promise.all(aiSubscriptionProviders.map((provider) => summary(provider)));
     },
 
-    job(provider: AiProvider, jobId: string) {
+    job(provider: AiSubscriptionProvider, jobId: string) {
       const job = jobs.get(provider);
       return job?.jobId === jobId ? job : null;
     },
 
     /** Starts installing `version` in the background; one install runs at a time. */
     async install(
-      provider: AiProvider,
+      provider: AiSubscriptionProvider,
       version: string,
       canaryHome: string | null,
     ): Promise<ToolJob> {
@@ -432,7 +435,7 @@ export function createToolManager(options: {
     },
 
     /** Switches to an installed version, or back to the image's with `null`. */
-    async activate(provider: AiProvider, version: string | null) {
+    async activate(provider: AiSubscriptionProvider, version: string | null) {
       if (running?.provider === provider) throw new ToolError("busy");
       if (version !== null && !providerState(provider).installed.includes(version)) {
         throw new ToolError("unknownVersion");
@@ -444,7 +447,9 @@ export function createToolManager(options: {
     /** Looks for new releases now and then, so the waiting period starts when they appear. */
     startBackgroundChecks() {
       const check = () => {
-        for (const provider of aiProviders) void latestOf(provider, true).catch(() => undefined);
+        for (const provider of aiSubscriptionProviders) {
+          void latestOf(provider, true).catch(() => undefined);
+        }
       };
       setTimeout(check, backgroundCheckDelayMs).unref();
       setInterval(check, backgroundCheckIntervalMs).unref();

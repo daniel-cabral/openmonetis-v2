@@ -162,6 +162,8 @@ function createService(options: {
   preferredModel?: string | null;
   onCancel?: () => void;
   scopes?: AiDataScope[];
+  refusals?: string[];
+  runInputs?: { credential?: unknown }[];
 }) {
   const tasks: Array<() => Promise<void>> = [];
   const service = createAiDiagnosesService({
@@ -181,14 +183,22 @@ function createService(options: {
         if (options.ready === false) {
           throw new ApiError("Not connected", "ai_provider_not_connected", 409);
         }
-        return { model: requested ?? options.preferredModel ?? null };
+        return {
+          model: requested ?? options.preferredModel ?? null,
+          credential: { apiKey: "sk-live-9876" },
+        };
+      },
+      markKeyRefused: async (_owner, provider) => {
+        options.refusals?.push(provider);
       },
     },
     runner: {
-      run: async (_owner, _provider, input) =>
-        options.run
+      run: async (_owner, _provider, input) => {
+        options.runInputs?.push(input);
+        return options.run
           ? options.run(input.prompt, input.model, input.instructions)
-          : { status: "failed", code: "runFailed" },
+          : { status: "failed", code: "runFailed" };
+      },
       cancel: async () => options.onCancel?.(),
     },
     dataSharing: { scopesFor: async () => options.scopes ?? [] },
@@ -522,4 +532,25 @@ test("transactions without people or notes keep those fields out", async () => {
   await runScheduled();
   assert.match(sentPrompt, /Aluguel do apartamento/);
   assert.doesNotMatch(sentPrompt, /Pessoa Privada|Anotação privada|Conta Privada|Moradia/);
+});
+
+test("a key the vendor refuses flags its provider, and the stored diagnosis never carries it", async () => {
+  const { repository } = createRepository();
+  const refusals: string[] = [];
+  const runInputs: { credential?: unknown }[] = [];
+  const { service, runScheduled } = createService({
+    repository,
+    refusals,
+    runInputs,
+    run: async () => ({ status: "failed", code: "providerDisconnected" }),
+  });
+
+  const created = await service.create(userId, { period: "2026-06", provider: "openai" });
+  await runScheduled();
+
+  const stored = await service.get(created.id, userId);
+  assert.equal(stored.failureCode, "providerDisconnected");
+  assert.deepEqual(refusals, ["openai"]);
+  assert.deepEqual(runInputs[0]?.credential, { apiKey: "sk-live-9876" });
+  assert.equal(JSON.stringify(stored).includes("sk-live-9876"), false);
 });

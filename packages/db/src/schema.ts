@@ -1575,6 +1575,36 @@ export const aiProviderConnections = pgTable(
   ],
 );
 
+/** Encrypted API key of an API-key provider; the plaintext key never reaches the database. */
+export const aiProviderCredentials = pgTable(
+  "ai_provider_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: aiProvider("provider").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    nonce: varchar("nonce", { length: 24 }).notNull(),
+    authTag: varchar("auth_tag", { length: 32 }).notNull(),
+    /** Display only: the last four characters of the key. */
+    last4: varchar("last4", { length: 4 }).notNull(),
+    /** Detects a rotated AI_KEYS_SECRET, which makes the stored key unreadable. */
+    secretFingerprint: varchar("secret_fingerprint", { length: 16 }).notNull(),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true }).notNull(),
+    /** Set when a run reports the key refused by the vendor; cleared by a new save. */
+    refusedAt: timestamp("refused_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("ai_provider_credentials_user_id_provider_unique").on(table.userId, table.provider),
+  ],
+);
+
 /** Data the person allows the AI diagnosis to send beyond the aggregates; none by default. */
 export const aiDataSharing = pgTable("ai_data_sharing", {
   userId: uuid("user_id")

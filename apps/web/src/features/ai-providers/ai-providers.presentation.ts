@@ -1,4 +1,8 @@
-import type { AiProvider, AiProviderStatus } from "@openmonetis/domain/ai-providers";
+import type {
+  AiProvider,
+  AiProviderKind,
+  AiProviderStatus,
+} from "@openmonetis/domain/ai-providers";
 import { formatDateInBrazil } from "@openmonetis/shared/date-time";
 import type { AiProviderModel } from "@openmonetis/validators/ai-providers";
 import { AiProvidersApiError } from "./ai-providers.api";
@@ -7,18 +11,36 @@ export const aiProviderLabels: Record<AiProvider, string> = {
   claude: "Claude",
   codex: "Codex",
   antigravity: "Antigravity",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  gemini: "Gemini",
+  openrouter: "OpenRouter",
+  minimax: "MiniMax",
+  ollama: "Ollama",
+};
+
+export const aiProviderKindLabels: Record<AiProviderKind, string> = {
+  subscription: "Assinatura",
+  apiKey: "Chave de API",
 };
 
 export const aiProviderPlanDescriptions: Record<AiProvider, string> = {
   claude: "Use sua assinatura Claude Pro ou Max.",
   codex: "Use sua assinatura ChatGPT Plus, Pro ou Business.",
   antigravity: "Use sua conta Google com Antigravity.",
+  anthropic: "Use sua própria chave de API da Anthropic.",
+  openai: "Use sua própria chave de API da OpenAI.",
+  gemini: "Use sua própria chave de API do Gemini.",
+  openrouter: "Use sua própria chave de API do OpenRouter.",
+  minimax: "Use sua própria chave de API da MiniMax.",
+  ollama: "Use o Ollama instalado pelo administrador. A chave é opcional.",
 };
 
 export const aiProviderStatusLabels: Record<AiProviderStatus, string> = {
   connected: "Conectado",
   disconnected: "Desconectado",
   unavailable: "Indisponível",
+  needsAttention: "Precisa de atenção",
 };
 
 export function aiProviderErrorMessage(error: unknown) {
@@ -31,6 +53,14 @@ export function aiProviderErrorMessage(error: unknown) {
       return "Este modelo não está disponível na sua assinatura.";
     }
     if (error.code === "ai_provider_not_connected") return "Conecte o assistente primeiro.";
+    if (error.code === "ai_provider_key_refused") return "A chave foi recusada pelo provedor.";
+    if (error.code === "ai_provider_limit_reached") {
+      return "O provedor recusou por limite de uso. Tente mais tarde.";
+    }
+    if (error.code === "ai_provider_unavailable") return "Provedor indisponível no momento.";
+    if (error.code === "ai_keys_unavailable") {
+      return "Chaves de API não estão habilitadas nesta instalação.";
+    }
     if (error.code === "ai_login_not_found") return "O login expirou. Comece novamente.";
     if (error.status === 429) return "Muitas tentativas. Aguarde um minuto.";
   }
@@ -46,7 +76,7 @@ export function formatAiModelLabel(models: readonly AiProviderModel[], modelId: 
 }
 
 /** Brand marks bundled with the web app; Codex uses the OpenAI mark, with a variant per theme. */
-export const aiProviderLogos: Record<AiProvider, { light: string; dark: string }> = {
+export const aiProviderLogos: Partial<Record<AiProvider, { light: string; dark: string }>> = {
   claude: { light: "/images/ai-providers/claude.svg", dark: "/images/ai-providers/claude.svg" },
   codex: {
     light: "/images/ai-providers/openai-light.svg",

@@ -145,9 +145,11 @@ uma explicação. As respostas da pessoa vão para o e-mail do dono da conta (`R
 | `AI_SERVICE_URL` | API | Endereço interno do serviço `openmonetis-ai`. No Compose, `http://ai:7003`; localmente, `http://localhost:7003`. |
 | `AI_SERVICE_SECRET` | API e `ai` | Segredo compartilhado que autentica a API no serviço de IA. Obrigatório quando `AI_ENABLED=true`. |
 | `AI_HOME_SECRET` | API | Deriva o identificador opaco da pasta de login de cada pessoa. Alterá-lo desvincula todos os logins existentes. |
+| `AI_KEYS_SECRET` | API | Cifra as chaves de API dos provedores (AES-256-GCM). Opcional: sem ele, os provedores de chave ficam indisponíveis. Use pelo menos 32 caracteres. Trocá-lo invalida as chaves salvas, que precisam ser cadastradas de novo. |
 | `AI_HOMES_DIR` | `ai` | Pasta dos logins das assinaturas. No container, `/data/homes` (volume `OMv2_ai_homes`). |
 | `AI_TOOLS_DIR` | `ai` | Pasta das versões das CLIs instaladas por quem administra. No container, `/data/tools` (volume `OMv2_ai_tools`); em desenvolvimento, `apps/ai/.ai-tools/`. |
 | `AI_PORT` | `ai` | Porta interna do serviço. O padrão é `7003`. |
+| `OLLAMA_BASE_URL` | `ai` | Endereço do Ollama instalado pelo administrador, por exemplo `http://host.docker.internal:11434`. `/v1` é acrescentado quando ausente. Opcional: sem ele, o Ollama fica indisponível. |
 | `CLAUDE_BIN`, `CODEX_BIN`, `ANTIGRAVITY_BIN` | `ai` | Caminho opcional das CLIs da imagem quando não estão no `PATH` (padrões `claude`, `codex` e `agy`). Versões instaladas em Ajustes têm prioridade. |
 
 O serviço `ai` só sobe com `docker compose --profile ai up -d`. Use segredos exclusivos, diferentes

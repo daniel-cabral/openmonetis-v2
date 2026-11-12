@@ -3,9 +3,15 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  type AiApiKeyProvider,
+  type AiSubscriptionProvider,
+  aiApiKeyMaximumLength,
+  aiApiKeyProviders,
   aiProviderLoginCodeMaximumLength,
   aiProviderModelIdPattern,
   aiProviders,
+  aiSubscriptionProviders,
+  isAiApiKeyProvider,
 } from "@openmonetis/domain/ai-providers";
 import { aiToolVersionPattern } from "@openmonetis/domain/ai-tools";
 import { fail, ok } from "@openmonetis/shared/api";
@@ -15,15 +21,24 @@ import { createMiddleware } from "hono/factory";
 import { stream } from "hono/streaming";
 import { z } from "zod";
 import { createLoginSessions, type LoginSessions } from "./login-sessions";
+import { createApiKeyAdapters } from "./providers/api-key-adapters";
+import type { ApiKeyAdapters } from "./providers/api-key-provider";
 import type { ProviderAdapter, ProviderModel } from "./providers/provider";
 import type { ToolManager } from "./tools/manager";
 import { ToolError } from "./tools/sources";
 
 const homeParamsSchema = z.object({
   homeId: z.string().regex(/^[a-f0-9]{64}$/),
-  provider: z.enum(aiProviders),
+  provider: z.enum(aiSubscriptionProviders),
 });
+const homeRunParamsSchema = homeParamsSchema.extend({ provider: z.enum(aiProviders) });
 const loginParamsSchema = homeParamsSchema.extend({ loginId: z.uuid() });
+const apiKeyParamsSchema = z.object({ provider: z.enum(aiApiKeyProviders) });
+/** Sent per call and never stored: the key lives only in the API's encrypted column. */
+const apiKeyCredentialSchema = z
+  .object({ apiKey: z.string().min(1).max(aiApiKeyMaximumLength).nullable() })
+  .strict();
+const apiKeyModelsSchema = z.object({ credential: apiKeyCredentialSchema }).strict();
 const loginCodeSchema = z
   .object({ code: z.string().trim().min(1).max(aiProviderLoginCodeMaximumLength) })
   .strict();
@@ -36,7 +51,9 @@ const runSchema = z
   })
   .strict();
 const chatSchema = runSchema.omit({ schema: true });
-const toolParamsSchema = z.object({ provider: z.enum(aiProviders) });
+const apiKeyRunSchema = runSchema.extend({ credential: apiKeyCredentialSchema });
+const apiKeyChatSchema = chatSchema.extend({ credential: apiKeyCredentialSchema });
+const toolParamsSchema = z.object({ provider: z.enum(aiSubscriptionProviders) });
 const toolJobParamsSchema = toolParamsSchema.extend({ jobId: z.uuid() });
 const toolInstallSchema = z
   .object({
@@ -61,6 +78,8 @@ type AiServiceOptions = {
   loginSessions?: LoginSessions;
   /** Installs newer CLI builds; without it the image's builds are always used. */
   tools?: ToolManager;
+  /** Vendor HTTP adapters for API-key providers; tests inject fakes here. */
+  apiKeyAdapters?: ApiKeyAdapters;
 };
 
 /**
@@ -78,9 +97,10 @@ export function createAiServiceApp(options: AiServiceOptions) {
   const expectedSecret = digest(options.secret);
   const modelCatalogs = new Map<string, { models: ProviderModel[]; expiresAt: number }>();
   const tools = options.tools;
+  const apiKeyAdapters = options.apiKeyAdapters ?? createApiKeyAdapters();
 
   /** Keeps the CLI build a call runs from being deleted until the call ends. */
-  async function using<T>(provider: ProviderAdapter["provider"], operation: () => Promise<T>) {
+  async function using<T>(provider: AiSubscriptionProvider, operation: () => Promise<T>) {
     const release = tools?.hold(provider);
     try {
       return await operation();
@@ -116,6 +136,20 @@ export function createAiServiceApp(options: AiServiceOptions) {
   app.use("/tools", requireSecret);
   app.use("/tools/*", requireSecret);
   app.use("/tools/*", bodyLimit({ maxSize: 16 * 1024 }));
+  app.use("/providers/*", requireSecret);
+  app.use("/providers/*", bodyLimit({ maxSize: 16 * 1024 }));
+
+  app.post("/providers/:provider/models", async (context) => {
+    const params = parse(apiKeyParamsSchema, context.req.param());
+    if (!params) return context.json(fail("Not found", "not_found"), 404);
+    const body = parse(apiKeyModelsSchema, await context.req.json().catch(() => null));
+    if (!body) return context.json(fail("Invalid request", "invalid_request"), 400);
+    return context.json(ok(await apiKeyAdapters[params.provider].listModels(body.credential)));
+  });
+
+  app.get("/providers/ollama", (context) =>
+    context.json(ok({ available: apiKeyAdapters.ollama.isAvailable() })),
+  );
 
   app.get("/homes/:homeId/providers/:provider", async (context) => {
     const params = parse(homeParamsSchema, context.req.param());
@@ -193,10 +227,35 @@ export function createAiServiceApp(options: AiServiceOptions) {
   });
 
   app.post("/homes/:homeId/providers/:provider/runs", async (context) => {
-    const params = parse(homeParamsSchema, context.req.param());
+    const params = parse(homeRunParamsSchema, context.req.param());
+    if (params && isAiApiKeyProvider(params.provider)) {
+      // API-key runs make one HTTP call: no CLI home, no work directory, no build to hold.
+      const body = parse(apiKeyRunSchema, await context.req.json().catch(() => null));
+      if (!body) return context.json(fail("Invalid run", "invalid_request"), 400);
+      if (activeRuns.has(params.homeId)) {
+        return context.json(ok({ status: "failed" as const, code: "providerBusy" as const }));
+      }
+      const controller = new AbortController();
+      activeRuns.set(params.homeId, controller);
+      try {
+        const { credential, ...input } = body;
+        const result = await apiKeyAdapters[params.provider].run(credential, {
+          ...input,
+          signal: controller.signal,
+        });
+        return context.json(ok(result));
+      } catch (error) {
+        console.error("AI provider run failed", params.provider, error);
+        return context.json(ok({ status: "failed" as const, code: "runFailed" as const }));
+      } finally {
+        activeRuns.delete(params.homeId);
+      }
+    }
     const adapter = params && providers.get(params.provider);
     const body = parse(runSchema, await context.req.json().catch(() => null));
-    if (!params || !adapter) return context.json(fail("Not found", "not_found"), 404);
+    if (!params || !adapter || isAiApiKeyProvider(params.provider)) {
+      return context.json(fail("Not found", "not_found"), 404);
+    }
     if (!body) return context.json(fail("Invalid run", "invalid_request"), 400);
     if (activeRuns.has(params.homeId)) {
       return context.json(ok({ status: "failed" as const, code: "providerBusy" as const }));
@@ -225,11 +284,45 @@ export function createAiServiceApp(options: AiServiceOptions) {
    * `completed` or `failed` event. Closing the connection stops the CLI.
    */
   app.post("/homes/:homeId/providers/:provider/chats", async (context) => {
-    const params = parse(homeParamsSchema, context.req.param());
+    const params = parse(homeRunParamsSchema, context.req.param());
+    if (params && isAiApiKeyProvider(params.provider)) {
+      const body = parse(apiKeyChatSchema, await context.req.json().catch(() => null));
+      if (!body) return context.json(fail("Invalid chat", "invalid_request"), 400);
+      const provider: AiApiKeyProvider = params.provider;
+      context.header("Content-Type", "application/x-ndjson; charset=utf-8");
+      return stream(context, async (output) => {
+        const write = (event: Record<string, unknown>) =>
+          output.write(`${JSON.stringify(event)}\n`);
+        if (activeRuns.has(params.homeId)) {
+          await write({ type: "failed", code: "providerBusy" });
+          return;
+        }
+        const controller = new AbortController();
+        activeRuns.set(params.homeId, controller);
+        output.onAbort(() => controller.abort());
+        try {
+          const { credential, ...input } = body;
+          const result = await apiKeyAdapters[provider].chat(
+            credential,
+            { ...input, signal: controller.signal },
+            (event) => void write(event),
+          );
+          await write({ ...result, type: result.status });
+        } catch (error) {
+          console.error("AI provider chat failed", provider, error);
+          await write({ type: "failed", code: "runFailed" });
+        } finally {
+          activeRuns.delete(params.homeId);
+        }
+      });
+    }
     const adapter = params && providers.get(params.provider);
     const body = parse(chatSchema, await context.req.json().catch(() => null));
-    if (!params || !adapter) return context.json(fail("Not found", "not_found"), 404);
+    if (!params || !adapter || isAiApiKeyProvider(params.provider)) {
+      return context.json(fail("Not found", "not_found"), 404);
+    }
     if (!body) return context.json(fail("Invalid chat", "invalid_request"), 400);
+    const cliProvider: AiSubscriptionProvider = params.provider;
 
     context.header("Content-Type", "application/x-ndjson; charset=utf-8");
     return stream(context, async (output) => {
@@ -244,7 +337,7 @@ export function createAiServiceApp(options: AiServiceOptions) {
       const workDirectory = await mkdtemp(path.join(os.tmpdir(), "openmonetis-ai-chat-"));
       try {
         const home = await homeOf(params.homeId, params.provider);
-        const result = await using(params.provider, () =>
+        const result = await using(cliProvider, () =>
           adapter.chat(
             home,
             { ...body, workDirectory, signal: controller.signal },
@@ -273,10 +366,8 @@ export function createAiServiceApp(options: AiServiceOptions) {
   });
 
   app.delete("/homes/:homeId/providers/:provider/runs/current", (context) => {
-    const params = parse(homeParamsSchema, context.req.param());
-    if (!params || !providers.has(params.provider)) {
-      return context.json(fail("Not found", "not_found"), 404);
-    }
+    const params = parse(homeRunParamsSchema, context.req.param());
+    if (!params) return context.json(fail("Not found", "not_found"), 404);
     const controller = activeRuns.get(params.homeId);
     controller?.abort();
     return context.json(ok({ canceled: Boolean(controller) }));

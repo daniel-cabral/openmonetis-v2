@@ -7,6 +7,7 @@ export const aiDiagnosisFailureCodes = [
   "providerDisconnected",
   "providerLimitReached",
   "providerBusy",
+  "providerUnavailable",
   "invalidOutput",
   "serviceUnavailable",
   "runFailed",

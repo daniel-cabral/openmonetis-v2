@@ -2,7 +2,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly status: 400 | 401 | 403 | 404 | 409 | 503,
+    public readonly status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 503,
   ) {
     super(message);
   }
@@ -26,4 +26,12 @@ export function conflict(message: string, code: string) {
 
 export function serviceUnavailable(message: string, code: string) {
   return new ApiError(message, code, 503);
+}
+
+export function unprocessable(message: string, code: string) {
+  return new ApiError(message, code, 422);
+}
+
+export function tooManyRequests(message: string, code: string) {
+  return new ApiError(message, code, 429);
 }
