@@ -3,6 +3,7 @@ import {
   BellRing,
   BookOpenText,
   CalendarClock,
+  ChartLine,
   ChartNoAxesCombined,
   CircleDollarSign,
   CreditCard,
@@ -25,6 +26,7 @@ import {
 import type { ReactNode } from "react";
 import { BillsWidget } from "@/features/bills/components/bills-widget";
 import { BudgetsWidget } from "@/features/budgets/components/budgets-widget";
+import { CategoryHistoryWidget } from "@/features/category-trends/components/category-history-widget";
 import { CategoryTrendsWidget } from "@/features/category-trends/components/category-trends-widget";
 import { CommitmentsWidget } from "@/features/commitments/components/commitments-widget";
 import { GoalsWidget } from "@/features/goals/components/goals-widget";
@@ -164,6 +166,15 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     description: "Maiores variações contra o mês anterior",
     icon: Target,
     render: (period) => <CategoryTrendsWidget period={period} />,
+  },
+  {
+    id: "category-history",
+    section: "analysis",
+    title: "Histórico de categorias",
+    description: "Compare até 5 categorias mês a mês",
+    icon: ChartLine,
+    render: (period) => <CategoryHistoryWidget period={period} />,
+    wide: true,
   },
   {
     id: "expense-categories",
