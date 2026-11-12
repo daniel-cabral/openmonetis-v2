@@ -97,6 +97,7 @@ import type {
   TransactionUpdateRecord,
   TransactionWithRelations,
 } from "../repositories/transactions.repository";
+import { TransactionTargetMissingError } from "../repositories/transactions.repository";
 import { badRequest, conflict, notFound } from "../utils/errors";
 import { createTransactionsExport } from "../utils/transactions-export";
 import type { AttachmentsService } from "./attachments.service";
@@ -2434,7 +2435,11 @@ export function createTransactionsService(
             };
           }),
         ),
-      );
+      ).catch((error: unknown) => {
+        if (error instanceof TransactionTargetMissingError)
+          throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+        throw error;
+      });
       if (!updated.includes(id)) {
         throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
       }
