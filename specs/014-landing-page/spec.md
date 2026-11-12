@@ -8,6 +8,18 @@
 
 **Input**: User description: "Port the V1 public landing page to V2 without breaking the self-hosted login flow (V2 `/` is currently the login screen)."
 
+## Clarifications
+
+### Session 2026-11-12
+
+Answered autonomously by the lane worker (roadmap per-feature workflow).
+
+- Q: Which component owns the on/off switch and what is it called? → A: The web server reads `LANDING_PAGE_ENABLED` at request time; only the value `true` enables it; the API is not involved, so an unreachable API never hides the landing page.
+- Q: What is the dedicated login address and where do auth return addresses point? → A: `/login` always serves the login screen; the signed-out redirect from private pages, the Google error return and the "Entrar" link on signup point to `/login`; the post-login return stays `/`, which already sends authenticated people to their start page in both modes.
+- Q: How are canonical address and social preview built without a configured public URL in the web server? → A: Canonical and `og:url` use the request origin plus `/`; the social image is the existing `icon-512.png`; no new image asset.
+- Q: What exact robots rules apply when the landing page is enabled? → A: `Allow: /$` then `Disallow: /` for every user agent; disabled keeps `Disallow: /`.
+- Q: How are V1 scroll animations and setup tabs handled? → A: Scroll animations are dropped (static render, no layout shift); quick start uses the project Tabs component; mobile navigation uses the project Sheet component.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A visitor understands the product (Priority: P1)
@@ -77,7 +89,7 @@ When the landing page is enabled, it can be indexed and shared with a proper tit
 
 - **FR-001**: System MUST provide a public landing page in PT-BR with the V1 sections: hero with call to action, main features, extra features, Companion and PWA highlights, "how it works" steps, stack/self-hosting summary, "who it is for / not for", quick-start and footer.
 - **FR-002**: The landing page MUST be opt-in per installation and disabled by default; when disabled, `/` MUST remain the login screen exactly as today.
-- **FR-003**: The login screen MUST always be reachable at a stable dedicated address regardless of the setting.
+- **FR-003**: The login screen MUST always be reachable at `/login` regardless of the setting; signed-out access to private pages and the Google error return MUST lead to `/login`.
 - **FR-004**: When enabled, `/` MUST show the landing page to unauthenticated visitors and MUST redirect authenticated people to their start page.
 - **FR-005**: All authentication flows (email/password, Google, passkeys, signup, invitation acceptance) MUST work identically with the landing page enabled or disabled; return addresses used by those flows MUST NOT depend on the setting.
 - **FR-006**: Calls to action MUST adapt to the installation: sign-up call hidden when signup is disabled.
@@ -90,7 +102,7 @@ When the landing page is enabled, it can be indexed and shared with a proper tit
 
 ### Key Entities *(include if feature involves data)*
 
-- **Landing setting**: an installation-level on/off switch (administrator configuration, not user data).
+- **Landing setting**: an installation-level on/off switch (administrator configuration `LANDING_PAGE_ENABLED`, read by the web server; not user data).
 - **Landing content**: static sections and links, not stored per user.
 
 ## Success Criteria *(mandatory)*
@@ -130,3 +142,21 @@ Kept / changed / dropped vs V1: kept the sections and PT-BR copy intent; changed
 - Roadmap order: after 012 (lane A); no functional dependency on other specs.
 - Touches the public route tree and robots rules; no database change.
 - 016 is unaffected.
+
+## UI decisions
+
+Preview: temporary route `apps/web/src/routes/preview-landing.tsx` (`?v=a|b|c`, real app CSS and components, verified rendering via SSR on the lane dev server; removed before commit). Chosen autonomously as closest to V1 within V2 patterns: **Option A**.
+
+- Option A (chosen): sticky header with logo, anchor links and auth actions; centered hero over the existing `atmospheric-wash`, eyebrow + `font-heading` title + two CTAs; sections in V1 order as `project-container` blocks; feature items as the project `Card`; icons from `lucide-react` with `text-brand-strong`.
+- Option B (discarded): split hero with a terminal card; departs from V1's centered hero and duplicates the quick-start section.
+- Option C (discarded): single-column docs list; loses V1's card grid and section rhythm.
+- Mobile navigation: project `Sheet` behind a menu button below `md`; quick start: project `Tabs` ("Instalador" / "Desenvolvimento").
+- Header actions: "Entrar" (`/login`) and "Criar conta" (`/signup`, hidden when signup is disabled or the configuration fails); the theme follows the system and the existing theme toggle is reused.
+- Brand icons: `lucide-react` no longer ships a GitHub icon; external links use a generic icon (no new icon dependency).
+
+Content decisions (FR-012, from V1 copy checked against V2):
+
+- Dropped: metrics bar (live GitHub stars/forks call is a third-party request, conflicts with FR-007), dashboard/phone screenshots (no V2 assets; no images loaded), "Performance otimizada" (unmeasurable claim), Next.js stack text.
+- Adjusted: "Insights com IA" → optional assistant using the person's own provider; "Gestão colaborativa (admin/viewer)" → people, sharing and split of expenses; Companion → described as a separate Android project that sends bank notifications to the inbox; PWA → installable to the home screen (no offline claim, there is no service worker); "open source e gratuito" → public source code under the project license (Sustainable Use License, not OSI open source); quick start → V2 install scripts plus the development steps with `pnpm db:migrate`.
+- Added: trips, reconciliation of bank statements, attachments (all exist in V2).
+- External links (single constants file): repository `https://github.com/felipegcoutinho/openmonetis-v2`, docs `…#readme`, issues `…/issues`, Companion `https://github.com/felipegcoutinho/openmonetis-companion`.
