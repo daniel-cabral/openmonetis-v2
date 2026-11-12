@@ -72,9 +72,7 @@ function isWithinDateWindow(line: ReconciliationLine, entry: ReconciliationEntry
   const dates = [line.purchaseDate, line.postedDate].filter((date): date is string =>
     Boolean(date),
   );
-  return dates.some(
-    (date) => daysBetween(date, entry.date) <= RECONCILIATION_DATE_WINDOW_DAYS,
-  );
+  return dates.some((date) => daysBetween(date, entry.date) <= RECONCILIATION_DATE_WINDOW_DAYS);
 }
 
 /** Rule 1: the line was already reconciled and its external id is stored on the entry. */
@@ -168,6 +166,11 @@ const MATCH_RULES: { rule: MatchRule; find: CandidateFinder }[] = [
   { rule: "name-period", find: findNamePeriodCandidates },
 ];
 
+// Credit and invoice-payment lines are informational: they never take an app entry.
+function isInformationalLine(line: ReconciliationLine): boolean {
+  return line.lineKind === "credit" || line.lineKind === "invoice-payment";
+}
+
 /**
  * Classifies every file line against the app entries. Rules run in order and
  * the first rule that finds candidates decides the line: one free candidate
@@ -198,7 +201,8 @@ export function matchReconciliationLines(input: {
       input.lines.forEach((line, position) => {
         // A line already decided or stopped at a stronger rule is not re-evaluated
         // by weaker rules in this pass, or they would hide the ambiguity.
-        if (decisions.has(position) || ambiguities.has(position)) return;
+        if (decisions.has(position) || ambiguities.has(position) || isInformationalLine(line))
+          return;
 
         const candidates = find(line, available(), input.context);
         if (candidates.length === 0) return;
@@ -361,7 +365,7 @@ export function assignReconciliationBuckets(input: {
       return { lineIndex: line.index, bucket: "ignored", suspicions: [], ignoredReason };
     }
 
-    if (line.lineKind === "credit" || line.lineKind === "invoice-payment") {
+    if (isInformationalLine(line)) {
       return {
         lineIndex: line.index,
         bucket: "informational",

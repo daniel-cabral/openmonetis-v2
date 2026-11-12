@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseC6InvoiceCsv, parseC6StatementCsv } from "./import-c6";
-import type { ImportedTransaction } from "./transactions";
 import {
   assignReconciliationBuckets,
   detectMatchSuspicions,
@@ -13,10 +12,10 @@ import {
   findInstallmentCandidates,
   findNamePeriodCandidates,
   type LineClassification,
-  matchAccountByIdentification,
-  matchReconciliationLines,
   type MatchContext,
   type MatchSuspicion,
+  matchAccountByIdentification,
+  matchReconciliationLines,
   type ReconciliationBucket,
   type ReconciliationEntry,
   type ReconciliationLine,
@@ -24,6 +23,7 @@ import {
   resolveAmountAlignment,
   suggestLineName,
 } from "./reconciliations";
+import type { ImportedTransaction } from "./transactions";
 
 const LEARNED_KEY = "casa nova locadora ltda - epp - boleto";
 const LEARNED_NAMES = { [LEARNED_KEY]: "Aluguel" };
@@ -121,7 +121,10 @@ test("findIdentityCandidates matches only the entry carrying the line's external
 
   for (const c of cases) {
     await t.test(c.name, () => {
-      const found = findIdentityCandidates(line({ identity: { sourceFingerprint: "source-a", externalId: "ext-a" } }), c.entries);
+      const found = findIdentityCandidates(
+        line({ identity: { sourceFingerprint: "source-a", externalId: "ext-a" } }),
+        c.entries,
+      );
       assert.deepEqual(keysOf(found), c.expected);
     });
   }
@@ -134,7 +137,13 @@ test("findInstallmentCandidates matches the same series, installment and signed 
       name: "matches same total, same installment and same value on any date",
       line: seriesLine,
       entries: [
-        entry({ entryKey: "t:tx-serie", date: "2026-05-30", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie",
+          date: "2026-05-30",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
       ],
       expected: ["t:tx-serie"],
     },
@@ -142,7 +151,12 @@ test("findInstallmentCandidates matches the same series, installment and signed 
       name: "rejects a different installment total",
       line: seriesLine,
       entries: [
-        entry({ entryKey: "t:tx-serie", signedCents: -180000, installmentCount: 10, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie",
+          signedCents: -180000,
+          installmentCount: 10,
+          currentInstallment: 2,
+        }),
       ],
       expected: [],
     },
@@ -150,7 +164,12 @@ test("findInstallmentCandidates matches the same series, installment and signed 
       name: "rejects a different current installment",
       line: seriesLine,
       entries: [
-        entry({ entryKey: "t:tx-serie", signedCents: -180000, installmentCount: 12, currentInstallment: 3 }),
+        entry({
+          entryKey: "t:tx-serie",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 3,
+        }),
       ],
       expected: [],
     },
@@ -158,7 +177,12 @@ test("findInstallmentCandidates matches the same series, installment and signed 
       name: "ignores a line without installment information",
       line: line({ signedCents: -180000 }),
       entries: [
-        entry({ entryKey: "t:tx-serie", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
       ],
       expected: [],
     },
@@ -298,10 +322,7 @@ test("findNamePeriodCandidates matches the learned name in the line's period, ac
     {
       name: "returns both entries of the same name in the period",
       context: accountContext,
-      entries: [
-        aluguel({ entryKey: "t:tx-a" }),
-        aluguel({ entryKey: "t:tx-b" }),
-      ],
+      entries: [aluguel({ entryKey: "t:tx-a" }), aluguel({ entryKey: "t:tx-b" })],
       expected: ["t:tx-a", "t:tx-b"],
     },
   ];
@@ -324,13 +345,32 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
   }[] = [
     {
       name: "identity beats installment when both find a candidate",
-      lines: [line({ identity: { sourceFingerprint: "source-a", externalId: "ext-a" }, signedCents: -180000, installment: { current: 2, total: 12 } })],
+      lines: [
+        line({
+          identity: { sourceFingerprint: "source-a", externalId: "ext-a" },
+          signedCents: -180000,
+          installment: { current: 2, total: 12 },
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-serie", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
         entry({ entryKey: "t:tx-conciliado", signedCents: -180000, externalId: "ext-a" }),
       ],
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "identity", entryKey: "t:tx-conciliado", divergence: null }],
+        lines: [
+          {
+            lineIndex: 0,
+            status: "matched",
+            rule: "identity",
+            entryKey: "t:tx-conciliado",
+            divergence: null,
+          },
+        ],
         appOnlyKeys: ["t:tx-serie"],
       },
     },
@@ -339,10 +379,24 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
       lines: [line({ signedCents: -180000, installment: { current: 2, total: 12 } })],
       entries: [
         entry({ entryKey: "t:tx-avista", signedCents: -180000 }),
-        entry({ entryKey: "t:tx-serie", date: "2026-01-10", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie",
+          date: "2026-01-10",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
       ],
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "installment", entryKey: "t:tx-serie", divergence: null }],
+        lines: [
+          {
+            lineIndex: 0,
+            status: "matched",
+            rule: "installment",
+            entryKey: "t:tx-serie",
+            divergence: null,
+          },
+        ],
         appOnlyKeys: ["t:tx-avista"],
       },
     },
@@ -351,7 +405,9 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
       lines: [line()],
       entries: [entry()],
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null }],
+        lines: [
+          { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+        ],
         appOnlyKeys: [],
       },
     },
@@ -398,12 +454,26 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
       name: "a weaker rule does not resolve a line the stronger rule found ambiguous",
       lines: [line({ signedCents: -180000, installment: { current: 2, total: 12 } })],
       entries: [
-        entry({ entryKey: "t:tx-serie-a", date: "2026-01-10", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
-        entry({ entryKey: "t:tx-serie-b", date: "2026-02-10", signedCents: -180000, installmentCount: 12, currentInstallment: 2 }),
+        entry({
+          entryKey: "t:tx-serie-a",
+          date: "2026-01-10",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
+        entry({
+          entryKey: "t:tx-serie-b",
+          date: "2026-02-10",
+          signedCents: -180000,
+          installmentCount: 12,
+          currentInstallment: 2,
+        }),
         entry({ entryKey: "t:tx-avista", signedCents: -180000 }),
       ],
       expected: {
-        lines: [{ lineIndex: 0, status: "ambiguous", candidateKeys: ["t:tx-serie-a", "t:tx-serie-b"] }],
+        lines: [
+          { lineIndex: 0, status: "ambiguous", candidateKeys: ["t:tx-serie-a", "t:tx-serie-b"] },
+        ],
         appOnlyKeys: ["t:tx-avista"],
       },
     },
@@ -428,7 +498,9 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
         entry({ entryKey: "t:tx-orfao", signedCents: -4200, date: "2026-07-02" }),
       ],
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null }],
+        lines: [
+          { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+        ],
         appOnlyKeys: ["t:tx-orfao"],
       },
     },
@@ -450,8 +522,16 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
     {
       name: "a line left with one candidate after another line consumed the disputed one is matched",
       lines: [
-        line({ index: 0, purchaseDate: "2026-07-11", identity: { sourceFingerprint: "source-a", externalId: "ext-disputa" } }),
-        line({ index: 1, purchaseDate: "2026-07-10", identity: { sourceFingerprint: "source-a", externalId: "ext-unica" } }),
+        line({
+          index: 0,
+          purchaseDate: "2026-07-11",
+          identity: { sourceFingerprint: "source-a", externalId: "ext-disputa" },
+        }),
+        line({
+          index: 1,
+          purchaseDate: "2026-07-10",
+          identity: { sourceFingerprint: "source-a", externalId: "ext-unica" },
+        }),
       ],
       entries: [
         entry({ entryKey: "t:tx-1", date: "2026-07-10" }),
@@ -485,9 +565,21 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
     },
     {
       name: "learned name matches a recurring entry with different date and value, reporting the divergence",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-aluguel", name: "Aluguel", date: "2026-08-15", period: "2026-08", signedCents: -230000 }),
+        entry({
+          entryKey: "t:tx-aluguel",
+          name: "Aluguel",
+          date: "2026-08-15",
+          period: "2026-08",
+          signedCents: -230000,
+        }),
       ],
       context: accountContext,
       expected: {
@@ -505,35 +597,99 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
     },
     {
       name: "learned name with equal value reports no divergence",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-aluguel", name: "Aluguel", date: "2026-08-20", period: "2026-08", signedCents: -235651 }),
+        entry({
+          entryKey: "t:tx-aluguel",
+          name: "Aluguel",
+          date: "2026-08-20",
+          period: "2026-08",
+          signedCents: -235651,
+        }),
       ],
       context: accountContext,
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "name-period", entryKey: "t:tx-aluguel", divergence: null }],
+        lines: [
+          {
+            lineIndex: 0,
+            status: "matched",
+            rule: "name-period",
+            entryKey: "t:tx-aluguel",
+            divergence: null,
+          },
+        ],
         appOnlyKeys: [],
       },
     },
     {
       name: "exact rule beats the learned name",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-aluguel", name: "Aluguel", date: "2026-08-20", period: "2026-08", signedCents: -230000 }),
-        entry({ entryKey: "t:tx-exato", name: "Outro", date: "2026-08-11", period: "2026-08", signedCents: -235651 }),
+        entry({
+          entryKey: "t:tx-aluguel",
+          name: "Aluguel",
+          date: "2026-08-20",
+          period: "2026-08",
+          signedCents: -230000,
+        }),
+        entry({
+          entryKey: "t:tx-exato",
+          name: "Outro",
+          date: "2026-08-11",
+          period: "2026-08",
+          signedCents: -235651,
+        }),
       ],
       context: accountContext,
       expected: {
-        lines: [{ lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-exato", divergence: null }],
+        lines: [
+          {
+            lineIndex: 0,
+            status: "matched",
+            rule: "exact",
+            entryKey: "t:tx-exato",
+            divergence: null,
+          },
+        ],
         appOnlyKeys: ["t:tx-aluguel"],
       },
     },
     {
       name: "two entries of the learned name in the period make the line ambiguous",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-a", name: "Aluguel", date: "2026-08-20", period: "2026-08", signedCents: -230000 }),
-        entry({ entryKey: "t:tx-b", name: "Aluguel", date: "2026-08-22", period: "2026-08", signedCents: -210000 }),
+        entry({
+          entryKey: "t:tx-a",
+          name: "Aluguel",
+          date: "2026-08-20",
+          period: "2026-08",
+          signedCents: -230000,
+        }),
+        entry({
+          entryKey: "t:tx-b",
+          name: "Aluguel",
+          date: "2026-08-22",
+          period: "2026-08",
+          signedCents: -210000,
+        }),
       ],
       context: accountContext,
       expected: {
@@ -543,9 +699,21 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
     },
     {
       name: "learned name is not used on a card target",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-aluguel", name: "Aluguel", date: "2026-08-20", period: "2026-08", signedCents: -230000 }),
+        entry({
+          entryKey: "t:tx-aluguel",
+          name: "Aluguel",
+          date: "2026-08-20",
+          period: "2026-08",
+          signedCents: -230000,
+        }),
       ],
       context: { targetType: "card", nameMappings: LEARNED_NAMES },
       expected: {
@@ -555,14 +723,35 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
     },
     {
       name: "learned name is not used without a mapping",
-      lines: [line({ name: "CASA NOVA LOCADORA LTDA - EPP - Boleto", purchaseDate: "2026-08-11", signedCents: -235651 })],
+      lines: [
+        line({
+          name: "CASA NOVA LOCADORA LTDA - EPP - Boleto",
+          purchaseDate: "2026-08-11",
+          signedCents: -235651,
+        }),
+      ],
       entries: [
-        entry({ entryKey: "t:tx-aluguel", name: "Aluguel", date: "2026-08-20", period: "2026-08", signedCents: -230000 }),
+        entry({
+          entryKey: "t:tx-aluguel",
+          name: "Aluguel",
+          date: "2026-08-20",
+          period: "2026-08",
+          signedCents: -230000,
+        }),
       ],
       context: { targetType: "account", nameMappings: {} },
       expected: {
         lines: [{ lineIndex: 0, status: "bank-only" }],
         appOnlyKeys: ["t:tx-aluguel"],
+      },
+    },
+    {
+      name: "a credit line never consumes an app entry of the same value",
+      lines: [line({ lineKind: "credit", signedCents: 10000 })],
+      entries: [entry({ entryKey: "t:tx-estorno", signedCents: 10000 })],
+      expected: {
+        lines: [{ lineIndex: 0, status: "bank-only" }],
+        appOnlyKeys: ["t:tx-estorno"],
       },
     },
   ];
@@ -613,10 +802,22 @@ test("matchReconciliationLines pools entries outside the file range without chan
   });
 
   assert.deepEqual(withoutPool.lines, [
-    { lineIndex: 0, status: "matched", rule: "installment", entryKey: "t:tx-serie", divergence: null },
+    {
+      lineIndex: 0,
+      status: "matched",
+      rule: "installment",
+      entryKey: "t:tx-serie",
+      divergence: null,
+    },
   ]);
   assert.deepEqual(withPool.lines, [
-    { lineIndex: 0, status: "matched", rule: "installment", entryKey: "t:tx-serie", divergence: null },
+    {
+      lineIndex: 0,
+      status: "matched",
+      rule: "installment",
+      entryKey: "t:tx-serie",
+      divergence: null,
+    },
   ]);
   assert.deepEqual(withPool.appOnlyKeys, ["t:tx-periodo"]);
 });
@@ -668,7 +869,9 @@ test("detectMatchSuspicions reports the date and value reasons the operator must
       entry: entry({ date: "2026-10-11", signedCents: -27500 }),
       fileStartDate: "2026-10-12",
       targetType: "account",
-      expected: [{ reason: "before-file-start", entryDate: "2026-10-11", fileStartDate: "2026-10-12" }],
+      expected: [
+        { reason: "before-file-start", entryDate: "2026-10-11", fileStartDate: "2026-10-12" },
+      ],
     },
     {
       name: "Colegio 1.560,85 matched by identity with 1.643,00",
@@ -762,15 +965,60 @@ test("resolveAmountAlignment aligns to the file value unless the entry must keep
     targetType: "account" | "card";
     expected: ReturnType<typeof resolveAmountAlignment>;
   }[] = [
-    { name: "equal value needs no alignment", entry: { signedCents: -23565 }, targetType: "account", expected: { kind: "none" } },
-    { name: "person split keeps its value", entry: { signedCents: -23000, hasSplits: true }, targetType: "account", expected: { kind: "kept", reason: "splits" } },
-    { name: "transfer keeps its value", entry: { signedCents: -23000, isTransfer: true }, targetType: "account", expected: { kind: "kept", reason: "transfer" } },
-    { name: "generated entry keeps its value", entry: { signedCents: -23000, isGenerated: true }, targetType: "account", expected: { kind: "kept", reason: "generated" } },
-    { name: "entry of a paid invoice keeps its value", entry: { signedCents: -23000, inPaidInvoice: true }, targetType: "card", expected: { kind: "kept", reason: "paid-invoice" } },
-    { name: "card recurring occurrence keeps its value", entry: { signedCents: -23000, isRecurring: true }, targetType: "card", expected: { kind: "kept", reason: "card-recurring" } },
-    { name: "account recurring occurrence is aligned", entry: { signedCents: -23000, isRecurring: true }, targetType: "account", expected: { kind: "align", toCents: -23565 } },
-    { name: "split takes precedence over transfer", entry: { signedCents: -23000, hasSplits: true, isTransfer: true }, targetType: "account", expected: { kind: "kept", reason: "splits" } },
-    { name: "plain difference is aligned to the file", entry: { signedCents: -23000 }, targetType: "account", expected: { kind: "align", toCents: -23565 } },
+    {
+      name: "equal value needs no alignment",
+      entry: { signedCents: -23565 },
+      targetType: "account",
+      expected: { kind: "none" },
+    },
+    {
+      name: "person split keeps its value",
+      entry: { signedCents: -23000, hasSplits: true },
+      targetType: "account",
+      expected: { kind: "kept", reason: "splits" },
+    },
+    {
+      name: "transfer keeps its value",
+      entry: { signedCents: -23000, isTransfer: true },
+      targetType: "account",
+      expected: { kind: "kept", reason: "transfer" },
+    },
+    {
+      name: "generated entry keeps its value",
+      entry: { signedCents: -23000, isGenerated: true },
+      targetType: "account",
+      expected: { kind: "kept", reason: "generated" },
+    },
+    {
+      name: "entry of a paid invoice keeps its value",
+      entry: { signedCents: -23000, inPaidInvoice: true },
+      targetType: "card",
+      expected: { kind: "kept", reason: "paid-invoice" },
+    },
+    {
+      name: "card recurring occurrence keeps its value",
+      entry: { signedCents: -23000, isRecurring: true },
+      targetType: "card",
+      expected: { kind: "kept", reason: "card-recurring" },
+    },
+    {
+      name: "account recurring occurrence is aligned",
+      entry: { signedCents: -23000, isRecurring: true },
+      targetType: "account",
+      expected: { kind: "align", toCents: -23565 },
+    },
+    {
+      name: "split takes precedence over transfer",
+      entry: { signedCents: -23000, hasSplits: true, isTransfer: true },
+      targetType: "account",
+      expected: { kind: "kept", reason: "splits" },
+    },
+    {
+      name: "plain difference is aligned to the file",
+      entry: { signedCents: -23000 },
+      targetType: "account",
+      expected: { kind: "align", toCents: -23565 },
+    },
   ];
 
   for (const c of cases) {
@@ -846,6 +1094,91 @@ test("assignReconciliationBuckets keeps invoice credits informational and an ign
   );
 });
 
+test("assignReconciliationBuckets buckets each classified line by its outcome", async (t) => {
+  const cases: {
+    name: string;
+    lines: ReconciliationLine[];
+    entries: ReconciliationEntry[];
+    classification: LineClassification[];
+    ignoredExternalIds?: Map<string, string>;
+    fileStartDate?: string;
+    expected: {
+      bucket: ReconciliationBucket;
+      suspicions: MatchSuspicion[];
+      ignoredReason: string | null;
+    };
+  }[] = [
+    {
+      name: "matched line without suspicion is matched",
+      lines: [line({ purchaseDate: "2026-07-10" })],
+      entries: [entry({ entryKey: "t:tx-1", date: "2026-07-10", signedCents: -2590 })],
+      classification: [
+        { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+      ],
+      fileStartDate: "2026-07-01",
+      expected: { bucket: "matched", suspicions: [], ignoredReason: null },
+    },
+    {
+      name: "matched line whose account entry predates the file start needs a decision",
+      lines: [line({ purchaseDate: "2026-06-21" })],
+      entries: [entry({ entryKey: "t:tx-1", date: "2026-06-20", signedCents: -2590 })],
+      classification: [
+        { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+      ],
+      fileStartDate: "2026-06-21",
+      expected: {
+        bucket: "needs-decision",
+        suspicions: [
+          { reason: "before-file-start", entryDate: "2026-06-20", fileStartDate: "2026-06-21" },
+        ],
+        ignoredReason: null,
+      },
+    },
+    {
+      name: "ambiguous line stays ambiguous",
+      lines: [line()],
+      entries: [],
+      classification: [{ lineIndex: 0, status: "ambiguous", candidateKeys: ["t:tx-1", "t:tx-2"] }],
+      expected: { bucket: "ambiguous", suspicions: [], ignoredReason: null },
+    },
+    {
+      name: "matched line whose external id is ignored stays matched",
+      lines: [line()],
+      entries: [entry({ entryKey: "t:tx-1", date: "2026-07-10", signedCents: -2590 })],
+      classification: [
+        { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+      ],
+      ignoredExternalIds: new Map([["ext-linha", "Taxa de teste"]]),
+      fileStartDate: "2026-07-01",
+      expected: { bucket: "matched", suspicions: [], ignoredReason: null },
+    },
+    {
+      name: "credit line stays informational even when classified as matched",
+      lines: [line({ lineKind: "credit", signedCents: 10000 })],
+      entries: [entry({ entryKey: "t:tx-1", date: "2026-07-10", signedCents: 10000 })],
+      classification: [
+        { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
+      ],
+      fileStartDate: "2026-07-01",
+      expected: { bucket: "informational", suspicions: [], ignoredReason: null },
+    },
+  ];
+
+  for (const c of cases) {
+    await t.test(c.name, () => {
+      const buckets = assignReconciliationBuckets({
+        lines: c.lines,
+        classification: c.classification,
+        entries: c.entries,
+        ignoredExternalIds: c.ignoredExternalIds ?? new Map(),
+        fileStartDate: c.fileStartDate ?? null,
+        targetType: "account",
+      });
+      assert.deepEqual(buckets, [{ lineIndex: 0, ...c.expected }]);
+    });
+  }
+});
+
 test("filterAppOnlyByScope limits account entries to the file range and card entries to the invoice period", async (t) => {
   const entries = [
     entry({ entryKey: "t:dentro", date: "2026-08-15", period: "2026-08" }),
@@ -887,15 +1220,35 @@ test("reclassifyPreviousInvoicePayments turns a payment up to the previous due d
     name: string;
     lines: ReconciliationLine[];
     input: { invoicePeriod: string; dueDay: number };
-    expected: (ReconciliationLine["lineKind"])[];
+    expected: ReconciliationLine["lineKind"][];
   }[] = [
     {
       name: "payments up to the previous due date settle that invoice, later ones are credits of this one",
       lines: [
-        line({ purchaseDate: "2026-09-11", name: "Inclusao de Pagamento    ", lineKind: "credit", signedCents: 10000 }),
-        line({ purchaseDate: "2026-09-15", name: "Inclusao de Pagamento", lineKind: "credit", signedCents: 10000 }),
-        line({ purchaseDate: "2026-09-27", name: "Inclusao de Pagamento", lineKind: "credit", signedCents: 10000 }),
-        line({ purchaseDate: "2026-09-10", name: "Estorno Tarifa", lineKind: "credit", signedCents: 7500 }),
+        line({
+          purchaseDate: "2026-09-11",
+          name: "Inclusao de Pagamento    ",
+          lineKind: "credit",
+          signedCents: 10000,
+        }),
+        line({
+          purchaseDate: "2026-09-15",
+          name: "Inclusao de Pagamento",
+          lineKind: "credit",
+          signedCents: 10000,
+        }),
+        line({
+          purchaseDate: "2026-09-27",
+          name: "Inclusao de Pagamento",
+          lineKind: "credit",
+          signedCents: 10000,
+        }),
+        line({
+          purchaseDate: "2026-09-10",
+          name: "Estorno Tarifa",
+          lineKind: "credit",
+          signedCents: 7500,
+        }),
         line({ purchaseDate: "2026-09-10", name: "LOJA", lineKind: "purchase" }),
       ],
       input: { invoicePeriod: "2026-10", dueDay: 15 },
@@ -904,7 +1257,12 @@ test("reclassifyPreviousInvoicePayments turns a payment up to the previous due d
     {
       name: "a due date in the year wrap uses December of the previous year",
       lines: [
-        line({ purchaseDate: "2025-12-05", name: "Inclusao de Pagamento", lineKind: "credit", signedCents: 10000 }),
+        line({
+          purchaseDate: "2025-12-05",
+          name: "Inclusao de Pagamento",
+          lineKind: "credit",
+          signedCents: 10000,
+        }),
       ],
       input: { invoicePeriod: "2026-01", dueDay: 5 },
       expected: ["invoice-payment"],
@@ -914,7 +1272,10 @@ test("reclassifyPreviousInvoicePayments turns a payment up to the previous due d
   for (const c of cases) {
     await t.test(c.name, () => {
       const result = reclassifyPreviousInvoicePayments(c.lines, c.input);
-      assert.deepEqual(result.map((candidate) => candidate.lineKind), c.expected);
+      assert.deepEqual(
+        result.map((candidate) => candidate.lineKind),
+        c.expected,
+      );
       assert.equal(c.lines[0]?.lineKind, "credit");
     });
   }
@@ -932,10 +1293,30 @@ test("matchAccountByIdentification preselects only the single account whose name
     accounts: { id: string; name: string }[];
     expected: string | null;
   }[] = [
-    { name: "matches the account named with the file's number", identification: "1/99999999", accounts, expected: "conta-1" },
-    { name: "ignores the agency segment", identification: "12345678/99999999", accounts, expected: "conta-1" },
-    { name: "chooses nothing without identification", identification: null, accounts, expected: null },
-    { name: "chooses nothing when no account matches", identification: "1/55555555", accounts, expected: null },
+    {
+      name: "matches the account named with the file's number",
+      identification: "1/99999999",
+      accounts,
+      expected: "conta-1",
+    },
+    {
+      name: "ignores the agency segment",
+      identification: "12345678/99999999",
+      accounts,
+      expected: "conta-1",
+    },
+    {
+      name: "chooses nothing without identification",
+      identification: null,
+      accounts,
+      expected: null,
+    },
+    {
+      name: "chooses nothing when no account matches",
+      identification: "1/55555555",
+      accounts,
+      expected: null,
+    },
     {
       name: "chooses nothing when more than one account matches",
       identification: "1/99999999",
