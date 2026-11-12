@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   CalendarClock,
+  CalendarDays,
   ClipboardList,
   CreditCard,
   FileChartColumn,
@@ -52,6 +53,13 @@ export const navSections: NavSection[] = [
         label: "Lançamentos",
         description: "Registre e gerencie suas transações",
         icon: <ArrowLeftRight className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+      },
+      {
+        href: "/calendar",
+        label: "Calendário",
+        description: "Lançamentos, boletos e faturas por dia",
+        icon: <CalendarDays className="size-4" aria-hidden="true" />,
         preservePeriod: true,
       },
       {
