@@ -1888,6 +1888,12 @@ export function createTransactionsService(
     return createTransactionsExport(result.items, { ...query, period });
   }
 
+  async function listTransactionsForExport(userId: string, query: ListTransactionsQuery) {
+    const period = query.period ?? getCurrentPeriodInBrazil();
+    const result = await listTransactions(userId, { ...query, period }, false);
+    return { items: result.items, rowCount: result.items.length };
+  }
+
   function listPeriodsBetween(startPeriod: string, endPeriod: string) {
     const periods: string[] = [];
     for (let period = startPeriod; period <= endPeriod; period = addMonthsToPeriod(period, 1)) {
@@ -3465,6 +3471,7 @@ export function createTransactionsService(
     deleteTransaction,
     deleteTransactions,
     exportTransactions,
+    listTransactionsForExport,
     detectTransactionImport,
     expandScheduledRecurringRules,
     generateTransactionImportTemplate,

@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   Ellipsis,
+  FileDown,
   FileSpreadsheet,
   FileText,
   FileUp,
@@ -85,6 +86,13 @@ export function TransactionsMobileActionsMenu({
               >
                 <FileSpreadsheet aria-hidden="true" />
                 Exportar Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={exportUnavailable}
+                onClick={() => exportOptions.onExport("pdf")}
+              >
+                <FileDown aria-hidden="true" />
+                Exportar como PDF
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </>

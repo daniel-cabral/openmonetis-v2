@@ -59,6 +59,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   parcelas. Novos endpoints `POST /transactions/bulk/create` e `PATCH /transactions/bulk/update`.
   Detalhes em `docs/transaction-bulk-actions.md`. Edição com escopo de uma série agora é cancelada
   por inteiro se uma parcela da série sumir antes da gravação, em vez de gravar parcialmente.
+- Exportação em **PDF** de lançamentos (menus desktop e mobile) e do relatório de Evolução por
+  categoria, que ganha **Excel** e **PDF** além do CSV. Novo endpoint `GET /transactions/export/items`
+  (lista filtrada sem paginação). Novas dependências no web: `jspdf`, `jspdf-autotable` e `exceljs`,
+  carregadas só ao exportar. Detalhes em `docs/exports.md`.
 - Diálogo de pagamento de fatura informa o valor da fatura, o já abatido (créditos e pagamentos
   anteriores) e o valor a registrar antes de confirmar; o que for registrado é exatamente o
   anunciado. Fatura já coberta mostra que nada será lançado. Detalhes em `docs/invoice-payments.md`.

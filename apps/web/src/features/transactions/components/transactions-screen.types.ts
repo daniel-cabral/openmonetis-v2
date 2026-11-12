@@ -3,7 +3,6 @@ import type { CardOutput } from "@openmonetis/validators/cards";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import type {
-  ExportTransactionsQuery,
   RecurringOccurrenceActionInput,
   TransactionActionScope,
   TransactionInput,
@@ -14,7 +13,7 @@ import type { ReactNode } from "react";
 
 import type { PageBreadcrumb } from "@/components/page-header";
 
-import type { TransactionsSearch } from "../transactions.presentation";
+import type { TransactionsExportFormat, TransactionsSearch } from "../transactions.presentation";
 
 import type { TransactionCreateDefaults } from "./transaction-form.validation";
 
@@ -62,7 +61,7 @@ export type TransactionsScreenProps = {
   hiddenFilters?: readonly TransactionsFilterKey[];
   allowCreate?: boolean;
   allowImport?: boolean;
-  onExport?: (format: ExportTransactionsQuery["format"]) => void;
+  onExport?: (format: TransactionsExportFormat) => void;
   isExporting?: boolean;
   createDefaults?: TransactionCreateDefaults;
   createTypes?: readonly TransactionCreateType[];

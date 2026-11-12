@@ -938,6 +938,14 @@ export const PaginatedTransactionsOutputSchema = z
   })
   .openapi("PaginatedTransactions");
 
+export const TransactionExportItemsOutputSchema = z
+  .object({
+    items: z.array(TransactionOutputSchema),
+    rowCount: z.number().int().nonnegative(),
+  })
+  .openapi("TransactionExportItems");
+export type TransactionExportItemsOutput = z.infer<typeof TransactionExportItemsOutputSchema>;
+
 export const RecentEstablishmentsOutputSchema = z
   .object({
     items: z.array(z.string().trim().min(1).max(160)).max(100),

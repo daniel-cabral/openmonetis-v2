@@ -1539,6 +1539,109 @@ test("assembled API protects financial endpoints and persists transfers and refu
       },
     );
 
+    await t.test(
+      "export items return every filtered transaction beyond one page, matching the CSV export",
+      async () => {
+        const exporter = await register();
+        const account = await data<Account>(
+          await request("/accounts", exporter, "POST", {
+            name: `Export ${randomUUID()}`,
+            type: "checking",
+          }),
+          201,
+        );
+        const otherCategory = await data<{ id: string }>(
+          await request("/categories", exporter, "POST", {
+            name: `Export other ${randomUUID()}`,
+            type: "expense",
+          }),
+          201,
+        );
+        const amounts = Array.from({ length: 35 }, (_, index) =>
+          Number((1 + index * 0.37).toFixed(2)),
+        );
+        const rowFor = (name: string, amount: number, categoryId: string) => ({
+          purchaseDate: date,
+          name,
+          amount,
+          categoryId,
+          personId: exporter.personId,
+        });
+        await data(
+          await request("/transactions/bulk/create", exporter, "POST", {
+            type: "expense",
+            paymentMethod: "pix",
+            accountId: account.id,
+            rows: amounts.map((amount, index) =>
+              rowFor(
+                index === 0 ? '=HYPERLINK("x")' : `Export ${index}`,
+                amount,
+                exporter.expenseCategoryId,
+              ),
+            ),
+          }),
+          201,
+        );
+        await data(
+          await request("/transactions/bulk/create", exporter, "POST", {
+            type: "expense",
+            paymentMethod: "pix",
+            accountId: account.id,
+            rows: [
+              rowFor("Other 1", 5, otherCategory.id),
+              rowFor("Other 2", 6, otherCategory.id),
+              rowFor("Other 3", 7, otherCategory.id),
+            ],
+          }),
+          201,
+        );
+        await data(
+          await request("/transactions", exporter, "POST", {
+            type: "income",
+            paymentMethod: "pix",
+            name: "Income",
+            amount: 8,
+            purchaseDate: date,
+            personId: exporter.personId,
+            categoryId: exporter.incomeCategoryId,
+            accountId: account.id,
+            isSettled: true,
+            settledDate: date,
+          }),
+          201,
+        );
+
+        const filter = `period=${period}&categoryIds=${exporter.expenseCategoryId}`;
+        const listed = await data<{ items: TransactionOutput[]; rowCount: number }>(
+          await request(`/transactions/export/items?${filter}`, exporter),
+        );
+        assert.equal(listed.rowCount, 35);
+        assert.equal(listed.items.length, 35);
+        assert.ok(listed.items.every((item) => item.categoryId === exporter.expenseCategoryId));
+        // Expenses are stored as negative amounts.
+        assert.deepEqual(
+          listed.items.map((item) => item.amount).sort((a, b) => a - b),
+          amounts.map((amount) => -amount).sort((a, b) => a - b),
+        );
+        assert.ok(listed.items.some((item) => item.name === '=HYPERLINK("x")'));
+
+        const exported = await data<{ rowCount: number; contentBase64: string }>(
+          await request(`/transactions/export?${filter}&format=csv`, exporter),
+        );
+        assert.equal(exported.rowCount, 35);
+        const [header, ...lines] = Buffer.from(exported.contentBase64, "base64")
+          .toString("utf8")
+          .replace(/^﻿/, "")
+          .split("\r\n");
+        const valueColumn = (header ?? "").split(";").indexOf('"Valor (R$)"');
+        assert.ok(valueColumn >= 0);
+        assert.deepEqual(
+          lines.map((line) => Number(line.split(";")[valueColumn]?.replace(",", "."))),
+          listed.items.map((item) => item.amount),
+        );
+      },
+    );
+
     await t.test("a forged session cookie cannot authenticate a financial request", async () => {
       await error(
         await request("/accounts", {
