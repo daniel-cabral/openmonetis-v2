@@ -145,7 +145,7 @@ Kept / changed / dropped vs V1: kept the sections and PT-BR copy intent; changed
 
 ## UI decisions
 
-Preview: temporary route `apps/web/src/routes/preview-landing.tsx` (`?v=a|b|c`, real app CSS and components, verified rendering via SSR on the lane dev server; removed before commit). Chosen autonomously as closest to V1 within V2 patterns: **Option A**.
+Preview: temporary route `apps/web/src/routes/preview-landing.tsx` (`?v=a|b|c`, real app CSS and components, verified rendering via SSR on the lane dev server); the route was removed and its source kept at `specs/014-landing-page/previews/preview-landing.tsx.txt`. Chosen autonomously as closest to V1 within V2 patterns: **Option A**.
 
 - Option A (chosen): sticky header with logo, anchor links and auth actions; centered hero over the existing `atmospheric-wash`, eyebrow + `font-heading` title + two CTAs; sections in V1 order as `project-container` blocks; feature items as the project `Card`; icons from `lucide-react` with `text-brand-strong`.
 - Option B (discarded): split hero with a terminal card; departs from V1's centered hero and duplicates the quick-start section.

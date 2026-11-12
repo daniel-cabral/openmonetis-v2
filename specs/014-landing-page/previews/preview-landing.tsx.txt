@@ -1,0 +1,138 @@
+// TEMPORARY mockup-ui preview for spec 014. Removed before merge.
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight, Bell, CalendarDays, CreditCard, Code, PiggyBank, Smartphone, Upload } from "lucide-react";
+import { OpenMonetisLogo } from "@/components/openmonetis-logo";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export const Route = createFileRoute("/preview-landing")({
+  validateSearch: (search: Record<string, unknown>) => ({ v: String(search.v ?? "a") }),
+  component: Preview,
+});
+
+const features = [
+  { icon: CreditCard, title: "Cartões e faturas", text: "Acompanhe faturas, limites e parcelas por cartão." },
+  { icon: Upload, title: "Importação e conciliação", text: "Importe extratos OFX/CSV e concilie com seus lançamentos." },
+  { icon: PiggyBank, title: "Orçamentos e metas", text: "Defina limites por categoria e acompanhe seu progresso." },
+  { icon: CalendarDays, title: "Calendário", text: "Veja vencimentos e lançamentos do mês num só lugar." },
+  { icon: Bell, title: "Companion Android", text: "Capture notificações do banco direto para a caixa de entrada." },
+  { icon: Smartphone, title: "PWA", text: "Instale no celular e use como um app." },
+];
+
+function Nav() {
+  return (
+    <header className="sticky top-0 z-10 border-border border-b bg-background/85 backdrop-blur-md">
+      <div className="project-container flex h-14 items-center justify-between">
+        <OpenMonetisLogo />
+        <nav className="hidden gap-6 text-muted-foreground text-sm md:flex">
+          <a href="#recursos">Recursos</a>
+          <a href="#companion">Companion</a>
+          <a href="#comecar">Começar</a>
+        </nav>
+        <div className="flex gap-2">
+          <Button asChild variant="ghost" ><Link to="/">Entrar</Link></Button>
+          <Button asChild ><Link to="/signup">Criar conta</Link></Button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function FeatureGrid() {
+  return (
+    <section id="recursos" className="project-container py-16">
+      <h2 className="section-title">Tudo que você precisa para organizar suas finanças</h2>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {features.map((f) => (
+          <Card key={f.title}>
+            <CardHeader>
+              <f.icon className="size-5 text-brand-strong" aria-hidden="true" />
+              <CardTitle>{f.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-muted-foreground text-sm">{f.text}</CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OptionA() {
+  return (
+    <>
+      <Nav />
+      <main>
+        <section className="relative isolate overflow-hidden py-24 text-center">
+          <div aria-hidden="true" className="atmospheric-wash absolute top-1/2 left-1/2 -z-10 size-[min(42rem,90vw)] -translate-x-1/2 -translate-y-1/2 opacity-55" />
+          <div className="project-container">
+            <p className="eyebrow">Self-hosted · Open source</p>
+            <h1 className="mx-auto mt-4 max-w-3xl font-heading text-4xl sm:text-6xl">Suas finanças, no seu servidor.</h1>
+            <p className="mx-auto mt-4 max-w-xl text-muted-foreground">Controle financeiro pessoal completo, sem anúncios e sem entregar seus dados.</p>
+            <div className="mt-8 flex justify-center gap-3">
+              <Button asChild size="lg" ><Link to="/signup">Criar conta <ArrowRight /></Link></Button>
+              <Button size="lg" variant="outline"><Code /> Ver no GitHub</Button>
+            </div>
+          </div>
+        </section>
+        <FeatureGrid />
+      </main>
+    </>
+  );
+}
+
+function OptionB() {
+  return (
+    <>
+      <Nav />
+      <main>
+        <section className="project-container grid items-center gap-10 py-20 lg:grid-cols-2">
+          <div>
+            <p className="eyebrow">Self-hosted · Open source</p>
+            <h1 className="mt-4 font-heading text-4xl sm:text-5xl">Suas finanças, no seu servidor.</h1>
+            <p className="mt-4 text-muted-foreground">Controle financeiro pessoal completo, sem anúncios e sem entregar seus dados.</p>
+            <div className="mt-8 flex gap-3">
+              <Button asChild size="lg" ><Link to="/signup">Criar conta</Link></Button>
+              <Button asChild size="lg" variant="outline" ><Link to="/">Entrar</Link></Button>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="grid gap-3 py-6 font-mono text-sm">
+              <p className="text-muted-foreground">$ git clone …/openmonetis-v2</p>
+              <p className="text-muted-foreground">$ cp .env.example .env</p>
+              <p>$ docker compose up -d</p>
+            </CardContent>
+          </Card>
+        </section>
+        <FeatureGrid />
+      </main>
+    </>
+  );
+}
+
+function OptionC() {
+  return (
+    <>
+      <Nav />
+      <main className="project-container max-w-3xl py-16">
+        <h1 className="font-heading text-4xl">OpenMonetis</h1>
+        <p className="mt-3 text-muted-foreground">Controle financeiro pessoal self-hosted e open source.</p>
+        <ul className="mt-8 grid gap-4">
+          {features.map((f) => (
+            <li key={f.title} className="flex gap-3">
+              <f.icon className="mt-0.5 size-5 shrink-0 text-brand-strong" aria-hidden="true" />
+              <div>
+                <h2 className="font-medium">{f.title}</h2>
+                <p className="text-muted-foreground text-sm">{f.text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </main>
+    </>
+  );
+}
+
+function Preview() {
+  const { v } = Route.useSearch();
+  return <div className="min-h-svh bg-background">{v === "b" ? <OptionB /> : v === "c" ? <OptionC /> : <OptionA />}</div>;
+}
