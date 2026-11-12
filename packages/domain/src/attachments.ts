@@ -11,12 +11,26 @@ export type AttachmentKind = (typeof attachmentKinds)[number];
 
 export const maximumAttachmentSize = 50 * 1024 * 1024;
 
-export function isAllowedAttachment(mimeType: string, size: number) {
+export const attachmentSizeLimitOptionsMb = [5, 10, 25, 50] as const;
+
+export type AttachmentSizeLimitMb = (typeof attachmentSizeLimitOptionsMb)[number];
+
+export const defaultAttachmentSizeLimitMb: AttachmentSizeLimitMb = 50;
+
+export function resolveAttachmentSizeLimit(mb: number) {
+  return Math.min(mb * 1024 * 1024, maximumAttachmentSize);
+}
+
+export function isAllowedAttachment(
+  mimeType: string,
+  size: number,
+  limit = maximumAttachmentSize,
+) {
   return (
     attachmentMimeTypes.includes(mimeType as (typeof attachmentMimeTypes)[number]) &&
     Number.isInteger(size) &&
     size > 0 &&
-    size <= maximumAttachmentSize
+    size <= Math.min(limit, maximumAttachmentSize)
   );
 }
 

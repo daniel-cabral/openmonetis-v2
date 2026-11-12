@@ -6,6 +6,7 @@ import {
   isAllowedAttachment,
   maximumAttachmentSize,
   normalizeAttachmentFileName,
+  resolveAttachmentSizeLimit,
   summarizePeriodAttachments,
 } from "./attachments";
 
@@ -23,6 +24,10 @@ test("attachment whitelist accepts exact size boundaries and rejects unsupported
     "image/png; charset=utf-8",
   ])
     assert.equal(isAllowedAttachment(mime, 10), false);
+  const fiveMbLimit = resolveAttachmentSizeLimit(5);
+  assert.equal(isAllowedAttachment("application/pdf", 5 * 1024 * 1024, fiveMbLimit), true);
+  assert.equal(isAllowedAttachment("application/pdf", 5 * 1024 * 1024 + 1, fiveMbLimit), false);
+  assert.equal(resolveAttachmentSizeLimit(100), 52428800);
 });
 
 test("all supported file signatures reject truncated, forged and mismatched content", () => {
