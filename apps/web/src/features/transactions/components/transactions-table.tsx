@@ -121,42 +121,42 @@ export function TransactionsTable({
                             </TableRow>
                           ) : null}
                           {section.rows.map(({ transaction, splitConnector }) => (
-                        <TransactionRow
-                          accountStatement={accountStatement}
-                          adminPersonId={adminPersonId}
-                          columns={columns}
-                          key={transaction.id}
-                          selectionMode={selectionMode}
-                          selected={selection.isSelected(transaction.id)}
-                          selectable={selection.isSelectable(transaction)}
-                          splitConnector={splitConnector}
-                          onEdit={onEdit}
-                          onView={onView}
-                          onDelete={onDelete}
-                          onCopy={onCopy}
-                          onAnticipate={onAnticipate}
-                          onUndoAnticipation={onUndoAnticipation}
-                          onRefund={onRefund}
-                          onRecurringAction={onRecurringAction}
-                          onSettle={onSettle}
-                          onSettleRecurringOccurrence={onSettleRecurringOccurrence}
-                          onSelectionChange={(selected, extendRange) =>
-                            selection.setSelected(transaction.id, selected, extendRange)
-                          }
-                          pending={
-                            pendingTransactionId !== null &&
-                            pendingTransactionId === transaction.recordId
-                          }
-                          period={period}
-                          settlementPending={
-                            pendingSettlementKey ===
-                            (transaction.recordId ??
-                              (transaction.recurringRuleId
-                                ? `${transaction.recurringRuleId}:${transaction.purchaseDate}`
-                                : null))
-                          }
-                          transaction={transaction}
-                        />
+                            <TransactionRow
+                              accountStatement={accountStatement}
+                              adminPersonId={adminPersonId}
+                              columns={columns}
+                              key={transaction.id}
+                              selectionMode={selectionMode}
+                              selected={selection.isSelected(transaction.id)}
+                              selectable={selection.isSelectable(transaction)}
+                              splitConnector={splitConnector}
+                              onEdit={onEdit}
+                              onView={onView}
+                              onDelete={onDelete}
+                              onCopy={onCopy}
+                              onAnticipate={onAnticipate}
+                              onUndoAnticipation={onUndoAnticipation}
+                              onRefund={onRefund}
+                              onRecurringAction={onRecurringAction}
+                              onSettle={onSettle}
+                              onSettleRecurringOccurrence={onSettleRecurringOccurrence}
+                              onSelectionChange={(selected, extendRange) =>
+                                selection.setSelected(transaction.id, selected, extendRange)
+                              }
+                              pending={
+                                pendingTransactionId !== null &&
+                                pendingTransactionId === transaction.recordId
+                              }
+                              period={period}
+                              settlementPending={
+                                pendingSettlementKey ===
+                                (transaction.recordId ??
+                                  (transaction.recurringRuleId
+                                    ? `${transaction.recurringRuleId}:${transaction.purchaseDate}`
+                                    : null))
+                              }
+                              transaction={transaction}
+                            />
                           ))}
                         </Fragment>
                       ))}

@@ -50,7 +50,10 @@ function PreferencesEditor({ preferences }: { preferences: UserPreferencesOutput
           <SettingsPanel>
             <PreferencesDisplaySections form={form} disabled={isSubmitting || isRestoring} />
             <PreferencesTransactionSection form={form} disabled={isSubmitting || isRestoring} />
-            <PreferencesTransactionsListSection form={form} disabled={isSubmitting || isRestoring} />
+            <PreferencesTransactionsListSection
+              form={form}
+              disabled={isSubmitting || isRestoring}
+            />
             <PreferencesDetailsAttachmentsSection
               form={form}
               disabled={isSubmitting || isRestoring}

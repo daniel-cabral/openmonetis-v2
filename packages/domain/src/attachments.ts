@@ -21,11 +21,7 @@ export function resolveAttachmentSizeLimit(mb: number) {
   return Math.min(mb * 1024 * 1024, maximumAttachmentSize);
 }
 
-export function isAllowedAttachment(
-  mimeType: string,
-  size: number,
-  limit = maximumAttachmentSize,
-) {
+export function isAllowedAttachment(mimeType: string, size: number, limit = maximumAttachmentSize) {
   return (
     attachmentMimeTypes.includes(mimeType as (typeof attachmentMimeTypes)[number]) &&
     Number.isInteger(size) &&

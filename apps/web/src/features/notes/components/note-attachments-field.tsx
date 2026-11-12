@@ -1,6 +1,6 @@
 import type { NoteOutput } from "@openmonetis/validators/notes";
-import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentFilePicker } from "@/features/attachments/components/attachment-file-picker";
 import { NoteAttachments } from "@/features/attachments/components/note-attachments";

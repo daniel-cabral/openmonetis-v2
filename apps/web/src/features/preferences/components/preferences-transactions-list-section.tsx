@@ -171,7 +171,10 @@ export function PreferenceSwitchRow({
           >
             {label}
           </Label>
-          <p className="mt-1 text-muted-foreground text-sm leading-relaxed" id={`${id}-description`}>
+          <p
+            className="mt-1 text-muted-foreground text-sm leading-relaxed"
+            id={`${id}-description`}
+          >
             {description}
           </p>
         </div>

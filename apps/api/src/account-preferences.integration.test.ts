@@ -31,195 +31,200 @@ function assertPreferences(actual: Record<string, unknown>, expected: Record<str
 test("account preferences persist per field and hide anticipated installments from the list only", {
   skip: process.env.ACCOUNT_PREFERENCES_INTEGRATION_TEST !== "1",
 }, async (t) => {
-  await withIntegrationDatabase(async () => {
-    const api = await createTestApiClient();
-    const owner = await api.register();
-    const stranger = await api.register();
-    const readPreferences = async (identity: typeof owner) =>
-      api.data<Record<string, unknown>>(await api.request("/preferences", identity));
+  await withIntegrationDatabase(
+    async () => {
+      const api = await createTestApiClient();
+      const owner = await api.register();
+      const stranger = await api.register();
+      const readPreferences = async (identity: typeof owner) =>
+        api.data<Record<string, unknown>>(await api.request("/preferences", identity));
 
-    await t.test("first read returns the documented defaults", async () => {
-      assertPreferences(await readPreferences(owner), defaultPreferences);
-    });
+      await t.test("first read returns the documented defaults", async () => {
+        assertPreferences(await readPreferences(owner), defaultPreferences);
+      });
 
-    await t.test("each field is saved on its own and stays isolated per user", async () => {
-      await api.data(
-        await api.request("/preferences", owner, "PATCH", {
+      await t.test("each field is saved on its own and stays isolated per user", async () => {
+        await api.data(
+          await api.request("/preferences", owner, "PATCH", {
+            transactionsColumnOrder: ["amount", "name"],
+          }),
+        );
+        await api.data(
+          await api.request("/preferences", owner, "PATCH", { transactionNoteAsColumn: true }),
+        );
+        assertPreferences(await readPreferences(owner), {
+          ...defaultPreferences,
           transactionsColumnOrder: ["amount", "name"],
-        }),
-      );
-      await api.data(
-        await api.request("/preferences", owner, "PATCH", { transactionNoteAsColumn: true }),
-      );
-      assertPreferences(await readPreferences(owner), {
-        ...defaultPreferences,
-        transactionsColumnOrder: ["amount", "name"],
-        transactionNoteAsColumn: true,
-      });
-      assertPreferences(await readPreferences(stranger), defaultPreferences);
-    });
-
-    await t.test("invalid values are rejected and saved preferences stay unchanged", async () => {
-      for (const body of [
-        { attachmentMaxSizeMb: 100 },
-        { transactionsColumnOrder: ["amount", "amount"] },
-        { transactionsColumnOrder: ["type"] },
-      ]) {
-        await api.error(await api.request("/preferences", owner, "PATCH", body), 400);
-      }
-      assertPreferences(await readPreferences(owner), {
-        ...defaultPreferences,
-        transactionsColumnOrder: ["amount", "name"],
-        transactionNoteAsColumn: true,
-      });
-    });
-
-    await t.test(
-      "hiding anticipated installments shrinks the list and total but not the export",
-      async () => {
-        const account = await api.account(owner);
-        const card = await api.data<{ id: string }>(
-          await api.request("/cards", owner, "POST", {
-            accountId: account.id,
-            name: "Cartão parcelado",
-            brand: "visa",
-            closingDay: 20,
-            dueDay: 25,
-            limit: 5000,
-          }),
-          201,
-        );
-        const first = await api.expense(owner, {
-          name: "Notebook",
-          paymentMethod: "credit_card",
-          condition: "installment",
-          installmentCount: 3,
-          amount: 300,
-          purchaseDate: "2026-03-10",
-          cardId: card.id,
-          accountId: null,
+          transactionNoteAsColumn: true,
         });
-        assert.ok(first.seriesId);
-        const seriesId = first.seriesId;
-        const target = first.period;
-        const installmentRecordId = async (period: string) => {
-          const page = await api.data<TransactionsPage>(
-            await api.request(`/transactions?period=${period}`, owner),
+        assertPreferences(await readPreferences(stranger), defaultPreferences);
+      });
+
+      await t.test("invalid values are rejected and saved preferences stay unchanged", async () => {
+        for (const body of [
+          { attachmentMaxSizeMb: 100 },
+          { transactionsColumnOrder: ["amount", "amount"] },
+          { transactionsColumnOrder: ["type"] },
+        ]) {
+          await api.error(await api.request("/preferences", owner, "PATCH", body), 400);
+        }
+        assertPreferences(await readPreferences(owner), {
+          ...defaultPreferences,
+          transactionsColumnOrder: ["amount", "name"],
+          transactionNoteAsColumn: true,
+        });
+      });
+
+      await t.test(
+        "hiding anticipated installments shrinks the list and total but not the export",
+        async () => {
+          const account = await api.account(owner);
+          const card = await api.data<{ id: string }>(
+            await api.request("/cards", owner, "POST", {
+              accountId: account.id,
+              name: "Cartão parcelado",
+              brand: "visa",
+              closingDay: 20,
+              dueDay: 25,
+              limit: 5000,
+            }),
+            201,
           );
-          const [item] = page.items.filter((row) => row.seriesId === seriesId);
-          assert.ok(item?.recordId);
-          return item.recordId;
-        };
-        const second = await installmentRecordId(addMonthsToPeriod(target, 1));
-        const third = await installmentRecordId(addMonthsToPeriod(target, 2));
-        await api.data(
-          await api.request(`/reports/installments/${seriesId}/anticipations`, owner, "POST", {
-            installmentIds: [second, third],
-            targetPeriod: target,
-            discount: 5,
-          }),
-          201,
-        );
+          const first = await api.expense(owner, {
+            name: "Notebook",
+            paymentMethod: "credit_card",
+            condition: "installment",
+            installmentCount: 3,
+            amount: 300,
+            purchaseDate: "2026-03-10",
+            cardId: card.id,
+            accountId: null,
+          });
+          assert.ok(first.seriesId);
+          const seriesId = first.seriesId;
+          const target = first.period;
+          const installmentRecordId = async (period: string) => {
+            const page = await api.data<TransactionsPage>(
+              await api.request(`/transactions?period=${period}`, owner),
+            );
+            const [item] = page.items.filter((row) => row.seriesId === seriesId);
+            assert.ok(item?.recordId);
+            return item.recordId;
+          };
+          const second = await installmentRecordId(addMonthsToPeriod(target, 1));
+          const third = await installmentRecordId(addMonthsToPeriod(target, 2));
+          await api.data(
+            await api.request(`/reports/installments/${seriesId}/anticipations`, owner, "POST", {
+              installmentIds: [second, third],
+              targetPeriod: target,
+              discount: 5,
+            }),
+            201,
+          );
 
-        const listTarget = async () =>
-          api.data<TransactionsPage>(await api.request(`/transactions?period=${target}`, owner));
-        const before = await listTarget();
-        const adjustment = before.items.find((row) => row.origin === "invoiceAdjustment");
-        assert.ok(adjustment?.recordId);
-        assert.equal(before.items.filter((row) => row.seriesId === seriesId).length, 3);
+          const listTarget = async () =>
+            api.data<TransactionsPage>(await api.request(`/transactions?period=${target}`, owner));
+          const before = await listTarget();
+          const adjustment = before.items.find((row) => row.origin === "invoiceAdjustment");
+          assert.ok(adjustment?.recordId);
+          assert.equal(before.items.filter((row) => row.seriesId === seriesId).length, 3);
 
-        await api.data(
-          await api.request("/preferences", owner, "PATCH", { hideAnticipatedInstallments: true }),
-        );
-        const after = await listTarget();
-        assert.deepEqual(after.items.map((row) => row.recordId).sort(), [
-          first.recordId,
-          adjustment.recordId,
-        ].sort());
-        assert.equal(after.total, before.total - 2);
+          await api.data(
+            await api.request("/preferences", owner, "PATCH", {
+              hideAnticipatedInstallments: true,
+            }),
+          );
+          const after = await listTarget();
+          assert.deepEqual(
+            after.items.map((row) => row.recordId).sort(),
+            [first.recordId, adjustment.recordId].sort(),
+          );
+          assert.equal(after.total, before.total - 2);
 
-        const exported = await api.data<{ items: TransactionOutput[]; rowCount: number }>(
-          await api.request(`/transactions/export/items?period=${target}`, owner),
-        );
-        assert.deepEqual(
-          exported.items.map((row) => row.recordId).sort(),
-          before.items.map((row) => row.recordId).sort(),
-        );
-      },
-    );
+          const exported = await api.data<{ items: TransactionOutput[]; rowCount: number }>(
+            await api.request(`/transactions/export/items?period=${target}`, owner),
+          );
+          assert.deepEqual(
+            exported.items.map((row) => row.recordId).sort(),
+            before.items.map((row) => row.recordId).sort(),
+          );
+        },
+      );
 
-    await t.test(
-      "the personal attachment limit rejects oversized prepares before any row is stored",
-      async () => {
-        await api.data(
-          await api.request("/preferences", owner, "PATCH", { attachmentMaxSizeMb: 5 }),
-        );
-        const transaction = await api.expense(owner);
-        const note = await api.data<{ id: string }>(
-          await api.request("/notes", owner, "POST", {
-            kind: "text",
-            title: "Recibo",
-            content: "Comprovante",
-          }),
-          201,
-        );
-        const { db, attachments } = await import("@openmonetis/db");
-        const countOwnerAttachments = async () =>
-          (
-            await db
-              .select({ id: attachments.id })
-              .from(attachments)
-              .where(eq(attachments.userId, owner.id))
-          ).length;
-        const before = await countOwnerAttachments();
-        const oversized = {
-          fileName: "recibo.pdf",
-          fileSize: 6 * 1024 * 1024,
-          mimeType: "application/pdf",
-        };
+      await t.test(
+        "the personal attachment limit rejects oversized prepares before any row is stored",
+        async () => {
+          await api.data(
+            await api.request("/preferences", owner, "PATCH", { attachmentMaxSizeMb: 5 }),
+          );
+          const transaction = await api.expense(owner);
+          const note = await api.data<{ id: string }>(
+            await api.request("/notes", owner, "POST", {
+              kind: "text",
+              title: "Recibo",
+              content: "Comprovante",
+            }),
+            201,
+          );
+          const { db, attachments } = await import("@openmonetis/db");
+          const countOwnerAttachments = async () =>
+            (
+              await db
+                .select({ id: attachments.id })
+                .from(attachments)
+                .where(eq(attachments.userId, owner.id))
+            ).length;
+          const before = await countOwnerAttachments();
+          const oversized = {
+            fileName: "recibo.pdf",
+            fileSize: 6 * 1024 * 1024,
+            mimeType: "application/pdf",
+          };
 
-        await api.error(
-          await api.request("/attachments/prepare", owner, "POST", {
+          await api.error(
+            await api.request("/attachments/prepare", owner, "POST", {
+              transactionId: transaction.recordId,
+              ...oversized,
+            }),
+            400,
+            "attachment_too_large",
+          );
+          await api.error(
+            await api.request("/attachments/note/prepare", owner, "POST", {
+              noteId: note.id,
+              ...oversized,
+            }),
+            400,
+            "attachment_too_large",
+          );
+          assert.equal(await countOwnerAttachments(), before);
+
+          const atLimit = await api.request("/attachments/prepare", owner, "POST", {
             transactionId: transaction.recordId,
-            ...oversized,
-          }),
-          400,
-          "attachment_too_large",
-        );
-        await api.error(
-          await api.request("/attachments/note/prepare", owner, "POST", {
-            noteId: note.id,
-            ...oversized,
-          }),
-          400,
-          "attachment_too_large",
-        );
-        assert.equal(await countOwnerAttachments(), before);
+            fileName: "recibo.pdf",
+            fileSize: 5 * 1024 * 1024,
+            mimeType: "application/pdf",
+          });
+          assert.notEqual(atLimit.status, 400);
+        },
+      );
 
-        const atLimit = await api.request("/attachments/prepare", owner, "POST", {
-          transactionId: transaction.recordId,
-          fileName: "recibo.pdf",
-          fileSize: 5 * 1024 * 1024,
-          mimeType: "application/pdf",
-        });
-        assert.notEqual(atLimit.status, 400);
-      },
-    );
-
-    await t.test(
-      "email change requires proof, refuses duplicates and keeps only the current session",
-      (subtest) => changeAccountEmail(subtest, api),
-    );
-  }, {
-    // Presigned URLs are built locally; the endpoint is never contacted. It only enables storage.
-    environment: {
-      S3_BUCKET: "account-preferences-test",
-      S3_ENDPOINT: "http://127.0.0.1:9",
-      S3_REGION: "us-east-1",
-      S3_ACCESS_KEY_ID: "test-access-key",
-      S3_SECRET_ACCESS_KEY: "test-secret-key",
+      await t.test(
+        "email change requires proof, refuses duplicates and keeps only the current session",
+        (subtest) => changeAccountEmail(subtest, api),
+      );
     },
-  });
+    {
+      // Presigned URLs are built locally; the endpoint is never contacted. It only enables storage.
+      environment: {
+        S3_BUCKET: "account-preferences-test",
+        S3_ENDPOINT: "http://127.0.0.1:9",
+        S3_REGION: "us-east-1",
+        S3_ACCESS_KEY_ID: "test-access-key",
+        S3_SECRET_ACCESS_KEY: "test-secret-key",
+      },
+    },
+  );
 });
 
 async function changeAccountEmail(t: TestContext, api: ApiClient) {

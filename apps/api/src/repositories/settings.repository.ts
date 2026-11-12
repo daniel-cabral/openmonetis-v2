@@ -205,10 +205,7 @@ export const settingsRepository = {
     const [record] = await db
       .select({ email: user.email, passwordHash: account.password })
       .from(user)
-      .leftJoin(
-        account,
-        and(eq(account.userId, user.id), eq(account.providerId, "credential")),
-      )
+      .leftJoin(account, and(eq(account.userId, user.id), eq(account.providerId, "credential")))
       .where(eq(user.id, userId))
       .limit(1);
     return record ?? null;
