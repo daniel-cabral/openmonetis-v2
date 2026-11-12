@@ -34,6 +34,7 @@ pnpm test:transactions:integration
 pnpm test:financial-integrity:integration
 pnpm test:financial-distribution:integration
 pnpm test:establishments-report:integration
+pnpm test:card-usage-report:integration
 pnpm test:spending-overview:integration
 pnpm test:connections:integration
 pnpm test:imports:integration
