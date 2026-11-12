@@ -10,10 +10,13 @@ import {
   filterTripSuggestionsByOrigin,
   findOverlappingTrip,
   isTripLinkable,
+  listTripLinkedPeriods,
   paginateTripSuggestions,
   parseTripLinkTarget,
+  resolveTripPeriodRange,
   summarizeTrip,
   type TripLedgerEntry,
+  type TripPeriodSourceOccurrence,
   type TripSuggestionRow,
   type TripSummary,
 } from "@openmonetis/domain/trips";
@@ -66,6 +69,10 @@ export type TripLedgerRows = {
   transactions: LedgerTransactionRow[];
   occurrences: LedgerOccurrenceRow[];
 };
+export type TripPeriodSources = {
+  transactionPeriods: string[];
+  occurrences: TripPeriodSourceOccurrence[];
+};
 export type TripsRepository = {
   listForUser(userId: string): Promise<TripRecord[]>;
   findByIdForUser(id: string, userId: string): Promise<TripRecord | null>;
@@ -73,6 +80,7 @@ export type TripsRepository = {
   updateForUser(id: string, userId: string, input: TripInput): Promise<TripRecord | null>;
   deleteForUser(id: string, userId: string): Promise<boolean>;
   listLedgerRowsForUser(userId: string, tripId?: string): Promise<TripLedgerRows>;
+  listPeriodSourcesForUser(userId: string, tripId: string): Promise<TripPeriodSources>;
   findAdminPersonIdForUser(userId: string): Promise<string | null>;
   resolveLinkTargetsForUser(
     userId: string,
@@ -358,6 +366,10 @@ export function createTripsService(repository: TripsRepository, ports: TripsServ
   }
 
   return {
+    async getPeriodRange(userId: string, tripId: string, maxMonths?: number) {
+      const sources = await repository.listPeriodSourcesForUser(userId, tripId);
+      return resolveTripPeriodRange({ periods: listTripLinkedPeriods(sources), maxMonths });
+    },
     async list(userId: string) {
       const [trips, entries] = await Promise.all([
         repository.listForUser(userId),

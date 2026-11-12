@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { tripPeriodRangeMaxMonths } from "@openmonetis/domain/trips";
 import { ok } from "@openmonetis/shared/api";
 import {
   CreateTripInputSchema,
@@ -8,6 +9,7 @@ import {
   TripListItemOutputSchema,
   TripOutputSchema,
   TripParamsSchema,
+  TripPeriodRangeOutputSchema,
   TripSuggestionsPageOutputSchema,
   TripSuggestionsQuerySchema,
   UpdateTripInputSchema,
@@ -68,6 +70,32 @@ export function createTripsRoute(service: TripsService) {
       },
     }),
     async (c) => c.json(ok(await service.getDetail(c.req.valid("param").id, c.get("userId"))), 200),
+  );
+  route.openapi(
+    createRoute({
+      method: "get",
+      path: "/{id}/period-range",
+      tags: ["Trips"],
+      request: { params: TripParamsSchema },
+      responses: {
+        200: response(
+          TripPeriodRangeOutputSchema.nullable(),
+          "Months covered by linked entries, capped to 24 months; null when nothing is linked",
+        ),
+        401: error("Authentication required"),
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(
+          await service.getPeriodRange(
+            c.get("userId"),
+            c.req.valid("param").id,
+            tripPeriodRangeMaxMonths,
+          ),
+        ),
+        200,
+      ),
   );
   route.openapi(
     createRoute({

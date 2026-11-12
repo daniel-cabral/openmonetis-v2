@@ -7,6 +7,7 @@ import {
   findOverlappingTrip,
   findTripForDate,
   isTripLinkable,
+  listTripLinkedPeriods,
   matchesTripFilter,
   paginateTripSuggestions,
   parseTripFilter,
@@ -279,4 +280,20 @@ test("trip period range spans the periods and caps at maxMonths", () => {
     endPeriod: "2028-06",
   });
   assert.equal(resolveTripPeriodRange({ periods: [] }), null);
+  assert.deepEqual(
+    resolveTripPeriodRange({
+      periods: listTripLinkedPeriods({
+        transactionPeriods: ["2026-06"],
+        occurrences: [
+          {
+            occurrenceDate: "2026-03-28",
+            paymentMethod: "credit_card",
+            dueDate: null,
+            card: { closingDay: 25, dueDay: 28 },
+          },
+        ],
+      }),
+    }),
+    { startPeriod: "2026-04", endPeriod: "2026-06" },
+  );
 });

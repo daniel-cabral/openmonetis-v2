@@ -1,5 +1,9 @@
+import type { CardClosingRule } from "./cards";
+import { getRecurringDueDate } from "./recurring-expenses";
 import {
   addMonthsToPeriod,
+  deriveTransactionPeriod,
+  type PaymentMethod,
   type TransactionCondition,
   type TransactionOrigin,
   type TransactionType,
@@ -8,6 +12,7 @@ import {
 export const tripNameMaxLength = 60;
 export const tripNoteMaxLength = 500;
 export const tripSuggestionsPageSize = 20;
+export const tripPeriodRangeMaxMonths = 24;
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const transactionLinkPattern = new RegExp(`^(${uuidPattern})$`, "i");
@@ -155,6 +160,30 @@ export function resolveTripPeriodRange(input: {
     startPeriod,
     endPeriod: latestPeriod < cappedPeriod ? latestPeriod : cappedPeriod,
   };
+}
+
+export type TripPeriodSourceOccurrence = {
+  occurrenceDate: string;
+  paymentMethod: PaymentMethod;
+  dueDate: string | null;
+  card: { closingDay: number | null; closingRule?: CardClosingRule; dueDay: number } | null;
+};
+
+export function listTripLinkedPeriods(input: {
+  transactionPeriods: readonly string[];
+  occurrences: readonly TripPeriodSourceOccurrence[];
+}): string[] {
+  return [
+    ...input.transactionPeriods,
+    ...input.occurrences.map((occurrence) =>
+      deriveTransactionPeriod({
+        paymentMethod: occurrence.paymentMethod,
+        purchaseDate: occurrence.occurrenceDate,
+        dueDate: getRecurringDueDate(occurrence.dueDate, occurrence.occurrenceDate),
+        card: occurrence.card,
+      }),
+    ),
+  ];
 }
 
 function addToBreakdown(
