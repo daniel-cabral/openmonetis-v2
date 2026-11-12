@@ -93,7 +93,7 @@ export function LoginForm() {
       const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: new URL("/", origin).toString(),
-        errorCallbackURL: new URL("/", origin).toString(),
+        errorCallbackURL: new URL("/login", origin).toString(),
       });
 
       if (result.error) {
