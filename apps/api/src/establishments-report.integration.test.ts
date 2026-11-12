@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
 import type { EstablishmentsReportOutput } from "@openmonetis/validators/establishments-report";
 import { createTestApiClient } from "./test-support/api-client";
 import { withIntegrationDatabase } from "./test-support/integration-database";
@@ -283,6 +284,127 @@ test("establishments report ranks the owner's purchases by window and months and
           assert.equal(
             await api.data(await api.request(`/trips/${foreignTrip.id}/period-range`, owner)),
             null,
+          );
+        },
+      );
+      await t.test(
+        "category trends and installments follow the trip filter over real rows",
+        async () => {
+          const owner = await api.register();
+          const stranger = await api.register();
+          const account = await api.account(owner);
+          const card = await api.data<{ id: string }>(
+            await api.request("/cards", owner, "POST", {
+              accountId: account.id,
+              name: "Trip card",
+              brand: "visa",
+              closingDay: 20,
+              dueDay: 25,
+              limit: 5000,
+            }),
+            201,
+          );
+          const createTrip = async (
+            identity: typeof owner,
+            name: string,
+            startDate: string,
+            endDate: string,
+          ) =>
+            api.data<{ id: string }>(
+              await api.request("/trips", identity, "POST", { name, startDate, endDate }),
+              201,
+            );
+          const lisboa = await createTrip(owner, "Lisboa", "2026-03-01", "2026-03-10");
+          const porto = await createTrip(owner, "Porto", "2026-07-01", "2026-07-05");
+          const madeira = await createTrip(owner, "Madeira", "2026-04-01", "2026-04-05");
+          const foreignTrip = await createTrip(stranger, "Faro", "2026-03-01", "2026-03-10");
+
+          await api.expense(owner, {
+            name: "Hotel",
+            paymentMethod: "credit_card",
+            cardId: card.id,
+            accountId: null,
+            condition: "installment",
+            installmentCount: 10,
+            amount: 100,
+            purchaseDate: "2026-03-05",
+            invoicePeriod: "2026-03",
+            tripId: lisboa.id,
+          });
+          await api.expense(owner, {
+            name: "Jantar",
+            amount: 40,
+            purchaseDate: "2026-06-10",
+            accountId: account.id,
+            tripId: lisboa.id,
+          });
+          await api.expense(owner, {
+            name: "Museu",
+            amount: 25,
+            purchaseDate: "2026-07-10",
+            accountId: account.id,
+            tripId: porto.id,
+          });
+          await api.expense(owner, {
+            name: "Mercado",
+            amount: 60,
+            purchaseDate: "2026-08-10",
+            accountId: account.id,
+          });
+          await api.expense(owner, {
+            name: "Passeio",
+            paymentMethod: "credit_card",
+            cardId: card.id,
+            accountId: null,
+            condition: "installment",
+            installmentCount: 30,
+            amount: 300,
+            purchaseDate: "2026-03-06",
+            invoicePeriod: "2026-03",
+            tripId: madeira.id,
+          });
+
+          const trendsPath = "/reports/category-trends?startPeriod=2026-03&endPeriod=2026-12";
+          const expenseTotal = async (query: string) => {
+            const report = await api.data<CategoryTrendsOutput>(
+              await api.request(`${trendsPath}${query}`, owner),
+            );
+            return report.summary.expenseAmount;
+          };
+          assert.equal(await expenseTotal(""), 325);
+          assert.equal(await expenseTotal("&trip=none"), 60);
+          assert.equal(await expenseTotal(`&trip=${lisboa.id}`), 140);
+          assert.equal(await expenseTotal(`&trip=${porto.id}`), 25);
+          assert.equal(await expenseTotal(`&trip=${madeira.id}`), 100);
+
+          const allTrends = await api.data<CategoryTrendsOutput>(
+            await api.request(trendsPath, owner),
+          );
+          assert.deepEqual(
+            await api.data<CategoryTrendsOutput>(
+              await api.request(`${trendsPath}&trip=${foreignTrip.id}`, owner),
+            ),
+            allTrends,
+          );
+
+          const periodRange = async (tripId: string) =>
+            api.data<{ startPeriod: string; endPeriod: string } | null>(
+              await api.request(`/trips/${tripId}/period-range`, owner),
+            );
+          assert.deepEqual(await periodRange(lisboa.id), {
+            startPeriod: "2026-03",
+            endPeriod: "2026-12",
+          });
+          assert.deepEqual(await periodRange(madeira.id), {
+            startPeriod: "2026-03",
+            endPeriod: "2028-02",
+          });
+          assert.equal(await periodRange(foreignTrip.id), null);
+
+          const installmentsPath = "/reports/installments?period=2026-06";
+          assert.deepEqual(
+            await api.data(await api.request(`${installmentsPath}&trip=${lisboa.id}`, owner)),
+            await api.data(await api.request(installmentsPath, owner)),
           );
         },
       );
