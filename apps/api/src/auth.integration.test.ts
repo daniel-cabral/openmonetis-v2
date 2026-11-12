@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 test("closed registration blocks password and Google provisioning while existing logins work", {
   skip: process.env.AUTH_INTEGRATION_TEST !== "1",
 }, async () => {
   const require = createRequire(new URL("../../../packages/db/package.json", import.meta.url));
   require("dotenv").config({
-    path: new URL("../../../.env", import.meta.url).pathname,
+    path: fileURLToPath(new URL("../../../.env", import.meta.url)),
     quiet: true,
   });
   const { Pool } = require("pg");
@@ -43,7 +44,7 @@ test("closed registration blocks password and Google provisioning while existing
     const { db, pool, user, people, categories } = await import("@openmonetis/db");
     applicationPool = pool;
     await migrate(db, {
-      migrationsFolder: new URL("../../../packages/db/drizzle", import.meta.url).pathname,
+      migrationsFolder: fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url)),
     });
     const { createAuth, authConfiguration } = await import("./auth");
     assert.deepEqual(authConfiguration, { signupEnabled: false, googleEnabled: true });

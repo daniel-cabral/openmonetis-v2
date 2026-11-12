@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { internalTransferCategoryName } from "@openmonetis/domain/categories";
 import {
   ListTransactionsQuerySchema,
@@ -15,7 +16,7 @@ test("tags persist across transaction and recurring scopes with database ownersh
 }, async () => {
   const require = createRequire(new URL("../../../../packages/db/package.json", import.meta.url));
   require("dotenv").config({
-    path: new URL("../../../../.env", import.meta.url).pathname,
+    path: fileURLToPath(new URL("../../../../.env", import.meta.url)),
     quiet: true,
   });
   const { Pool } = require("pg");
@@ -36,7 +37,7 @@ test("tags persist across transaction and recurring scopes with database ownersh
     const { db, pool } = await import("@openmonetis/db");
     applicationPool = pool;
     await migrate(db, {
-      migrationsFolder: new URL("../../../../packages/db/drizzle", import.meta.url).pathname,
+      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
     });
     const schema = await import("@openmonetis/db/schema");
     const transactions = await import("./transactions.repository");

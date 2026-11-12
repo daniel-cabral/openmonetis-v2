@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -14,7 +15,7 @@ test("configured real storage protects signed objects and enforces web CORS", {
   skip: process.env.REAL_STORAGE_INTEGRATION_TEST !== "1",
   timeout: 90_000,
 }, async (t) => {
-  dotenv.config({ path: new URL("../../../.env", import.meta.url).pathname, quiet: true });
+  dotenv.config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)), quiet: true });
   for (const field of ["BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "ENDPOINT", "REGION"]) {
     if (process.env[`TEST_REAL_S3_${field}`])
       process.env[`S3_${field}`] = process.env[`TEST_REAL_S3_${field}`];
