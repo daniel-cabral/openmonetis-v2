@@ -571,6 +571,88 @@ export const BulkTransactionsOutputSchema = z
   .object({ ids: z.array(z.uuid()) })
   .openapi("BulkTransactionsOutput");
 export type BulkTransactionsOutput = z.infer<typeof BulkTransactionsOutputSchema>;
+const BulkCreateTransactionRowSchema = z
+  .object({
+    purchaseDate: dateSchema,
+    name: TransactionNameSchema,
+    amount: TransactionFieldsSchema.shape.amount,
+    categoryId: z.uuid(),
+    personId: z.uuid(),
+  })
+  .strict();
+export const BulkCreateTransactionsInputSchema = z
+  .object({
+    type: z.enum(["income", "expense"]),
+    paymentMethod: z.enum(paymentMethods),
+    accountId: z.uuid().optional(),
+    cardId: z.uuid().optional(),
+    invoicePeriod: periodSchema.optional(),
+    rows: z.array(BulkCreateTransactionRowSchema).min(1).max(500),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    const isCard = data.paymentMethod === "credit_card";
+    if (isCard && !data.cardId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cardId"],
+        message: "cardId is required for credit_card",
+      });
+    }
+    if (!isCard && data.cardId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cardId"],
+        message: "cardId is only allowed for credit_card",
+      });
+    }
+    if (!isCard && !data.accountId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["accountId"],
+        message: "accountId is required for non-card payment methods",
+      });
+    }
+    if (isCard && data.accountId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["accountId"],
+        message: "accountId is only allowed for non-card payment methods",
+      });
+    }
+    if (!isCard && data.invoicePeriod) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["invoicePeriod"],
+        message: "invoicePeriod is only allowed for credit_card",
+      });
+    }
+  })
+  .openapi("BulkCreateTransactionsInput");
+export type BulkCreateTransactionsInput = z.infer<typeof BulkCreateTransactionsInputSchema>;
+const BulkUpdateChangesSchema = z
+  .object({
+    purchaseDate: dateSchema.optional(),
+    invoicePeriod: periodSchema.optional(),
+    dueDate: dateSchema.nullable().optional(),
+    personId: z.uuid().optional(),
+    accountId: z.uuid().optional(),
+    cardId: z.uuid().optional(),
+    categoryId: z.uuid().optional(),
+    note: z.string().trim().max(1000).nullable().optional(),
+    amount: TransactionFieldsSchema.shape.amount.optional(),
+  })
+  .strict()
+  .refine((changes) => Object.keys(changes).length > 0, {
+    message: "Provide at least one field to update",
+  });
+export const BulkUpdateTransactionsInputSchema = BulkTransactionsInputSchema.extend({
+  scope: TransactionActionScopeSchema.default("single"),
+  changes: BulkUpdateChangesSchema,
+})
+  .strict()
+  .openapi("BulkUpdateTransactionsInput");
+export type BulkUpdateTransactionsInput = z.infer<typeof BulkUpdateTransactionsInputSchema>;
 export const SettleTransactionsInputSchema = BulkTransactionsInputSchema.extend({
   isSettled: z.boolean(),
   settledDate: dateSchema.optional(),
