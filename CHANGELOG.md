@@ -35,6 +35,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Filtro **Viagem** nos relatórios de Estabelecimentos e de Tendências por categoria. Escolher uma
   viagem usa automaticamente os meses cobertos por ela, limitados a 24. Novo endpoint
   `GET /trips/:tripId/period-range`. Detalhes em `docs/establishments-report.md`.
+- Widgets do dashboard **Panorama de gastos** (top gastos e estabelecimentos do mês, sem faturas,
+  transferências e ajustes), **Anexos** (resumo e últimos comprovantes do período) e **Histórico de
+  categorias** (até 5 categorias em 10 meses, com seleção mantida na sessão do navegador). Novos
+  endpoints `GET /dashboard/spending-overview` e `GET /attachments/summary`, e testes de regressão
+  para marcar como não lida, arquivar e restaurar notificações. Detalhes em
+  `docs/dashboard-widgets.md`.
 
 ## [0.16.0] - 2026-11-07
 
