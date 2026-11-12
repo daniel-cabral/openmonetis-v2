@@ -57,15 +57,17 @@ export function NotesWidget() {
 
   async function save(input: CreateNoteInput | ReplaceNoteInput) {
     try {
-      if (editingNote) {
-        await replaceMutation.mutateAsync({ id: editingNote.id, input: input as ReplaceNoteInput });
-      } else {
-        await createMutation.mutateAsync(input as CreateNoteInput);
-      }
-      changeDialog(false);
+      const saved = editingNote
+        ? await replaceMutation.mutateAsync({
+            id: editingNote.id,
+            input: input as ReplaceNoteInput,
+          })
+        : await createMutation.mutateAsync(input as CreateNoteInput);
       toast.success(editingNote ? "Anotação atualizada" : "Anotação criada");
+      return saved;
     } catch {
       toast.error("Não foi possível salvar a anotação.");
+      return null;
     }
   }
 

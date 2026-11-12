@@ -53,6 +53,7 @@
     "test:ownership:integration": "OWNERSHIP_INTEGRATION_TEST=1 tsx --test apps/api/src/ownership.integration.test.ts",
     "test:migrations:integration": "MIGRATIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/migrations.integration.test.ts",
     "test:storage:integration": "STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage.integration.test.ts",
+    "test:note-attachments:integration": "NOTE_ATTACHMENTS_INTEGRATION_TEST=1 tsx --test apps/api/src/note-attachments.integration.test.ts",
     "test:e2e": "playwright test",
     "test:coverage": "c8 node scripts/run-tests.mjs",
     "test:integration": "node scripts/run-integration-tests.mjs",

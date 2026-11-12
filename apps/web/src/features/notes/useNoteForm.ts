@@ -14,7 +14,11 @@ import type { NoteFormProps } from "./components/note-form.types";
 import { buildInput, initialValues, normalizeItemText } from "./components/note-form-values";
 import { NotesApiError } from "./notes.api";
 
-export function useNoteForm({ note, onSubmit, ref }: NoteFormProps) {
+export function useNoteForm({
+  note,
+  onSubmit,
+  ref,
+}: Pick<NoteFormProps, "note" | "onCancel" | "onSubmit" | "ref">) {
   const idPrefix = useId();
   const [newItemText, setNewItemText] = useState("");
   const [submissionError, setSubmissionError] = useState<string | null>(null);

@@ -15,6 +15,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Fork
 
+- Anotações de texto aceitam anexos PDF e imagem, com validação e armazenamento privado iguais aos dos lançamentos. Migration `0035_note_attachments` cria a tabela `note_attachments`; `NoteOutput` ganha o campo `attachmentCount` (contrato adicionado). Checklists e tarefas não aceitam anexos. Ver `docs/note-attachments.md`.
 - Importação de extrato e fatura CSV do C6 Bank: o arquivo é associado a um perfil de banco e a
   uma conta ou cartão antes da leitura. Linhas de crédito e pagamento de fatura aparecem na revisão
   como informativas e não são importáveis.

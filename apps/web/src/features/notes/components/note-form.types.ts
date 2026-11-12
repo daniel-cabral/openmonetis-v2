@@ -22,6 +22,9 @@ export type NoteFormProps = {
   note?: NoteOutput | null;
   onCancel: () => void;
   onSubmit: (input: CreateNoteInput | ReplaceNoteInput) => Promise<void>;
+  pendingFiles: File[];
+  onPendingFilesChange: (files: File[]) => void;
+  onAttachmentsBusyChange: (busy: boolean) => void;
   ref?: Ref<NoteFormHandle>;
 };
 

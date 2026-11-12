@@ -99,13 +99,11 @@ export function NotesPage() {
     setDialogOpen(true);
   }
 
-  async function save(input: CreateNoteInput | ReplaceNoteInput) {
+  function save(input: CreateNoteInput | ReplaceNoteInput) {
     if (editingNote) {
-      await replaceMutation.mutateAsync({ id: editingNote.id, input: input as ReplaceNoteInput });
-    } else {
-      await createMutation.mutateAsync(input as CreateNoteInput);
+      return replaceMutation.mutateAsync({ id: editingNote.id, input: input as ReplaceNoteInput });
     }
-    changeDialog(false);
+    return createMutation.mutateAsync(input as CreateNoteInput);
   }
 
   async function setArchived(note: NoteOutput, isArchived: boolean) {

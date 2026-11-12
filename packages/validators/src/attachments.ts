@@ -30,6 +30,37 @@ export const ConfirmAttachmentInputSchema = z
   })
   .openapi("ConfirmAttachmentInput");
 
+export const PrepareNoteAttachmentInputSchema = PrepareAttachmentInputSchema.omit({
+  transactionId: true,
+})
+  .extend({ noteId: z.uuid() })
+  .openapi("PrepareNoteAttachmentInput");
+
+export const ConfirmNoteAttachmentInputSchema = z
+  .object({
+    uploadId: z.uuid(),
+    noteId: z.uuid(),
+  })
+  .openapi("ConfirmNoteAttachmentInput");
+
+export const NoteAttachmentParamsSchema = z
+  .object({
+    noteId: z.uuid().openapi({ param: { name: "noteId", in: "path" } }),
+  })
+  .openapi("NoteAttachmentParams");
+
+export const NoteAttachmentItemParamsSchema = NoteAttachmentParamsSchema.extend({
+  attachmentId: z.uuid().openapi({ param: { name: "attachmentId", in: "path" } }),
+}).openapi("NoteAttachmentItemParams");
+
+export const DetachNoteAttachmentOutputSchema = z
+  .object({
+    id: z.uuid(),
+    noteId: z.uuid(),
+    deleted: z.boolean(),
+  })
+  .openapi("DetachNoteAttachment");
+
 export const ListAttachmentsQuerySchema = z
   .object({
     period: periodSchema.openapi({
@@ -166,3 +197,8 @@ export type AttachmentOutput = z.infer<typeof AttachmentOutputSchema>;
 export type AttachmentListItemOutput = z.infer<typeof AttachmentListItemOutputSchema>;
 export type PaginatedAttachmentsOutput = z.infer<typeof PaginatedAttachmentsOutputSchema>;
 export type AttachmentUrlOutput = z.infer<typeof AttachmentUrlOutputSchema>;
+export type PrepareNoteAttachmentInput = z.infer<typeof PrepareNoteAttachmentInputSchema>;
+export type ConfirmNoteAttachmentInput = z.infer<typeof ConfirmNoteAttachmentInputSchema>;
+export type NoteAttachmentParams = z.infer<typeof NoteAttachmentParamsSchema>;
+export type NoteAttachmentItemParams = z.infer<typeof NoteAttachmentItemParamsSchema>;
+export type DetachNoteAttachmentOutput = z.infer<typeof DetachNoteAttachmentOutputSchema>;
