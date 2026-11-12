@@ -38,6 +38,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Conciliação de extrato e fatura do C6 com lançamentos: regras determinísticas de casamento,
   casamentos suspeitos pedem decisão, o valor do arquivo prevalece, lançamento pendente casado vira
   pago, lote com desfazer, linhas ignoradas com motivo e memória de nome e categoria por comerciante.
+- Widgets do dashboard **Panorama de gastos** (top gastos e estabelecimentos do mês, sem faturas,
+  transferências e ajustes), **Anexos** (resumo e últimos comprovantes do período) e **Histórico de
+  categorias** (até 5 categorias em 10 meses, com seleção mantida na sessão do navegador). Novos
+  endpoints `GET /dashboard/spending-overview` e `GET /attachments/summary`, e testes de regressão
+  para marcar como não lida, arquivar e restaurar notificações. Detalhes em
+  `docs/dashboard-widgets.md`.
 
 ## [0.16.0] - 2026-11-07
 

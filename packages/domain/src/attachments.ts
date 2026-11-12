@@ -57,6 +57,68 @@ export function normalizeAttachmentFileName(fileName: string) {
   return Array.from(safeName).slice(0, 255).join("");
 }
 
+export const attachmentRecentLimit = 5;
+
+export type PeriodAttachmentLink = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  createdAt: string;
+  transactionName: string;
+  purchaseDate: string;
+};
+
+export type PeriodAttachmentsSummary = {
+  count: number;
+  totalBytes: number;
+  imageCount: number;
+  pdfCount: number;
+  recent: Omit<PeriodAttachmentLink, "createdAt">[];
+};
+
+export function summarizePeriodAttachments(
+  links: PeriodAttachmentLink[],
+): PeriodAttachmentsSummary {
+  const latestByAttachment = new Map<string, PeriodAttachmentLink>();
+  for (const link of links) {
+    const current = latestByAttachment.get(link.id);
+    if (!current || link.purchaseDate > current.purchaseDate) {
+      latestByAttachment.set(link.id, link);
+    }
+  }
+  const attachments = [...latestByAttachment.values()];
+  const recent = [...attachments]
+    .sort(compareLinksForRecent)
+    .slice(0, attachmentRecentLimit)
+    .map(({ id, fileName, mimeType, fileSize, transactionName, purchaseDate }) => ({
+      id,
+      fileName,
+      mimeType,
+      fileSize,
+      transactionName,
+      purchaseDate,
+    }));
+
+  return {
+    count: attachments.length,
+    totalBytes: attachments.reduce((total, link) => total + link.fileSize, 0),
+    imageCount: attachments.filter((link) => getAttachmentKind(link.mimeType) === "image").length,
+    pdfCount: attachments.filter((link) => getAttachmentKind(link.mimeType) === "pdf").length,
+    recent,
+  };
+}
+
+function compareLinksForRecent(left: PeriodAttachmentLink, right: PeriodAttachmentLink) {
+  if (left.purchaseDate !== right.purchaseDate) {
+    return left.purchaseDate > right.purchaseDate ? -1 : 1;
+  }
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt > right.createdAt ? -1 : 1;
+  }
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+}
+
 function isUnsafeFileNameCharacter(character: string) {
   const codePoint = character.codePointAt(0) as number;
   return (

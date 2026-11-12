@@ -30,6 +30,9 @@ export const dashboardWidgetIds = [
   "payment-conditions",
   "payment-methods",
   "notes",
+  "spending-overview",
+  "category-history",
+  "attachments",
 ] as const;
 
 const previousDefaultDashboardWidgetOrder = [
@@ -67,6 +70,26 @@ const legacyDashboardWidgetIds: Readonly<Record<string, DashboardWidgetId>> = {
   "external-expenses": "person-settlements",
 };
 
+const addedDashboardWidgetIds = new Set<string>([
+  "spending-overview",
+  "category-history",
+  "attachments",
+]);
+const uxFirstWidgetIds: string[] = ["payment-status", "inbox", "bills", "invoices"];
+/** Layouts a saved default may come from: the current one and the one before the added widgets, each with and without goals. */
+const knownDefaultLayouts: DashboardWidgetId[][] = [
+  layoutWidgetIds,
+  layoutWidgetIds.filter((id) => !addedDashboardWidgetIds.has(id)),
+].flatMap((widgetIds) => [widgetIds, widgetIds.filter((id) => id !== "goals")]);
+
+function recentDefaultOrderOf(widgetIds: readonly string[]) {
+  return ["accounts", "payment-status", "invoices", "bills", ...widgetIds.slice(4)];
+}
+
+function uxDefaultOrderOf(widgetIds: readonly string[]) {
+  return [...uxFirstWidgetIds, ...widgetIds.filter((id) => !uxFirstWidgetIds.includes(id))];
+}
+
 export function createDefaultDashboardWidgetPreferences(): DashboardWidgetPreferences {
   return { hidden: [], order: [...dashboardWidgetIds] };
 }
@@ -77,42 +100,21 @@ export function normalizeDashboardWidgetPreferences(
   if (!preferences) return createDefaultDashboardWidgetPreferences();
 
   const savedOrder = preferences.order.filter((widgetId) => widgetId !== "attention");
-  const recentDefaultOrder = [
-    "accounts",
-    "payment-status",
-    "invoices",
-    "bills",
-    ...layoutWidgetIds.slice(4),
-  ];
-  const previousWidgetIds = layoutWidgetIds.filter((id) => id !== "goals");
-  const previousRecentDefaultOrder = [
-    "accounts",
-    "payment-status",
-    "invoices",
-    "bills",
-    ...previousWidgetIds.slice(4),
-  ];
   const migratedPreferenceOrder = savedOrder.map(
     (widgetId) => legacyDashboardWidgetIds[widgetId] ?? widgetId,
   );
   const wasPreviousDefaultOrder =
     savedOrder.length === previousDefaultDashboardWidgetOrder.length &&
     savedOrder.every((id, index) => id === previousDefaultDashboardWidgetOrder[index]);
-  const wasRecentDefaultOrder =
-    matchesWidgetOrder(migratedPreferenceOrder, recentDefaultOrder) ||
-    matchesWidgetOrder(migratedPreferenceOrder, previousRecentDefaultOrder);
-  const wasCanonicalDefaultOrder =
-    matchesWidgetOrder(savedOrder, layoutWidgetIds) ||
-    matchesWidgetOrder(savedOrder, previousWidgetIds);
-  const uxFirst = ["payment-status", "inbox", "bills", "invoices"];
-  const uxDefaultOrder = [...uxFirst, ...layoutWidgetIds.filter((id) => !uxFirst.includes(id))];
-  const previousUxDefaultOrder = [
-    ...uxFirst,
-    ...previousWidgetIds.filter((id) => !uxFirst.includes(id)),
-  ];
-  const wasUxDefaultOrder =
-    matchesWidgetOrder(savedOrder, uxDefaultOrder) ||
-    matchesWidgetOrder(savedOrder, previousUxDefaultOrder);
+  const wasRecentDefaultOrder = knownDefaultLayouts.some((widgetIds) =>
+    matchesWidgetOrder(migratedPreferenceOrder, recentDefaultOrderOf(widgetIds)),
+  );
+  const wasCanonicalDefaultOrder = knownDefaultLayouts.some((widgetIds) =>
+    matchesWidgetOrder(savedOrder, widgetIds),
+  );
+  const wasUxDefaultOrder = knownDefaultLayouts.some((widgetIds) =>
+    matchesWidgetOrder(savedOrder, uxDefaultOrderOf(widgetIds)),
+  );
   const wasDefaultOrder =
     wasPreviousDefaultOrder ||
     wasRecentDefaultOrder ||

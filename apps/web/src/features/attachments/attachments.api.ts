@@ -1,5 +1,6 @@
 import type {
   AttachmentOutput,
+  AttachmentsSummaryOutput,
   AttachmentUrlOutput,
   ConfirmAttachmentInput,
   ListAttachmentsQuery,
@@ -7,6 +8,12 @@ import type {
   PrepareAttachmentInput,
 } from "@openmonetis/validators/attachments";
 import { requestApiWithResponseMessage as request } from "@/lib/api-client";
+
+export function fetchAttachmentsSummary(period: string) {
+  const params = new URLSearchParams({ period });
+
+  return request<AttachmentsSummaryOutput>(`/attachments/summary?${params.toString()}`);
+}
 
 export function getAttachments(query: ListAttachmentsQuery) {
   const params = new URLSearchParams({

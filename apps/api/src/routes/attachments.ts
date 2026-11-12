@@ -3,6 +3,8 @@ import { ok } from "@openmonetis/shared/api";
 import {
   AttachmentOutputSchema,
   AttachmentParamsSchema,
+  AttachmentsSummaryOutputSchema,
+  AttachmentsSummaryQuerySchema,
   AttachmentUrlOutputSchema,
   AttachmentUrlQuerySchema,
   ConfirmAttachmentInputSchema,
@@ -24,6 +26,10 @@ const AttachmentsResponseSchema = z.object({
 });
 const PaginatedAttachmentsResponseSchema = z.object({
   data: PaginatedAttachmentsOutputSchema,
+  error: z.null(),
+});
+const AttachmentsSummaryResponseSchema = z.object({
+  data: AttachmentsSummaryOutputSchema,
   error: z.null(),
 });
 const AttachmentUrlResponseSchema = z.object({
@@ -75,6 +81,30 @@ export function createAttachmentsRoute(service: AttachmentsService) {
     }),
     async (context) =>
       context.json(ok(await service.list(context.get("userId"), context.req.valid("query"))), 200),
+  );
+
+  route.openapi(
+    createRoute({
+      method: "get",
+      path: "/summary",
+      tags: ["Attachments"],
+      request: { query: AttachmentsSummaryQuerySchema },
+      responses: {
+        200: {
+          description: "Attachment summary for a period",
+          content: { "application/json": { schema: AttachmentsSummaryResponseSchema } },
+        },
+        400: errorResponses[400],
+        401: errorResponses[401],
+      },
+    }),
+    async (context) =>
+      context.json(
+        ok(
+          await service.getPeriodSummary(context.get("userId"), context.req.valid("query").period),
+        ),
+        200,
+      ),
   );
 
   route.openapi(

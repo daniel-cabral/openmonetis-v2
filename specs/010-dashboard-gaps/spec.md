@@ -10,6 +10,18 @@
 
 **Fork-only flag**: the three widgets are V1 base features that upstream V2 lacks; they can be proposed upstream. The notifications item is verification only.
 
+## Clarifications
+
+### Session 2026-11-11
+
+Answered autonomously from V1 code, the 005 spec and the current V2 code (goal run).
+
+- Q: Which rows count in the spending overview (both tabs)? → A: The 005 purchase rule: type expense, origin `regular`, not `excludeFromBalance`, not the invoice-payment system category; paid and pending both count; period attribution is the V2 transaction period (card purchases fall in their invoice period); each installment and each expanded recurring occurrence is one row; only the admin person's share; refunds are excluded, not netted. The rule is shared with the establishments report in the domain, not re-implemented.
+- Q: How are establishments grouped and how are ties broken in both tabs? → A: Establishments group by the exact recorded name (case-sensitive, as in 005); order count desc, total desc, name asc (pt-BR). Top expenses order amount desc, purchase date desc, name asc.
+- Q: Which logo does each row show? → A: The V2 name-based `EstablishmentLogo` (read-only), not the V1 card/account logo, matching the establishments report rows.
+- Q: Which attachments does the attachments widget summarise? → A: All attachments linked to the user's transactions of the selected period, across all of the user's people (same default set as the attachments library with no person filter), so "Ver todos" shows the same set; an attachment linked to several transactions of the period counts once and is dated by its most recent linked purchase date; size is the sum of file sizes in bytes.
+- Q: What does the category history widget plot and from which data? → A: For each selected category and month, the category trends total (actual plus recurring occurrences, admin share, parent includes children, transfers/invoice payments/balance adjustments excluded), read from the existing category trends report with the 10-month window and the selected ids; selection is kept in `sessionStorage` per browser tab session.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Spending overview widget (Priority: P1)
@@ -105,10 +117,10 @@ Verify and document that the V2 notification panel already supports marking read
 - **FR-001**: Each new widget MUST be a registry entry of the V2 dashboard (identifier, section, title, description, icon, optional wide flag, period-aware render) so it appears in the add-widget dialog and obeys hide, show, reorder and "restore default".
 - **FR-002**: New widget identifiers MUST be accepted by saved preferences; users with saved layouts MUST keep their order and hidden set, with the new widgets appended and visible.
 - **FR-003**: Each widget MUST load its own data for the selected dashboard period, be scoped to the authenticated user and use the user's own share (admin person), consistent with the other V2 widgets.
-- **FR-004**: The spending overview widget MUST offer the two tabs described in US1, top 10 each, with the specified ordering, row content, empty states and exclusions by typed transaction origin (V1 name-text exclusions are dropped).
+- **FR-004**: The spending overview widget MUST offer the two tabs described in US1, top 10 each, with the specified ordering, row content, empty states and exclusions by typed transaction origin (V1 name-text exclusions are dropped). The row rule is the establishments report purchase rule (expense, origin `regular`, not excluded from balance, not the invoice-payment category; paid and pending; admin share; recurring occurrences expanded), reused from the domain.
 - **FR-005**: The spending overview widget MUST link to the establishments report (005).
-- **FR-006**: The attachments widget MUST show the period summary (total count, total size, image count, PDF count), the 5 most recent attachments, preview, and a link to the attachments library, with the specified empty state.
-- **FR-007**: The category history widget MUST let the user pick up to 5 categories (expense and income, grouped), plot a 10-month window (8 before, selected, 1 after), remember the selection for the browser session, and drop stale category identifiers.
+- **FR-006**: The attachments widget MUST show the period summary (total count, total size, image count, PDF count), the 5 most recent attachments, preview, and a link to the attachments library, with the specified empty state. Scope is every attachment linked to the user's transactions of the period (all people), each attachment counted once.
+- **FR-007**: The category history widget MUST let the user pick up to 5 categories (expense and income, grouped), plot a 10-month window (8 before, selected, 1 after), remember the selection for the browser session (`sessionStorage`), and drop stale category identifiers. Values come from the category trends report (no new backend).
 - **FR-008**: Category history values MUST match category trends for the same categories and months.
 - **FR-009**: Amounts MUST be computed in integer cents; rules for exclusions and grouping live in the domain, the widget only presents them.
 - **FR-010**: Notifications: the system MUST keep supporting mark read, mark unread, archive and restore as described in US4; no behavior change is required. The acceptance scenarios MUST be covered by tests that fail if the behavior regresses.
@@ -138,7 +150,7 @@ Verify and document that the V2 notification panel already supports marking read
 - Category history in V1 lived only on the history page (not in the V1 dashboard widget list); it is ported here as a dashboard widget, and the V1 page itself stays "accepted as merged into category trends".
 - Default widget section: spending overview and category history in "Análises do período"; attachments in "Planejamento" next to notes. Final placement and the "wide" flag are decided in the mockup step.
 - The 5-attachment and top-10 limits come from V1; "see all" patterns (list sheet) follow existing V2 widgets where more rows exist.
-- Attachment scope is the user's own transactions of the period, matching V1 defaults.
+- Attachment scope is every attachment linked to the user's transactions of the period, across all of the user's people (library default), see Clarifications.
 - Mobile clients out of scope; the web layout must still work on narrow screens.
 
 ## Dependencies
@@ -155,3 +167,17 @@ V1 evidence (`D:\Repos\daniel-cabral\openmonetis`): `src/features/dashboard/comp
 V2 code extended: `apps/web/src/features/dashboard/components/dashboard-widget-registry.tsx`, `packages/domain/src/dashboard.ts` (widget identifiers and preference normalization), `apps/api/src/routes/dashboard.ts`, `apps/web/src/features/category-trends/`, `apps/web/src/features/attachments/`, `apps/api/src/routes/notifications.ts`, `packages/domain/src/notifications.ts`, `apps/web/src/features/notifications/components/notification-row.tsx`.
 
 Inventory rows covered: "Widget: spending overview (top expenses + top establishments)" (missing, port); "Widget: category history" (missing, port); "Widget: attachments of the period" (missing, port); "Dashboard notifications (read/unread, archive)" (partial, port; resolved as accept V2 plus tests).
+
+## UI decisions
+
+Previews (real app CSS compiled from `apps/web/src/styles/app.css`; regenerate with
+`cd apps/web && pnpm dlx @tailwindcss/cli@4.3.4 -i ../../specs/010-dashboard-gaps/previews/preview.css -o ../../specs/010-dashboard-gaps/previews/app.css`):
+`specs/010-dashboard-gaps/previews/option-a-v1-layout.html`, `option-b-dense.html`.
+
+**Chosen: option A (V1 behaviour inside V2 patterns)**, decided autonomously. Rationale: closest to V1, reuses the 005 list rows and existing dashboard components, and stays readable on mobile.
+
+- Registry: "Panorama de gastos" (icon `Wallet`) and "Histórico de categorias" (icon `ChartLine`) go in section "analysis"; "Anexos" (icon `Paperclip`) goes in "planning". New widgets are appended and visible by default.
+- Panorama de gastos: normal width, `DashboardWidget` with shadcn `Tabs` ("Top gastos" / "Estabelecimentos"; `DashboardWidgetViewToggle` is a list/chart icon toggle, not tabs), 5 `DashboardWidgetRow`s (`EstablishmentLogo` with `editable={false}`, name, subline, `MoneyValue`) and `DashboardWidgetListSheet` for the remaining rows up to 10. Top gastos subline: purchase date (dd/MM). Footer link "Ver relatório de estabelecimentos" goes to `/reports/establishments` (preserving period). Empty: `DashboardWidgetEmptyState` with "Nenhuma despesa encontrada" or "Nenhum estabelecimento encontrado" and "Quando houver despesas registradas, elas aparecerão aqui.".
+- Anexos: normal width. Summary chips ("N anexos", total size, "N imagens" and "N PDFs" hidden when zero) above 5 rows (type icon, file name with `title`, transaction name, dd/MM, size). Each row opens the existing `AttachmentPreviewDialog` over the 5 listed items. Footer link "Ver todos" goes to `/attachments` with the period. Empty: "Nenhum anexo no período" / "Adicione comprovantes nos seus lançamentos para vê-los aqui.".
+- Histórico de categorias: `wide` true, selected-category chips (color dot, remove button, "Adicionar categoria", "Limpar") above a recharts line chart (10 months, `--chart-*` colors, `MoneyValue`-style formatting, hidden values in privacy mode). The picker is a shadcn Popover with Command, grouped "Despesas" / "Receitas", already-selected categories hidden, stops at 5. Empty prompt: "Escolha categorias para ver o histórico" / "Selecione até 5 categorias para comparar mês a mês.", no chart. Selection kept in `sessionStorage`.
+- Discarded: option B (wide spending widget with side-by-side lists, normal-width bar chart, attachment stat tiles), because it breaks on mobile and bars become unreadable with 5 categories across 10 months.
