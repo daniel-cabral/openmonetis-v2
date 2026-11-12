@@ -5,6 +5,7 @@ import {
   type DashboardInvoicesOutput,
 } from "@openmonetis/validators/invoices";
 import { useForm } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "@unpic/react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -21,33 +22,50 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { parseCurrencyInput } from "@/features/accounts/accounts.presentation";
+import { ApiClientError } from "@/lib/api-client";
+import { refreshFinancialQueries } from "@/lib/financial-query-invalidation";
 import { formatCurrency } from "@/lib/money-presentation";
 import { usePayInvoiceMutation } from "../invoices.mutations";
+import {
+  buildInvoicePaymentAllocations,
+  getInvoicePaymentAnnouncement,
+} from "../invoices.presentation";
 
 type InvoiceAccount = DashboardInvoicesOutput["accounts"][number];
 
 export function InvoicePaymentDialog({
   invoice,
   accounts,
+  isError = false,
+  isFetching = false,
   open,
   onOpenChange,
+  onRetry,
 }: {
   invoice: DashboardInvoice | null;
   accounts: DashboardInvoicesOutput["accounts"];
+  /** The invoices query failed; the announcement is replaced by a retry notice. */
+  isError?: boolean;
+  /** The invoices query is refetching; the announcement is replaced by a skeleton. */
+  isFetching?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRetry?: () => void;
 }) {
   const id = useId();
+  const queryClient = useQueryClient();
   const mutation = usePayInvoiceMutation();
   const [paymentResult, setPaymentResult] = useState<{
     accountAmount: number;
     status: DashboardInvoice["status"];
   } | null>(null);
+  const [balanceChanged, setBalanceChanged] = useState(false);
   const today = getCurrentDateInBrazil();
   const canPayByPerson =
     (invoice?.people.filter((person) => person.remainingAmount > 0).length ?? 0) > 1;
+  const isCovered = invoice?.remainingAmount === 0;
   const defaultAccountId =
     invoice && accounts.some((account) => account.id === invoice.accountId)
       ? invoice.accountId
@@ -62,23 +80,12 @@ export function InvoicePaymentDialog({
     },
     onSubmit: async ({ value }) => {
       if (!invoice) return;
-      const person = invoice.people.find((item) => item.personId === value.personId);
-      const allocations =
-        value.mode === "invoice"
-          ? invoice.people
-              .filter((item) => item.remainingAmount > 0)
-              .map((item) => ({ personId: item.personId, amount: item.remainingAmount }))
-          : person
-            ? [
-                {
-                  personId: person.personId,
-                  amount:
-                    value.mode === "person"
-                      ? person.remainingAmount
-                      : parseCurrencyInput(value.amount),
-                },
-              ]
-            : [];
+      const allocations = buildInvoicePaymentAllocations(
+        invoice,
+        value.mode,
+        value.personId,
+        value.amount,
+      );
       const usesAccount = allocations.some((allocation) =>
         invoice.people.some(
           (item) => item.personId === allocation.personId && item.personRole === "admin",
@@ -97,6 +104,7 @@ export function InvoicePaymentDialog({
         });
         return;
       }
+      setBalanceChanged(false);
       try {
         const result = await mutation.mutateAsync({
           cardId: invoice.cardId,
@@ -104,7 +112,12 @@ export function InvoicePaymentDialog({
           input: parsed.data,
         });
         setPaymentResult({ accountAmount: result.accountAmount, status: result.status });
-      } catch {
+      } catch (error) {
+        if (isInvoiceBalanceChangedError(error)) {
+          setBalanceChanged(true);
+          void refreshFinancialQueries(queryClient);
+          return;
+        }
         toast.error("Não foi possível registrar o pagamento", {
           description: "Confira o valor e o saldo restante da pessoa.",
         });
@@ -178,157 +191,204 @@ export function InvoicePaymentDialog({
               >
                 {(state) => <MobileFormState {...state} />}
               </form.Subscribe>
-              <form.Field name="mode">
-                {(field) => (
-                  <Tabs
-                    aria-label="Forma de pagamento da fatura"
-                    className="min-w-0 gap-0"
-                    onValueChange={(value) =>
-                      value && field.handleChange(value as typeof field.state.value)
+              {isCovered ? null : (
+                <>
+                  <form.Field name="mode">
+                    {(field) => (
+                      <Tabs
+                        aria-label="Forma de pagamento da fatura"
+                        className="min-w-0 gap-0"
+                        onValueChange={(value) =>
+                          value && field.handleChange(value as typeof field.state.value)
+                        }
+                        value={field.state.value}
+                      >
+                        <TabsList className="w-full min-w-0 items-stretch group-data-horizontal/tabs:h-auto">
+                          <TabsTrigger
+                            className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
+                            value="invoice"
+                          >
+                            Fatura inteira
+                          </TabsTrigger>
+                          {canPayByPerson ? (
+                            <TabsTrigger
+                              className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
+                              value="person"
+                            >
+                              Registrar parte da pessoa
+                            </TabsTrigger>
+                          ) : null}
+                          <TabsTrigger
+                            className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
+                            value="manual"
+                          >
+                            Valor parcial
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    )}
+                  </form.Field>
+                  <form.Subscribe selector={(state) => state.values.mode}>
+                    {(mode) =>
+                      mode !== "invoice" ? (
+                        <form.Field name="personId">
+                          {(field) => (
+                            <div className="grid gap-2">
+                              <Label className="font-mono" htmlFor={`${id}-person`}>
+                                Pessoa
+                              </Label>
+                              <Select
+                                items={
+                                  invoice?.people
+                                    .filter((person) => person.remainingAmount > 0)
+                                    .map((person) => ({
+                                      value: person.personId,
+                                      label: <PersonOption person={person} />,
+                                    })) ?? []
+                                }
+                                onValueChange={(value) => value && field.handleChange(value)}
+                                value={field.state.value}
+                              >
+                                <SelectTrigger className="w-full" id={`${id}-person`}>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {invoice?.people
+                                    .filter((person) => person.remainingAmount > 0)
+                                    .map((person) => (
+                                      <SelectItem key={person.personId} value={person.personId}>
+                                        <PersonOption person={person} />
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </form.Field>
+                      ) : null
                     }
-                    value={field.state.value}
+                  </form.Subscribe>
+                  <form.Subscribe selector={(state) => state.values.mode}>
+                    {(mode) =>
+                      mode === "manual" ? (
+                        <form.Field name="amount">
+                          {(field) => (
+                            <div className="grid gap-2">
+                              <Label className="font-mono" htmlFor={`${id}-amount`}>
+                                Valor
+                              </Label>
+                              <CurrencyInput
+                                id={`${id}-amount`}
+                                onValueChange={field.handleChange}
+                                placeholder="R$ 0,00"
+                                value={field.state.value}
+                              />
+                            </div>
+                          )}
+                        </form.Field>
+                      ) : null
+                    }
+                  </form.Subscribe>
+                  <form.Subscribe
+                    selector={(state) => [state.values.mode, state.values.personId] as const}
                   >
-                    <TabsList className="w-full min-w-0 items-stretch group-data-horizontal/tabs:h-auto">
-                      <TabsTrigger
-                        className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
-                        value="invoice"
-                      >
-                        Fatura inteira
-                      </TabsTrigger>
-                      {canPayByPerson ? (
-                        <TabsTrigger
-                          className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
-                          value="person"
-                        >
-                          Registrar parte da pessoa
-                        </TabsTrigger>
-                      ) : null}
-                      <TabsTrigger
-                        className="min-w-0 whitespace-normal px-1 py-1.5 text-center text-xs leading-tight sm:px-2 sm:text-sm"
-                        value="manual"
-                      >
-                        Valor parcial
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                )}
-              </form.Field>
-              <form.Subscribe selector={(state) => state.values.mode}>
-                {(mode) =>
-                  mode !== "invoice" ? (
-                    <form.Field name="personId">
-                      {(field) => (
-                        <div className="grid gap-2">
-                          <Label className="font-mono" htmlFor={`${id}-person`}>
-                            Pessoa
-                          </Label>
-                          <Select
-                            items={
-                              invoice?.people
-                                .filter((person) => person.remainingAmount > 0)
-                                .map((person) => ({
-                                  value: person.personId,
-                                  label: <PersonOption person={person} />,
-                                })) ?? []
-                            }
-                            onValueChange={(value) => value && field.handleChange(value)}
-                            value={field.state.value}
-                          >
-                            <SelectTrigger className="w-full" id={`${id}-person`}>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {invoice?.people
-                                .filter((person) => person.remainingAmount > 0)
-                                .map((person) => (
-                                  <SelectItem key={person.personId} value={person.personId}>
-                                    <PersonOption person={person} />
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : null
-                }
-              </form.Subscribe>
-              <form.Subscribe selector={(state) => state.values.mode}>
-                {(mode) =>
-                  mode === "manual" ? (
-                    <form.Field name="amount">
-                      {(field) => (
-                        <div className="grid gap-2">
-                          <Label className="font-mono" htmlFor={`${id}-amount`}>
-                            Valor
-                          </Label>
-                          <CurrencyInput
-                            id={`${id}-amount`}
-                            onValueChange={field.handleChange}
-                            placeholder="R$ 0,00"
-                            value={field.state.value}
-                          />
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : null
-                }
-              </form.Subscribe>
+                    {([mode, personId]) =>
+                      paymentUsesAccount(invoice, mode, personId) ? (
+                        <form.Field name="accountId">
+                          {(field) => (
+                            <div className="grid gap-2">
+                              <Label className="font-mono" htmlFor={`${id}-account`}>
+                                Conta de pagamento
+                              </Label>
+                              <Select
+                                items={accounts.map((account) => ({
+                                  value: account.id,
+                                  label: <AccountOption account={account} />,
+                                }))}
+                                value={field.state.value}
+                                onValueChange={(value) => value && field.handleChange(value)}
+                              >
+                                <SelectTrigger className="w-full" id={`${id}-account`}>
+                                  <SelectValue placeholder="Selecione uma conta" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {accounts.map((account) => (
+                                    <SelectItem key={account.id} value={account.id}>
+                                      <AccountOption account={account} />
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </form.Field>
+                      ) : (
+                        <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
+                          Este pagamento quita somente a parte da pessoa e não movimenta suas
+                          contas.
+                        </p>
+                      )
+                    }
+                  </form.Subscribe>
+                  <form.Field name="paidAt">
+                    {(field) => (
+                      <div className="grid gap-2">
+                        <Label className="font-mono" htmlFor={`${id}-paid-at`}>
+                          Data do pagamento
+                        </Label>
+                        <DatePicker
+                          id={`${id}-paid-at`}
+                          max={today}
+                          onChange={field.handleChange}
+                          value={field.state.value}
+                        />
+                      </div>
+                    )}
+                  </form.Field>
+                </>
+              )}
+              {balanceChanged ? (
+                <p
+                  className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm"
+                  role="alert"
+                >
+                  A fatura mudou. Confira os valores e confirme de novo.
+                </p>
+              ) : null}
               <form.Subscribe
-                selector={(state) => [state.values.mode, state.values.personId] as const}
+                selector={(state) =>
+                  [state.values.mode, state.values.personId, state.values.amount] as const
+                }
               >
-                {([mode, personId]) =>
-                  paymentUsesAccount(invoice, mode, personId) ? (
-                    <form.Field name="accountId">
-                      {(field) => (
-                        <div className="grid gap-2">
-                          <Label className="font-mono" htmlFor={`${id}-account`}>
-                            Conta de pagamento
-                          </Label>
-                          <Select
-                            items={accounts.map((account) => ({
-                              value: account.id,
-                              label: <AccountOption account={account} />,
-                            }))}
-                            value={field.state.value}
-                            onValueChange={(value) => value && field.handleChange(value)}
-                          >
-                            <SelectTrigger className="w-full" id={`${id}-account`}>
-                              <SelectValue placeholder="Selecione uma conta" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  <AccountOption account={account} />
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                {([mode, personId, amount]) =>
+                  isFetching ? (
+                    <div aria-label="Calculando valor" role="status">
+                      <Skeleton className="h-14 w-full" />
+                    </div>
+                  ) : isError ? (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm"
+                      role="alert"
+                    >
+                      <span>Não foi possível carregar a fatura.</span>
+                      <Button onClick={onRetry} size="sm" type="button" variant="outline">
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  ) : invoice ? (
+                    <p
+                      className="rounded-md bg-muted px-3 py-2 text-foreground text-sm"
+                      role="status"
+                    >
+                      {getInvoicePaymentAnnouncement(
+                        invoice,
+                        mode,
+                        buildInvoicePaymentAllocations(invoice, mode, personId, amount),
                       )}
-                    </form.Field>
-                  ) : (
-                    <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
-                      Este pagamento quita somente a parte da pessoa e não movimenta suas contas.
                     </p>
-                  )
+                  ) : null
                 }
               </form.Subscribe>
-              <form.Field name="paidAt">
-                {(field) => (
-                  <div className="grid gap-2">
-                    <Label className="font-mono" htmlFor={`${id}-paid-at`}>
-                      Data do pagamento
-                    </Label>
-                    <DatePicker
-                      id={`${id}-paid-at`}
-                      max={today}
-                      onChange={field.handleChange}
-                      value={field.state.value}
-                    />
-                  </div>
-                )}
-              </form.Field>
               <DialogFooter>
                 <Button
                   data-mobile-cancel
@@ -349,6 +409,9 @@ export function InvoicePaymentDialog({
                       disabled={
                         mutation.isPending ||
                         !invoice ||
+                        isFetching ||
+                        isError ||
+                        isCovered ||
                         (paymentUsesAccount(invoice, mode, personId) && !accountId)
                       }
                       type="submit"
@@ -363,6 +426,13 @@ export function InvoicePaymentDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function isInvoiceBalanceChangedError(error: unknown) {
+  return (
+    error instanceof ApiClientError &&
+    (error.code === "invoice_payment_balance_changed" || error.code === "invoice_payment_conflict")
   );
 }
 

@@ -206,8 +206,11 @@ export function CardInvoicesPage({ cardId, search, onSearchChange }: CardInvoice
           key={paymentOpen ? (invoice?.cardId ?? "closed") : "closed"}
           invoice={paymentOpen ? (invoice ?? null) : null}
           accounts={invoicesQuery.data?.accounts ?? []}
+          isError={invoicesQuery.isError}
+          isFetching={invoicesQuery.isFetching}
           open={paymentOpen && Boolean(invoice)}
           onOpenChange={setPaymentOpen}
+          onRetry={() => void invoicesQuery.refetch()}
         />
       </main>
     </ProtectedRoute>
@@ -243,7 +246,7 @@ function CardInvoiceSummary({
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
-  const canPay = isActive && summary.remainingAmount > 0;
+  const canPay = isActive;
   const canAdjustInvoice = isActive && period <= getCurrentPeriodInBrazil();
   const adjustBlockedReason =
     payments.length > 0
