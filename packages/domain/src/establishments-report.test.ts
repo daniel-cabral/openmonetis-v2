@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   calculateEstablishmentsReport,
   type EstablishmentPurchaseEntry,
+  type EstablishmentRecurringRule,
   resolveEstablishmentsWindow,
 } from "./establishments-report";
 
@@ -25,6 +26,28 @@ function purchase(
   };
 }
 
+function recurringRule(
+  overrides: Partial<EstablishmentRecurringRule> & Pick<EstablishmentRecurringRule, "name">,
+): EstablishmentRecurringRule {
+  return {
+    amount: "99.90",
+    anchorDate: "2026-01-05",
+    startDate: "2026-01-05",
+    endDate: null,
+    frequency: "monthly",
+    paymentMethod: "pix",
+    dueDate: null,
+    status: "active",
+    card: null,
+    categoryId: null,
+    categoryName: null,
+    categoryIcon: null,
+    isInvoicePaymentCategory: false,
+    transactionType: "expense",
+    ...overrides,
+  };
+}
+
 function report(entries: EstablishmentPurchaseEntry[]) {
   return calculateEstablishmentsReport({
     window,
@@ -36,9 +59,15 @@ function report(entries: EstablishmentPurchaseEntry[]) {
 
 test("establishments rank by count, then total, then name, with literal summaries", () => {
   const entries = [
-    ...Array.from({ length: 8 }, () => purchase({ name: "Mercado A", period: "2026-03", amount: 100 })),
-    ...Array.from({ length: 3 }, () => purchase({ name: "Posto B", period: "2026-04", amount: 300 })),
-    ...Array.from({ length: 8 }, () => purchase({ name: "Padaria C", period: "2026-05", amount: 50 })),
+    ...Array.from({ length: 8 }, () =>
+      purchase({ name: "Mercado A", period: "2026-03", amount: 100 }),
+    ),
+    ...Array.from({ length: 3 }, () =>
+      purchase({ name: "Posto B", period: "2026-04", amount: 300 }),
+    ),
+    ...Array.from({ length: 8 }, () =>
+      purchase({ name: "Padaria C", period: "2026-05", amount: 50 }),
+    ),
   ];
 
   const result = report(entries);
@@ -184,6 +213,52 @@ test("an empty window yields empty lists, zero summary and null names", () => {
       highestTotal: null,
     },
   });
+});
+
+test("only regular expense purchases count, and recurring occurrences only for active rules", () => {
+  const excludedRows: Array<[string, Partial<EstablishmentPurchaseEntry>]> = [
+    ["invoice payment", { origin: "invoicePayment" }],
+    ["account balance adjustment", { origin: "accountBalanceAdjustment" }],
+    ["invoice adjustment", { origin: "invoiceAdjustment" }],
+    ["person settlement", { origin: "personSettlement" }],
+    ["refund", { origin: "refund", transactionType: "income" }],
+    ["transfer", { transactionType: "transfer" }],
+    ["income", { transactionType: "income" }],
+    ["account excluded from balance", { excludeFromBalance: true }],
+    ["invoice payment category", { isInvoicePaymentCategory: true }],
+  ];
+
+  for (const [label, overrides] of excludedRows) {
+    const result = report([
+      purchase({ name: "Loja", period: "2026-03", amount: 50 }),
+      purchase({ name: "Loja", period: "2026-03", amount: 20, ...overrides }),
+    ]);
+
+    assert.deepEqual(
+      result.establishments.map((item) => [item.name, item.count, item.totalCents]),
+      [["Loja", 1, 5000]],
+      label,
+    );
+  }
+
+  const recurring = calculateEstablishmentsReport({
+    window,
+    tripFilter: { mode: "all" },
+    entries: [],
+    recurringRules: [
+      recurringRule({ name: "Academia" }),
+      recurringRule({ name: "Assinatura", status: "paused" }),
+      recurringRule({ name: "Clube", occurrenceAccountExclusions: { "2026-03-05": true } }),
+    ],
+  });
+
+  assert.deepEqual(
+    recurring.establishments.map((item) => [item.name, item.count, item.totalCents]),
+    [
+      ["Academia", 6, 59940],
+      ["Clube", 5, 49950],
+    ],
+  );
 });
 
 test("only purchases inside the window count", () => {
