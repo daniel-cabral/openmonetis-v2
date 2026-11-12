@@ -8,6 +8,18 @@
 
 **Input**: User description: "Port the V1 monthly calendar page to V2: a month grid showing transactions, installment purchases, boleto due dates and card invoice due dates per day, with a day detail and quick create."
 
+## Clarifications
+
+### Session 2026-11-11
+
+Answered autonomously from V1 code (`fetchCalendarData`) and V2 code, per the roadmap worker protocol.
+
+- Q: V2 stores one transaction row per installment with the purchase date shifted month by month (V1 kept one purchase date for all rows); how should installments appear? → A: A credit-card installment series shows one "Parcelas" event on the purchase date of its first tracked installment, only in that month (later installments are covered by the card invoice event). Every other non-boleto installment row shows as a "Parcelas" event on its own date with "k/N" and the per-installment value. Boleto installments show as "Boleto" events on their due dates.
+- Q: Do credit-card purchases appear as day events in addition to the card invoice event? → A: Yes, as in V1: single card purchases appear as "Lançamento" on their purchase date; the invoice event shows the bill on its due date.
+- Q: Which amount does a shared or split transaction show? → A: Only the user's own (admin person) share, as the dashboard computes it; transactions with no own share are omitted.
+- Q: Which total and status does a card invoice event show? → A: The invoice total for the month as the card page shows it (the bill the user pays, all people included), shown only when the total is greater than zero. Status "paid" shows "Pago em <data do último pagamento>"; "overdue" shows "Atrasada"; "open"/"closed" show "Pendente".
+- Q: Where do event links go (FR-014)? → A: Card invoice events link to that card's invoice page for the month; transaction, installment and boleto events have no link in this feature.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See the month's money events on a calendar (Priority: P1)
@@ -103,17 +115,17 @@ The user moves between months using the standard month navigation and the select
 - **FR-001**: The system MUST provide a calendar page showing one month at a time as a 6-week Monday-first grid with weekday headers, adjacent-month days dimmed and today highlighted.
 - **FR-002**: The system MUST show non-boleto income and expense transactions on their purchase date, excluding transfers.
 - **FR-003**: The system MUST show boletos on their due date, even when the purchase date is in another month.
-- **FR-004**: The system MUST show an installment purchase as a single event with installment count and per-installment value, on the purchase date.
+- **FR-004**: The system MUST show a credit-card installment purchase as a single "Parcelas" event with installment count and per-installment value on the purchase date of its first tracked installment; other non-boleto installment rows show as "Parcelas" events on their own date with "k/N"; boleto installments follow FR-003.
 - **FR-005**: The system MUST show recurring occurrences, expanded by the recurrence rule for the visible month, on their date, respecting pauses, skips and endings, without materializing future occurrences.
-- **FR-006**: The system MUST show one invoice event per card that has spending in the month's invoice, on the card's due date adjusted to the month length and to the V2 due-date rules, with card identity, total due and paid state with payment date.
-- **FR-007**: The system MUST count only the user's own share of shared or split transactions and MUST NOT include other people's shares.
+- **FR-006**: The system MUST show one invoice event per card whose invoice total for the month is greater than zero, on the card's due date adjusted to the month length and to the V2 due-date rules, with card identity, invoice total and state ("Pago em <data>", "Atrasada" or "Pendente"), linking to the card's invoice page for the month.
+- **FR-007**: The system MUST show only the user's own (admin person) share of shared or split transactions, omit transactions with no own share, and MUST NOT include other people's shares. Card invoice events show the full bill (FR-006).
 - **FR-008**: The system MUST order events within a day: lançamentos and parcelas first, then boletos, then card invoices.
 - **FR-009**: The system MUST show up to 3 event previews per day with a "+N mais" indicator for the rest.
 - **FR-010**: The system MUST open a day dialog on click or Enter/Space, grouped by type with the titles and states in Story 2, and with correct empty text.
 - **FR-011**: The system MUST let the user create a transaction from a day cell or from the day dialog with the date pre-filled, and refresh the calendar afterwards.
 - **FR-012**: The system MUST show a legend of the four event types.
 - **FR-013**: The system MUST use the shared month navigation, keep the month in the address, and fall back to the current month for invalid input.
-- **FR-014**: The calendar MUST be read-only for existing events (no drag and drop, no editing of existing items in this feature); each event may link to the transaction or card for further action.
+- **FR-014**: The calendar MUST be read-only for existing events (no drag and drop, no editing of existing items in this feature); only card invoice events link out (to the card invoice page).
 - **FR-015**: All financial amounts, paid states and due dates MUST come from the backend; the page only renders and groups them.
 - **FR-016**: The page MUST be keyboard accessible (cells focusable, dialog focus managed), responsive, in PT-BR, and limited to the authenticated user's data.
 
@@ -153,3 +165,30 @@ The user moves between months using the standard month navigation and the select
 
 - Roadmap lane B sequence: after 010 (sequence only; no functional dependency on dashboard widgets).
 - Functional: existing V2 transactions, recurrence expansion, installments, cards and invoices, due-date rules and the new-transaction form. None of the other migration features is required.
+
+## UI decisions
+
+Previews (real app CSS compiled from `apps/web/src/styles/app.css`; regenerate with
+`cd apps/web && pnpm dlx @tailwindcss/cli@4.3.4 -i ../../specs/009-calendar/previews/preview.css -o ../../specs/009-calendar/previews/app.css`):
+`specs/009-calendar/previews/option-a-v1-grid.html`, `option-b-split-panel.html`.
+
+**Chosen: option A (V1 grid + day dialog)**, decided autonomously. Rationale: closest to V1 and to
+Story 2 (dialog), keeps the page a single column, and the dialog is a stock shadcn `Dialog` with
+built-in focus management (FR-016).
+
+- Page: standard page header "Calendário" with `MonthNavigation` (period in the URL), legend row
+  with 4 markers (Lançamentos, Parcelas, Boletos, Fatura de Cartão), then a bordered 7-column grid
+  (Seg..Dom), 6 rows.
+- Day cell: focusable `button`-like cell (Enter/Space opens the dialog), day number, today ring,
+  adjacent-month days dimmed with no events, a "+" icon button (visible on hover/focus, always
+  visible on touch widths) that opens `TransactionDialog` with the date, up to 3 chips (type
+  marker, name, amount) and "+N mais".
+- Mobile (< `sm`): chips collapse to colored dots; no horizontal scroll.
+- Day dialog: shadcn `Dialog`, title with the long date, description per Story 2, groups
+  "Lançamentos", "Parcelas", "Boletos", "Faturas" with name, `MoneyValue`-style colored amount,
+  category, state badge, invoice "Pago em dd/MM/yyyy" and a "Ver fatura" link to
+  `/cards/$cardId?period=`; footer button "Novo lançamento".
+- Markers use existing tokens: Lançamentos `bg-info`, Parcelas `bg-brand`, Boletos `bg-warning`,
+  Fatura a chart token distinct from the income green (preview used `bg-success`, which clashed).
+- Discarded: option B (dots + side panel), because it drops V1's in-cell previews and the dialog
+  required by Story 2.
