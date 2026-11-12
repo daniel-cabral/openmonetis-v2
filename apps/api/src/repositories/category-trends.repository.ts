@@ -6,6 +6,7 @@ import {
   recurringTransactionRules,
   recurringTransactionSplits,
   transactionSplits,
+  transactionTrips,
   transactions,
 } from "@openmonetis/db";
 import { resolveCardClosingRule } from "@openmonetis/domain/cards";
@@ -19,6 +20,7 @@ import {
   effectiveTransactionAmountSql,
   recurringOccurrenceOverridesSql,
 } from "./settlements.repository";
+import { recurringOccurrenceTripIdsSql } from "./transactions.repository";
 
 const transactionPeople = alias(people, "category_trend_transaction_people");
 const splitPeople = alias(people, "category_trend_split_people");
@@ -61,6 +63,7 @@ export const categoryTrendsRepository = {
         transactionType: transactions.type,
         type: categories.type,
         period: transactions.period,
+        tripId: transactionTrips.tripId,
         amount:
           sql<string>`case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end`.as(
             "amount",
@@ -85,6 +88,13 @@ export const categoryTrendsRepository = {
       .innerJoin(
         categories,
         and(eq(transactions.categoryId, categories.id), eq(categories.userId, userId)),
+      )
+      .leftJoin(
+        transactionTrips,
+        and(
+          eq(transactionTrips.transactionId, transactions.id),
+          eq(transactionTrips.userId, userId),
+        ),
       )
       .where(
         and(
@@ -132,6 +142,7 @@ export const categoryTrendsRepository = {
           "configured_end_date",
         ),
         occurrenceOverrides: recurringOccurrenceOverridesSql,
+        occurrenceTripIds: recurringOccurrenceTripIdsSql,
         allocationPersonId:
           sql<string>`coalesce(${recurringTransactionSplits.personId}, ${recurringTransactionRules.personId})`.as(
             "allocation_person_id",
@@ -209,6 +220,7 @@ export const categoryTrendsRepository = {
       startDate: row.startDate.toISOString().slice(0, 10),
       endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
       occurrenceOverrides: row.occurrenceOverrides,
+      occurrenceTripIds: row.occurrenceTripIds,
       allocationPersonId: row.allocationPersonId,
 
       configuredEndDate: row.configuredEndDate,

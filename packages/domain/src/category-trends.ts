@@ -13,6 +13,7 @@ import {
   type TransactionOrigin,
   type TransactionType,
 } from "./transactions";
+import { matchesTripFilter, type TripFilter } from "./trips";
 
 export const categoryTrendChangeKinds = ["increase", "decrease", "stable", "started"] as const;
 
@@ -31,6 +32,7 @@ export type CategoryTrendCategory = {
 
 export type CategoryTrendActualEntry = {
   excludeFromBalance?: boolean;
+  tripId?: string | null;
   categoryId: string;
   origin?: TransactionOrigin;
   transactionType: TransactionType;
@@ -42,6 +44,7 @@ export type CategoryTrendActualEntry = {
 export type CategoryTrendRecurringRule = SettlementAwareRule & {
   excludeFromBalance?: boolean;
   occurrenceAccountExclusions?: Record<string, boolean>;
+  occurrenceTripIds?: Record<string, string>;
   isSettled?: boolean | null;
   categoryId: string;
   type: CategoryTrendType;
@@ -124,7 +127,9 @@ export function calculateCategoryTrends(input: {
   recurringRules: readonly CategoryTrendRecurringRule[];
   recurringOccurrenceScope?: "all" | "settled";
   excludeHiddenAccounts?: boolean;
+  tripFilter?: TripFilter;
 }): CategoryTrendsReport {
+  const tripFilter: TripFilter = input.tripFilter ?? { mode: "all" };
   const periods = listPeriods(input.startPeriod, input.endPeriod);
   const lookbackPeriod = addMonthsToPeriod(input.startPeriod, -1);
   const selectedCategoryIds = input.categoryIds?.length
@@ -158,6 +163,7 @@ export function calculateCategoryTrends(input: {
 
   for (const entry of input.actualEntries) {
     if (input.excludeHiddenAccounts && entry.excludeFromBalance) continue;
+    if (!matchesTripFilter(entry.tripId, tripFilter)) continue;
     if (entry.period < lookbackPeriod || entry.period > input.endPeriod) continue;
     if (
       entry.transactionType === "transfer" ||
@@ -202,6 +208,7 @@ export function calculateCategoryTrends(input: {
         (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
       )
         continue;
+      if (!matchesTripFilter(rule.occurrenceTripIds?.[purchaseDate] ?? null, tripFilter)) continue;
       if (
         input.recurringOccurrenceScope === "settled" &&
         (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true

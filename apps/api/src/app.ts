@@ -194,7 +194,9 @@ const billsService = createBillsService(billsRepository, undefined, dueDateRules
 const billsRoute = createBillsRoute(billsService);
 const categoriesRoute = createCategoriesRoute(createCategoriesService(categoriesRepository));
 const categoryTrendsRoute = createCategoryTrendsRoute(
-  createCategoryTrendsService(categoryTrendsRepository),
+  createCategoryTrendsService(categoryTrendsRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+  }),
 );
 const installmentsRoute = createInstallmentsRoute(
   createInstallmentsService(installmentsRepository),
