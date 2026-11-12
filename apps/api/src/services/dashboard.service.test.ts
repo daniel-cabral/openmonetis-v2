@@ -594,10 +594,7 @@ test("dashboard restores the initial accounts, invoices and bills order without 
     },
   );
   const first = ["payment-status", "inbox", "bills", "invoices"];
-  const uxOrder = [
-    ...first,
-    ...widgetIdsBeforeAddedWidgets.filter((id) => !first.includes(id)),
-  ];
+  const uxOrder = [...first, ...widgetIdsBeforeAddedWidgets.filter((id) => !first.includes(id))];
   assert.deepEqual(normalizeDashboardWidgetPreferences({ order: uxOrder, hidden: ["notes"] }), {
     order: [...dashboardWidgetIds],
     hidden: ["notes"],

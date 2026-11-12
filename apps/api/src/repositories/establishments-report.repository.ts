@@ -7,8 +7,8 @@ import {
   recurringTransactionRules,
   recurringTransactionSplits,
   transactionSplits,
-  transactionTrips,
   transactions,
+  transactionTrips,
 } from "@openmonetis/db";
 import { resolveCardClosingRule } from "@openmonetis/domain/cards";
 import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";

@@ -1,7 +1,7 @@
 import { type CategoryTrendRecurringRule, listRuleOccurrences } from "./category-trends";
 import { toCents } from "./money";
-import { matchesTripFilter, type TripFilter } from "./trips";
 import { addMonthsToPeriod, type TransactionOrigin, type TransactionType } from "./transactions";
+import { matchesTripFilter, type TripFilter } from "./trips";
 
 export const establishmentsReportMonthOptions = [3, 6, 12] as const;
 export type EstablishmentsReportMonths = (typeof establishmentsReportMonthOptions)[number];
@@ -117,15 +117,15 @@ export function calculateEstablishmentsReport(input: {
     ...expandActiveRules(input.recurringRules, input.window),
   ]
     .filter(
-      (entry) => isEstablishmentPurchase(entry) && matchesTripFilter(entry.tripId, input.tripFilter),
+      (entry) =>
+        isEstablishmentPurchase(entry) && matchesTripFilter(entry.tripId, input.tripFilter),
     )
     .map((entry) => ({ ...entry, amountCents: toCents(Math.abs(Number(entry.amount))) }))
     .filter((entry) => entry.amountCents !== 0);
 
   const groups = groupByName(purchases);
   const ranked = [...groups.values()].sort(
-    (a, b) =>
-      b.count - a.count || b.totalCents - a.totalCents || compareNames(a.name, b.name),
+    (a, b) => b.count - a.count || b.totalCents - a.totalCents || compareNames(a.name, b.name),
   );
   const byTotal = [...groups.values()].sort(
     (a, b) => b.totalCents - a.totalCents || compareNames(a.name, b.name),
