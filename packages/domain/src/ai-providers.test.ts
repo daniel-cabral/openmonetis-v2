@@ -9,7 +9,14 @@ import {
   normalizeAiApiKey,
 } from "./ai-providers";
 
-const apiKeyProviders = ["anthropic", "openai", "gemini", "openrouter", "minimax", "ollama"] as const;
+const apiKeyProviders = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "openrouter",
+  "minimax",
+  "ollama",
+] as const;
 const subscriptionProviders = ["claude", "codex", "antigravity"] as const;
 
 test("every provider has exactly one connection kind", () => {

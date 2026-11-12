@@ -65,7 +65,10 @@ export const UpdateAiProviderInputSchema = z
 /** Saving a key needs explicit consent; the service rejects a missing key where one is required. */
 export const SaveAiProviderKeyInputSchema = z
   .object({
-    apiKey: z.string().max(aiApiKeyMaximumLength * 2).optional(),
+    apiKey: z
+      .string()
+      .max(aiApiKeyMaximumLength * 2)
+      .optional(),
     consent: z.literal(true),
   })
   .strict()

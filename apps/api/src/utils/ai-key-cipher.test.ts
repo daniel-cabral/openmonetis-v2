@@ -22,5 +22,8 @@ test("decrypt returns null for another secret, another owner binding or a tamper
 
   const tag = Buffer.from(sealed.authTag, "base64");
   tag[0] ^= 1;
-  assert.equal(cipher.decrypt({ ...sealed, authTag: tag.toString("base64") }, "userA:openai"), null);
+  assert.equal(
+    cipher.decrypt({ ...sealed, authTag: tag.toString("base64") }, "userA:openai"),
+    null,
+  );
 });
