@@ -69,6 +69,37 @@ export function getCategoryTrendsPeriodRange(anchor: "start" | "end", period: st
     : { startPeriod: addMonthsToPeriod(period, -categoryTrendsPeriodOffset), endPeriod: period };
 }
 
+export const categoryHistoryMaxSelection = 5;
+
+export function categoryHistoryWindow(period: string) {
+  return {
+    startPeriod: addMonthsToPeriod(period, -8),
+    endPeriod: addMonthsToPeriod(period, 1),
+  };
+}
+
+export type CategoryHistoryRow = Record<string, number | string> & { period: string };
+
+/** One row per response period; a selected category missing a month counts as 0. */
+export function buildCategoryHistorySeries(
+  trends: CategoryTrendsOutput,
+  selectedIds: readonly string[],
+): CategoryHistoryRow[] {
+  const nodes = trends.categories.flatMap((category) => [
+    category,
+    ...(category.subcategories ?? []),
+  ]);
+
+  return trends.periods.map(({ period }) => {
+    const row: CategoryHistoryRow = { period };
+    for (const categoryId of selectedIds) {
+      const node = nodes.find((candidate) => candidate.categoryId === categoryId);
+      row[categoryId] = node?.values.find((value) => value.period === period)?.totalAmount ?? 0;
+    }
+    return row;
+  });
+}
+
 export function formatTrendPercentage(value: number | null, kind: string) {
   if (kind === "started") return "Novo";
   if (value === null) return "Sem base";

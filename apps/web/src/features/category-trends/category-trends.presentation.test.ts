@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
 import {
+  buildCategoryHistorySeries,
+  categoryHistoryWindow,
   categoryTrendsCsv,
   resolveCategoryTrendsSearch,
   validateCategoryTrendsSearch,
@@ -61,6 +63,49 @@ test("category trends search keeps the no-trip and trip id filters and drops mal
     assert.equal(search.trip, expected, trip);
     assert.equal(resolveCategoryTrendsSearch(search).trip, expected, trip);
   }
+});
+
+test("category history spans eight months back and one ahead, and fills missing months with zero", () => {
+  const parentId = "10000000-0000-4000-8000-000000000001";
+  const childId = "10000000-0000-4000-8000-000000000003";
+  const trends = {
+    periods: [{ period: "2026-01" }, { period: "2026-02" }, { period: "2026-03" }],
+    categories: [
+      {
+        categoryId: parentId,
+        name: "Mercado",
+        icon: null,
+        type: "expense",
+        totalAmount: 200,
+        averageAmount: 100,
+        values: [
+          { period: "2026-01", totalAmount: 120 },
+          { period: "2026-03", totalAmount: 80 },
+        ],
+        subcategories: [
+          {
+            categoryId: childId,
+            name: "Feira",
+            icon: null,
+            type: "expense",
+            totalAmount: 45,
+            averageAmount: 45,
+            values: [{ period: "2026-02", totalAmount: 45 }],
+          },
+        ],
+      },
+    ],
+  } as CategoryTrendsOutput;
+
+  assert.deepEqual(categoryHistoryWindow("2026-01"), {
+    startPeriod: "2025-05",
+    endPeriod: "2026-02",
+  });
+  assert.deepEqual(buildCategoryHistorySeries(trends, [childId, parentId]), [
+    { period: "2026-01", [childId]: 0, [parentId]: 120 },
+    { period: "2026-02", [childId]: 45, [parentId]: 0 },
+    { period: "2026-03", [childId]: 0, [parentId]: 80 },
+  ]);
 });
 
 test("category names cannot inject spreadsheet formulas", () => {
