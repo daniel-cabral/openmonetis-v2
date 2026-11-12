@@ -33,6 +33,7 @@
     "docker:down": "docker compose down",
     "docker:pull": "docker compose pull",
     "docker:up": "docker compose up -d --pull always",
+    "etl:v1": "pnpm --filter @openmonetis/api etl:v1",
     "format": "biome format --write .",
     "lint": "biome check . && pnpm lint:ui",
     "lint:ui": "pnpm --filter @openmonetis/web lint:ui",
@@ -65,6 +66,7 @@
     "test:calendar:integration": "CALENDAR_INTEGRATION_TEST=1 tsx --test apps/api/src/calendar.integration.test.ts",
     "test:spending-overview:integration": "SPENDING_OVERVIEW_INTEGRATION_TEST=1 tsx --test apps/api/src/spending-overview.integration.test.ts",
     "test:financial-integrity:integration": "FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-integrity.integration.test.ts",
+    "test:v1-etl:integration": "V1_ETL_INTEGRATION_TEST=1 tsx --test --test-concurrency=1 apps/api/src/v1-etl.integration.test.ts",
     "test:storage:live": "REAL_STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage-real.integration.test.ts"
   },
   "devDependencies": {
