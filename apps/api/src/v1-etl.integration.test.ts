@@ -150,12 +150,17 @@ async function runLoad(v1Url: string, targetUrl: string, flags = ["--scratch"]) 
 }
 
 // The V2 services read through the @openmonetis/db singleton, so it is pointed at the target.
-async function runReconcile(v1Url: string, targetUrl: string) {
+async function runReconcile(
+  v1Url: string,
+  targetUrl: string,
+  flags: string[] = [],
+  env: NodeJS.ProcessEnv = { DATABASE_URL: targetUrl, EXTERNAL_DATABASE_URL: targetUrl },
+) {
   const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
   try {
     const run = await runCli(
-      ["reconcile", "--v1-url", v1Url, "--target-url", targetUrl, "--out", out],
-      { DATABASE_URL: targetUrl, EXTERNAL_DATABASE_URL: targetUrl },
+      ["reconcile", "--v1-url", v1Url, "--target-url", targetUrl, ...flags, "--out", out],
+      env,
     );
     const report =
       run.code === 0 || run.code === 1
@@ -833,6 +838,27 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           await freshDb.end();
         }
 
+        // A stored row edited in V2 without moving any figure still fails on the checksum.
+        const retitle = new Pool({ connectionString: target, max: 1 });
+        try {
+          await retitle.query(
+            "UPDATE notes SET title = 'Lista editada' WHERE title = 'Lista de compras'",
+          );
+        } finally {
+          await retitle.end();
+        }
+        const retitled = await runReconcile(v1Url, target);
+        assert.equal(retitled.code, 1, retitled.stderr);
+        const retitledAna = retitled.report?.users.find((user) => user.v1UserId === "v1-user-a");
+        assert.deepEqual(
+          [
+            retitledAna?.pass,
+            retitledAna?.figures.filter((figure) => !figure.pass).length,
+            retitledAna?.informational.some((item) => item.reason === "checksum-mismatch"),
+          ],
+          [false, 0, true],
+        );
+
         // US3.5: a one-cent drift in V2 fails reconcile naming the user, figure and difference.
         const drift = new Pool({ connectionString: target, max: 1 });
         try {
@@ -963,6 +989,75 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
       },
     );
 
+    await t.test("a resolution file drives load and reconcile end to end", async () => {
+      // The clean fixture with one blocker: a cash row bought in February for the January period.
+      const v1Url = await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]);
+      const v1 = new Pool({ connectionString: v1Url, max: 1 });
+      try {
+        await v1.query(
+          "UPDATE lancamentos SET data_compra = '2026-02-15' WHERE id = '60000000-0000-4000-8000-000000000013'",
+        );
+      } finally {
+        await v1.end();
+      }
+      const validation = await runValidate(v1Url);
+      const periodKey =
+        "transaction.period-date-mismatch:lancamentos:60000000-0000-4000-8000-000000000013";
+      assert.deepEqual(findingSet(validation.report?.findings ?? [], "blocker"), [
+        "transaction.period-date-mismatch | lancamentos | 60000000-0000-4000-8000-000000000013",
+      ]);
+
+      const resolutionDir = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
+      try {
+        const resolutions = join(resolutionDir, "resolutions.json");
+        writeFileSync(
+          resolutions,
+          JSON.stringify({
+            dumpFingerprint: validation.report?.header.dumpFingerprint,
+            resolutions: { [periodKey]: "use-period" },
+          }),
+        );
+        const target = await createV2Target();
+        const loaded = await runLoad(v1Url, target, ["--scratch", "--resolutions", resolutions]);
+        assert.equal(loaded.code, 0, loaded.stdout + loaded.stderr);
+
+        // use-period keeps the period and moves the purchase date into it.
+        const db = new Pool({ connectionString: target, max: 1 });
+        try {
+          const { rows } = await db.query({
+            text: "SELECT period, purchase_date::text FROM transactions WHERE name = 'Lanche'",
+            rowMode: "array",
+          });
+          assert.deepEqual(rows, [["2026-01", "2026-01-15"]]);
+        } finally {
+          await db.end();
+        }
+
+        // Reconcile documents the resolution only when given the load's file. The planner raises
+        // no blocker for this rule and use-period moves no figure, so both runs pass.
+        const periodResolved = (report: ReconciliationReport | null) =>
+          report?.users[0]?.expectedDifferences.find(
+            (item) => item.reason === "period-date-resolved",
+          );
+        const unresolved = await runReconcile(v1Url, target);
+        assert.equal(unresolved.code, 0, unresolved.stdout + unresolved.stderr);
+        assert.equal(periodResolved(unresolved.report), undefined);
+
+        const resolved = await runReconcile(v1Url, target, ["--resolutions", resolutions]);
+        assert.equal(resolved.code, 0, resolved.stdout + resolved.stderr);
+        assert.equal(resolved.report?.global.rehearsalReady, true);
+        assert.deepEqual(periodResolved(resolved.report)?.rows, [
+          {
+            v1Id: "60000000-0000-4000-8000-000000000013",
+            resolution: "use-period",
+            period: "2026-01",
+          },
+        ]);
+      } finally {
+        rmSync(resolutionDir, { recursive: true, force: true });
+      }
+    });
+
     await t.test("guards refuse unsafe targets", async () => {
       const v1Url = await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]);
       const loaded = await createV2Target();
@@ -1008,6 +1103,19 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
         const otherReconcile = await runReconcile(otherDump, loaded);
         assert.equal(otherReconcile.code, 2, otherReconcile.stderr);
         assert.match(otherReconcile.stderr, /holds no load of this V1 dump/);
+
+        // Reconcile rejects a V1 user the dump does not hold.
+        const unknownUser = await runReconcile(v1Url, loaded, ["--user", "v1-user-unknown"]);
+        assert.equal(unknownUser.code, 3, unknownUser.stderr);
+        assert.match(unknownUser.stderr, /Unknown V1 user: v1-user-unknown/);
+
+        // An inherited DATABASE_URL naming another database does not redirect the V2 services:
+        // the CLI binds them to --target-url, so the loaded target reconciles.
+        const inherited = await runReconcile(v1Url, loaded, [], {
+          DATABASE_URL: registered,
+          EXTERNAL_DATABASE_URL: registered,
+        });
+        assert.equal(inherited.code, 0, inherited.stdout + inherited.stderr);
       });
     });
   } finally {
