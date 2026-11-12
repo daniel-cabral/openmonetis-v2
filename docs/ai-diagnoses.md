@@ -282,6 +282,22 @@ troca de versão ficam registradas na tabela `ai_tool_events`.
 
 Apagar o volume volta todas as ferramentas para as versões da imagem.
 
+## Chaves de API
+
+Além das assinaturas, o assistente aceita chaves de API de Anthropic, OpenAI, Gemini, OpenRouter,
+MiniMax e Ollama.
+
+- **Conexão:** em Ajustes, escolha o provedor e informe a chave. Antes de salvar, o provedor valida
+  a chave com uma chamada leve. Uma chave recusada não é salva, e a anterior continua valendo.
+- **Armazenamento:** a chave é cifrada com AES-256-GCM usando `AI_KEYS_SECRET` e não é exibida de
+  novo. A lista mostra apenas os últimos quatro caracteres.
+- **Consentimento:** os dados que você permitiu são enviados ao provedor escolhido, usando a sua chave.
+- **Ollama:** o administrador informa o endereço em `OLLAMA_BASE_URL`. A chave é opcional. Sem o
+  endereço, o provedor fica indisponível.
+- **Motivos de falha:** "A chave foi recusada pelo provedor" marca o provedor como "Precisa de
+  atenção" até uma nova chave ser salva. "Limite de uso" vem de respostas 402 e 429. "Provedor
+  indisponível" vem de falhas de rede e respostas 5xx.
+
 ## Termos de uso dos fornecedores
 
 A documentação da Anthropic permite que uma plataforma hospede o binário oficial do Claude Code
