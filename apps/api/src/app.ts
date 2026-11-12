@@ -225,10 +225,12 @@ const attachmentsService = createAttachmentsService(attachmentsRepository, attac
 const notesService = createNotesService(notesRepository, attachmentsService);
 const notesRoute = createNotesRoute(notesService);
 const attachmentsRoute = createAttachmentsRoute(attachmentsService);
+const preferencesService = createPreferencesService(preferencesRepository);
 const transactionsService = createTransactionsService(
   {
     ...transactionsRepository,
     dueDateRules: dueDateRulesRepository,
+    readListPreferences: (userId) => preferencesService.get(userId),
     transitionRecurringRuleForUser,
     findAccountByIdForUser,
     findAdminPersonByUserId,
@@ -402,7 +404,6 @@ const dueDateRulesService = createDueDateRulesService(
   },
 );
 const dueDateRulesRoute = createDueDateRulesRoute(dueDateRulesService);
-const preferencesService = createPreferencesService(preferencesRepository);
 const preferencesRoute = createPreferencesRoute(preferencesService);
 const deviceTokenSecret =
   assertProductionSecret("DEVICE_TOKEN_SECRET", ["development-device-token-secret-change-me"]) ??
