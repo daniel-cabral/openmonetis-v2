@@ -196,9 +196,6 @@ const categoriesRoute = createCategoriesRoute(createCategoriesService(categories
 const categoryTrendsRoute = createCategoryTrendsRoute(
   createCategoryTrendsService(categoryTrendsRepository),
 );
-const establishmentsReportRoute = createEstablishmentsReportRoute(
-  createEstablishmentsReportService(establishmentsReportRepository),
-);
 const installmentsRoute = createInstallmentsRoute(
   createInstallmentsService(installmentsRepository),
 );
@@ -243,21 +240,26 @@ const tagsRoute = createTagsRoute(
     return (await transactionsService.listTransactions(userId, query, false)).items;
   }),
 );
-const tripsRoute = createTripsRoute(
-  createTripsService(tripsRepository, {
-    getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
-    listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
-      (
-        await transactionsService.listTransactions(
-          userId,
-          ListTransactionsQuerySchema.parse({
-            dateStart: startDate,
-            dateEnd: endDate,
-            pageSize: 100,
-          }),
-          false,
-        )
-      ).items,
+const tripsService = createTripsService(tripsRepository, {
+  getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+  listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+    (
+      await transactionsService.listTransactions(
+        userId,
+        ListTransactionsQuerySchema.parse({
+          dateStart: startDate,
+          dateEnd: endDate,
+          pageSize: 100,
+        }),
+        false,
+      )
+    ).items,
+});
+const tripsRoute = createTripsRoute(tripsService);
+const establishmentsReportRoute = createEstablishmentsReportRoute(
+  createEstablishmentsReportService(establishmentsReportRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+    getTripPeriodRange: (userId, tripId) => tripsService.getPeriodRange(userId, tripId),
   }),
 );
 const peopleRoute = createPeopleRoute(

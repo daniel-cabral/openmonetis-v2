@@ -22,17 +22,37 @@ export type EstablishmentsReportRepository = {
   listRecurringRulesForUser(userId: string, periodEnd: Date): Promise<EstablishmentRecurringRule[]>;
 };
 
-export function createEstablishmentsReportService(repository: EstablishmentsReportRepository) {
+export type EstablishmentsReportTripPort = {
+  findTripForUser(userId: string, tripId: string): Promise<{ id: string; name: string } | null>;
+  getTripPeriodRange(
+    userId: string,
+    tripId: string,
+  ): Promise<{ startPeriod: string; endPeriod: string } | null>;
+};
+
+export function createEstablishmentsReportService(
+  repository: EstablishmentsReportRepository,
+  trips: EstablishmentsReportTripPort,
+) {
   return {
     async list(
       userId: string,
       query: ListEstablishmentsReportQuery,
     ): Promise<EstablishmentsReportOutput> {
       const period = query.period ?? getCurrentPeriodInBrazil();
-      const window = resolveEstablishmentsWindow(period, query.months);
-      // Trip windows arrive with the trip mode (T020); until then a trip id is treated as all.
-      const parsedFilter = parseTripFilter(query.trip);
-      const tripFilter: TripFilter = parsedFilter.mode === "trip" ? { mode: "all" } : parsedFilter;
+      const monthWindow = resolveEstablishmentsWindow(period, query.months);
+      const requestedFilter = parseTripFilter(query.trip);
+      const trip =
+        requestedFilter.mode === "trip"
+          ? await trips.findTripForUser(userId, requestedFilter.tripId)
+          : null;
+      const tripFilter: TripFilter =
+        requestedFilter.mode === "trip" && trip === null ? { mode: "all" } : requestedFilter;
+      const tripRange =
+        tripFilter.mode === "trip"
+          ? await trips.getTripPeriodRange(userId, tripFilter.tripId)
+          : null;
+      const window = tripRange ?? monthWindow;
       const [entries, recurringRules] = await Promise.all([
         repository.listPurchaseEntriesForUser(userId, window.startPeriod, window.endPeriod),
         repository.listRecurringRulesForUser(userId, getPeriodEndDate(window.endPeriod)),
@@ -47,7 +67,10 @@ export function createEstablishmentsReportService(repository: EstablishmentsRepo
       return {
         window: report.window,
         months: query.months,
-        tripFilter: tripFilter.mode === "none" ? { mode: "none" } : { mode: "all" },
+        tripFilter:
+          tripFilter.mode === "trip" && trip
+            ? { mode: "trip", tripId: trip.id, tripName: trip.name }
+            : { mode: tripFilter.mode },
         summary: {
           establishmentCount: report.summary.establishmentCount,
           transactionCount: report.summary.transactionCount,

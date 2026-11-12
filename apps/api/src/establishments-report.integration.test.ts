@@ -195,6 +195,97 @@ test("establishments report ranks the owner's purchases by window and months and
           assert.equal(report.establishments.find((item) => item.name === "Academia")?.count, 3);
         },
       );
+      await t.test(
+        "filters by trip, uses the trip period and falls back for foreign trips",
+        async () => {
+          const owner = await api.register();
+          const stranger = await api.register();
+          const account = await api.account(owner);
+          const createTrip = async (
+            identity: typeof owner,
+            name: string,
+            startDate: string,
+            endDate: string,
+          ) =>
+            api.data<{ id: string }>(
+              await api.request("/trips", identity, "POST", { name, startDate, endDate }),
+              201,
+            );
+          const lisboa = await createTrip(owner, "Lisboa", "2025-05-12", "2025-05-22");
+          const foreignTrip = await createTrip(stranger, "Porto", "2025-06-01", "2025-06-05");
+          const deletedTrip = await createTrip(owner, "Sumida", "2025-08-01", "2025-08-02");
+          await api.data(await api.request(`/trips/${deletedTrip.id}`, owner, "DELETE"));
+
+          await api.expense(owner, {
+            name: "Pastelaria",
+            amount: 12,
+            purchaseDate: "2025-05-13",
+            accountId: account.id,
+            tripId: lisboa.id,
+          });
+          await api.expense(owner, {
+            name: "Metro",
+            amount: 8,
+            purchaseDate: "2025-05-14",
+            accountId: account.id,
+            tripId: lisboa.id,
+          });
+          await api.expense(owner, {
+            name: "Mercado A",
+            amount: 100,
+            purchaseDate: "2026-06-10",
+            accountId: account.id,
+          });
+
+          const path = "/reports/establishments?period=2026-06&months=3";
+          const tripReport = await api.data<EstablishmentsReportOutput>(
+            await api.request(`${path}&trip=${lisboa.id}`, owner),
+          );
+          assert.deepEqual(tripReport.tripFilter, {
+            mode: "trip",
+            tripId: lisboa.id,
+            tripName: "Lisboa",
+          });
+          assert.deepEqual(tripReport.window, { startPeriod: "2025-05", endPeriod: "2025-05" });
+          assert.deepEqual(tripReport.establishments.map((item) => item.name).sort(), [
+            "Metro",
+            "Pastelaria",
+          ]);
+
+          const noTripReport = await api.data<EstablishmentsReportOutput>(
+            await api.request(`${path}&trip=none`, owner),
+          );
+          assert.deepEqual(noTripReport.tripFilter, { mode: "none" });
+          assert.deepEqual(
+            noTripReport.establishments.map((item) => item.name),
+            ["Mercado A"],
+          );
+
+          const allReport = await api.data<EstablishmentsReportOutput>(
+            await api.request(path, owner),
+          );
+          assert.deepEqual(allReport.tripFilter, { mode: "all" });
+          assert.deepEqual(
+            allReport.establishments.map((item) => item.name),
+            ["Mercado A"],
+          );
+          for (const tripId of [foreignTrip.id, deletedTrip.id]) {
+            const fallback = await api.data<EstablishmentsReportOutput>(
+              await api.request(`${path}&trip=${tripId}`, owner),
+            );
+            assert.deepEqual(fallback, allReport);
+          }
+
+          const range = await api.data<{ startPeriod: string; endPeriod: string } | null>(
+            await api.request(`/trips/${lisboa.id}/period-range`, owner),
+          );
+          assert.deepEqual(range, { startPeriod: "2025-05", endPeriod: "2025-05" });
+          assert.equal(
+            await api.data(await api.request(`/trips/${foreignTrip.id}/period-range`, owner)),
+            null,
+          );
+        },
+      );
     },
     { migrationsFolder },
   );
