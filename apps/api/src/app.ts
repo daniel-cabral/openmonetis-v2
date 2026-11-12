@@ -20,6 +20,7 @@ import { aiToolsRepository } from "./repositories/ai-tools.repository";
 import { attachmentsRepository } from "./repositories/attachments.repository";
 import { billsRepository } from "./repositories/bills.repository";
 import { budgetsRepository } from "./repositories/budgets.repository";
+import { cardUsageReportRepository } from "./repositories/card-usage-report.repository";
 import { cardsRepository, findCardByIdForUser } from "./repositories/cards.repository";
 import {
   categoriesRepository,
@@ -80,6 +81,7 @@ import { createAuthConfigRoute } from "./routes/auth-config";
 import { createBillsRoute } from "./routes/bills";
 import { createBudgetsRoute } from "./routes/budgets";
 import { createCalendarRoute } from "./routes/calendar";
+import { createCardUsageReportRoute } from "./routes/card-usage-report";
 import { createCardsRoute } from "./routes/cards";
 import { createCategoriesRoute } from "./routes/categories";
 import { createCategoryTrendsRoute } from "./routes/category-trends";
@@ -124,6 +126,7 @@ import { createAuthConfigService } from "./services/auth-config.service";
 import { createBillsService } from "./services/bills.service";
 import { createBudgetsService } from "./services/budgets.service";
 import { createCalendarService } from "./services/calendar.service";
+import { createCardUsageReportService } from "./services/card-usage-report.service";
 import { createCardsService } from "./services/cards.service";
 import { createCategoriesService } from "./services/categories.service";
 import { createCategoryTrendsService } from "./services/category-trends.service";
@@ -194,6 +197,9 @@ const accountsService = createAccountsService(accountsRepository);
 const accountsRoute = createAccountsRoute(accountsService);
 const cardsService = createCardsService(cardsRepository, undefined, dueDateRulesRepository);
 const cardsRoute = createCardsRoute(cardsService);
+const cardUsageReportRoute = createCardUsageReportRoute(
+  createCardUsageReportService(cardUsageReportRepository, cardsService),
+);
 const budgetsService = createBudgetsService(budgetsRepository, categoriesRepository);
 const budgetsRoute = createBudgetsRoute(budgetsService);
 const goalsService = createGoalsService(goalsRepository, accountsService);
@@ -911,6 +917,7 @@ app.route(
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
 app.route("/reports/establishments", establishmentsReportRoute);
+app.route("/reports/card-usage", cardUsageReportRoute);
 app.route("/calendar", calendarRoute);
 app.route(
   "/reports/commitments",
