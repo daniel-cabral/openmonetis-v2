@@ -24,6 +24,7 @@ import { CategoryIcon } from "../category-icons";
 
 export type CategoryTransactionsSearch = TransactionsSearch & {
   personScope?: string;
+  subcategory?: string;
 };
 
 type CategoryTransactionsPageProps = {
