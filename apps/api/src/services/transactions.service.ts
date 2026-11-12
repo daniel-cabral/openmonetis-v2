@@ -115,7 +115,7 @@ function readImportFileContent(contentBase64: string) {
 }
 
 // Merchant-aware key first, legacy key second, so mappings stored before FR-015 still match (FR-016).
-function importMemoryKeys(name: string) {
+export function importMemoryKeys(name: string) {
   return [getImportedDescriptionKey(name), normalizeImportedDescriptionKey(name)];
 }
 
@@ -1406,6 +1406,60 @@ export function createTransactionsService(
     );
   }
 
+  // Expands each rule into its occurrences in the given periods; the caller decides which ones are listed.
+  function expandScheduledRecurringRules(
+    rules: RecurringRuleWithRelations[],
+    occurrencePeriods: string[],
+    isIncluded: (occurrence: { purchaseDate: string; occurrencePeriod: string }) => boolean,
+  ): TransactionOutput[] {
+    return rules.flatMap((rule) => {
+      const occurrenceDates = occurrencePeriods.flatMap((occurrencePeriod) =>
+        listRecurrenceDatesInPeriod({
+          anchorDate: toDateString(rule.anchorDate),
+          startDate: toDateString(rule.startDate),
+          endDate: rule.endDate ? toDateString(rule.endDate) : null,
+          frequency: rule.frequency,
+          recurrenceEndDate: rule.recurrenceEndDate ? toDateString(rule.recurrenceEndDate) : null,
+          dueDate: rule.dueDate ? toDateString(rule.dueDate) : null,
+          period: occurrencePeriod,
+        }),
+      );
+
+      return occurrenceDates
+        .map((purchaseDate) => {
+          const dueDate = getRecurringDueDate(
+            rule.dueDate ? toDateString(rule.dueDate) : null,
+            purchaseDate,
+          );
+          const occurrencePeriod = deriveTransactionPeriod({
+            paymentMethod: rule.paymentMethod,
+            purchaseDate,
+            dueDate,
+            card:
+              rule.cardClosingRuleType && rule.cardDueDay
+                ? {
+                    closingDay: rule.cardClosingDay,
+                    closingRule: resolveCardClosingRule({
+                      closingRuleType: rule.cardClosingRuleType,
+                      closingDay: rule.cardClosingDay,
+                      closingOffsetDays: rule.cardClosingOffsetDays,
+                      closingOffsetMode: rule.cardClosingOffsetMode,
+                      closingDayPurchasesNextInvoice:
+                        rule.cardClosingDayPurchasesNextInvoice ?? false,
+                    }),
+                    dueDay: Number(rule.cardDueDay),
+                  }
+                : null,
+          });
+
+          return isIncluded({ purchaseDate, occurrencePeriod })
+            ? toRecurringOccurrenceOutput(rule, purchaseDate, occurrencePeriod, dueDate)
+            : null;
+        })
+        .filter((transaction): transaction is TransactionOutput => Boolean(transaction));
+    });
+  }
+
   async function listTransactions(userId: string, query: ListTransactionsQuery, paginate = true) {
     if (query.categoryIds.length)
       query = {
@@ -1490,59 +1544,18 @@ export function createTransactionsService(
               period,
               addMonthsToPeriod(period, 1),
             ];
-    const scheduledOccurrences = scheduledRecurringRules.flatMap((rule) => {
-      const occurrenceDates = occurrencePeriods.flatMap((occurrencePeriod) =>
-        listRecurrenceDatesInPeriod({
-          anchorDate: toDateString(rule.anchorDate),
-          startDate: toDateString(rule.startDate),
-          endDate: rule.endDate ? toDateString(rule.endDate) : null,
-          frequency: rule.frequency,
-          recurrenceEndDate: rule.recurrenceEndDate ? toDateString(rule.recurrenceEndDate) : null,
-          dueDate: rule.dueDate ? toDateString(rule.dueDate) : null,
-          period: occurrencePeriod,
-        }),
-      );
+    const scheduledOccurrences = expandScheduledRecurringRules(
+      scheduledRecurringRules,
+      occurrencePeriods,
+      ({ purchaseDate, occurrencePeriod }) => {
+        const isInDateRange =
+          purchaseDate >= toDateString(periodStart) && purchaseDate <= toDateString(periodEnd);
 
-      return occurrenceDates
-        .map((purchaseDate) => {
-          const dueDate = getRecurringDueDate(
-            rule.dueDate ? toDateString(rule.dueDate) : null,
-            purchaseDate,
-          );
-          const occurrencePeriod = deriveTransactionPeriod({
-            paymentMethod: rule.paymentMethod,
-            purchaseDate,
-            dueDate,
-            card:
-              rule.cardClosingRuleType && rule.cardDueDay
-                ? {
-                    closingDay: rule.cardClosingDay,
-                    closingRule: resolveCardClosingRule({
-                      closingRuleType: rule.cardClosingRuleType,
-                      closingDay: rule.cardClosingDay,
-                      closingOffsetDays: rule.cardClosingOffsetDays,
-                      closingOffsetMode: rule.cardClosingOffsetMode,
-                      closingDayPurchasesNextInvoice:
-                        rule.cardClosingDayPurchasesNextInvoice ?? false,
-                    }),
-                    dueDay: Number(rule.cardDueDay),
-                  }
-                : null,
-          });
-
-          const isInDateRange =
-            purchaseDate >= toDateString(periodStart) && purchaseDate <= toDateString(periodEnd);
-
-          return (
-            query.dateStart || query.dateEnd
-              ? accountStatement || isInDateRange
-              : query.payables || occurrencePeriod === period
-          )
-            ? toRecurringOccurrenceOutput(rule, purchaseDate, occurrencePeriod, dueDate)
-            : null;
-        })
-        .filter((transaction): transaction is TransactionOutput => Boolean(transaction));
-    });
+        return query.dateStart || query.dateEnd
+          ? accountStatement || isInDateRange
+          : query.payables || occurrencePeriod === period;
+      },
+    );
     const paidBoletoOutputs = paidBoletoOccurrences.flatMap((occurrence) => {
       const rule = rulesById.get(occurrence.recurringRuleId);
       if (rule?.status !== "active") return [];
@@ -3020,6 +3033,7 @@ export function createTransactionsService(
     deleteTransactions,
     exportTransactions,
     detectTransactionImport,
+    expandScheduledRecurringRules,
     generateTransactionImportTemplate,
     getTransactionById,
     getRecurringRuleOccurrence,
