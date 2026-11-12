@@ -150,6 +150,7 @@ export type UserReconciliation = {
 export type LoadReport = {
   header: OutputHeader;
   tables: TableCount[];                 // summed over users, sorted by v1Table
+  skippedTables: { table: string; rows: number; decision: string }[]; // V1 tables skipped on purpose (as in validate)
   users: WriteResult[];                 // sorted by v1UserId
   appliedRules: { rule: string; rows: number }[];
   repairList: RepairList;               // concatenated over users

@@ -99,6 +99,7 @@ Exit 0 iff no blocker is left unresolved.
     { "v1Table": "import_category_mappings", "read": 256, "written": 256, "merged": 0, "skipped": [] },
     { "v1Table": "import_name_mappings", "read": 91, "written": 91, "merged": 0, "skipped": [] }
   ],
+  "skippedTables": [{ "table": "session", "rows": 29, "decision": "disposable" }],
   "users": [
     { "v1UserId": "text", "v2UserId": "uuid", "status": "loaded|skipped-already-loaded|failed",
       "checksum": "sha256", "error": { "table": "passkey", "cause": "passkey_credential_id_unique" } }

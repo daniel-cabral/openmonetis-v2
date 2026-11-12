@@ -302,6 +302,7 @@ async function runLoad(options: CliOptions, env: NodeJS.ProcessEnv): Promise<num
           generatedAt: new Date().toISOString(),
         },
         tables: mergeCounts(counts),
+        skippedTables: validation.skippedTables,
         users: users.sort((a, b) => a.v1UserId.localeCompare(b.v1UserId)),
         appliedRules: [...appliedRules.entries()]
           .sort(([a], [b]) => a.localeCompare(b))

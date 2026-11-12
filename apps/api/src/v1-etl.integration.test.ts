@@ -165,6 +165,41 @@ async function runReconcile(v1Url: string, targetUrl: string) {
   }
 }
 
+// Email sign-in through the V2 app bound to the target. It runs in a child process because the
+// @openmonetis/db singleton binds once per process and the guards subtest binds it elsewhere.
+async function signInThroughApp(targetUrl: string, email: string, password: string) {
+  const apiClientUrl = new URL("./test-support/api-client.ts", import.meta.url).href;
+  const script = `
+    const { createTestApiClient } = await import(${JSON.stringify(apiClientUrl)});
+    const { request } = await createTestApiClient();
+    const response = await request("/api/auth/sign-in/email", undefined, "POST", ${JSON.stringify({ email, password })});
+    const sessionCookie = response.headers.getSetCookie().some((value) => /session_token=[^;]/.test(value));
+    process.stdout.write(JSON.stringify({ status: response.status, sessionCookie }));
+    process.exit(0);`;
+  const run = await new Promise<CliRun>((resolve) => {
+    execFile(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "--eval", script],
+      {
+        cwd: repositoryRoot,
+        env: {
+          ...process.env,
+          NODE_ENV: "test",
+          DATABASE_URL: targetUrl,
+          EXTERNAL_DATABASE_URL: targetUrl,
+          BETTER_AUTH_URL: "http://localhost:7001",
+          BETTER_AUTH_SECRET: "openmonetis-integration-secret-at-least-32-characters",
+          WEB_URL: "http://localhost:7002",
+          CORS_ORIGIN: "http://localhost:7002",
+        },
+      },
+      (error, stdout, stderr) => resolve({ code: error === null ? 0 : -1, stdout, stderr }),
+    );
+  });
+  assert.equal(run.code, 0, run.stderr);
+  return JSON.parse(run.stdout) as { status: number; sessionCookie: boolean };
+}
+
 // Checksum of each user's rows as stored in the target, with the column lists of a re-planned dump.
 async function storedChecksums(v1Url: string, targetUrl: string): Promise<Record<string, string>> {
   const { openV1, withV1Snapshot, listV1Users, extractUser } = await import(
@@ -575,9 +610,84 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
               WHERE u.user_id = ${ana}`),
             ["true | 25 | false | true | true | goals"],
           );
+
+          // US6: both category mappings (the subcategory one on the child category) and the
+          // name mapping load verbatim.
+          assert.deepEqual(
+            await select(`
+              SELECT m.description_key, c.name FROM import_category_mappings m
+              JOIN categories c ON c.id = m.category_id
+              WHERE m.user_id = ${ana} ORDER BY m.description_key`),
+            ["condominio | Aluguel", "mercado central | Alimentação"],
+          );
+          assert.deepEqual(
+            await select(`
+              SELECT description_key, name FROM import_name_mappings WHERE user_id = ${ana}`),
+            ["padaria sol centro | Padaria Sol"],
+          );
+
+          // US5.3 to US5.5: no session, Companion token or (without --v1-rp-id) passkey is loaded.
+          assert.deepEqual(
+            await select(`
+              SELECT (SELECT count(*) FROM session), (SELECT count(*) FROM device_tokens),
+                     (SELECT count(*) FROM passkey)`),
+            ["0 | 0 | 0"],
+          );
         } finally {
           await db.end();
         }
+
+        // US5.3 to US5.6: the repair list names what each user has to redo.
+        assert.deepEqual(first.report?.repairList, {
+          companionRepair: [{ v1UserId: "v1-user-a", email: "ana@example.test", tokens: 1 }],
+          shareReinvite: [
+            {
+              ownerEmail: "ana@example.test",
+              personName: "Carla Fixture",
+              sharedWithEmail: "bruno@example.test",
+            },
+          ],
+          passwordReset: [],
+          passkeysNotLoaded: [{ email: "ana@example.test", count: 1, reason: "rp-id-mismatch" }],
+        });
+
+        // US6 and SC-006: disposable tables are counted as skipped, the reconciliation stamps
+        // as dropped, and every table balances (read = written + merged + skipped + collapsed).
+        assert.deepEqual(
+          first.report?.skippedTables.map((item) => `${item.table} | ${item.rows}`),
+          [
+            "compartilhamentos_pagador | 1",
+            "insights_salvos | 0",
+            "reconciliation_ignores | 0",
+            "session | 1",
+            "tokens_api | 1",
+            "verification | 0",
+          ],
+        );
+        assert.deepEqual(
+          first.report?.tables.find((table) => table.v1Table === "lancamentos")?.droppedColumns,
+          [
+            // The split pair collapses into one transaction with splits.
+            { column: "dividido", rows: 2 },
+            { column: "split_group_id", rows: 2 },
+            // The three reconciliation stamps of the stamped single.
+            { column: "ofx_fit_id", rows: 1 },
+            { column: "ofx_import_fingerprint", rows: 1 },
+            { column: "import_batch_id", rows: 1 },
+          ],
+        );
+        const total = (items: { rows: number }[]) =>
+          items.reduce((sum, item) => sum + item.rows, 0);
+        assert.deepEqual(
+          first.report?.tables
+            .filter(
+              (table) =>
+                table.read !==
+                table.written + table.merged + total(table.skipped) + total(table.collapsed),
+            )
+            .map((table) => table.v1Table),
+          [],
+        );
 
         // SC-002: a re-run writes nothing and the stored rows keep their checksum.
         const loaded = await storedChecksums(v1Url, target);
@@ -644,6 +754,10 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           ],
         );
         assert.equal(drifted.report?.global.rehearsalReady, false);
+
+        // US5.1: the V1 password signs in through the V2 app.
+        const signIn = await signInThroughApp(target, "ana@example.test", "v1-fixture-password");
+        assert.deepEqual(signIn, { status: 200, sessionCookie: true });
       },
     );
 
