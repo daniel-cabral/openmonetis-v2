@@ -20,9 +20,9 @@ protocol. The orchestrator session updates the **Status** column; workers never 
 | 010 | `specs/010-dashboard-gaps` | spending overview widget (top expenses + establishments), attachments widget, category history widget, regression tests for notifications mark-unread/unarchive (already in V2) | B | 005 | merged |
 | 011 | `specs/011-note-attachments` | attachments on notes | B | 009 | merged |
 | 012 | `specs/012-account-preferences` | 6 V1 preferences (column order, group by date, hide anticipated, modal summary, note as column, max attachment size) + email change | A | 008 | specified |
-| 013 | `specs/013-ai-api-key-providers` | API-key AI providers (incl. Ollama) next to V2 CLI providers | B | 011 | executing |
+| 013 | `specs/013-ai-api-key-providers` | API-key AI providers (incl. Ollama) next to V2 CLI providers | B | 011 | merged |
 | 014 | `specs/014-landing-page` | public landing page | A | 012 | specified |
-| 015 | `specs/015-fork-leftovers` | invoice settle announcement, "by subcategory" block on category page, people-sharing regression guard (V2 has no permission level; V1 only used read, so accept V2) | B | 013 | specified |
+| 015 | `specs/015-fork-leftovers` | invoice settle announcement, "by subcategory" block on category page, people-sharing regression guard (V2 has no permission level; V1 only used read, so accept V2) | B | 013 | executing |
 | 016 | `specs/016-v1-etl` | pre-flight validator over a V1 dump, V1 -> V2 load (id remap, amounts, installments, recurrence rules, invoice payments/refunds, trips, note attachments), rehearsal and totals reconciliation | orchestrator | all | specified |
 
 Lane order: **A** 001 -> 002 -> 003 -> 006 -> 007 -> 008 -> 012 -> 014;
