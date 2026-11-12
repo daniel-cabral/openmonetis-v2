@@ -29,10 +29,7 @@ export type TripLinkChange =
   | { kind: "linkSeries"; tripId: string }
   | { kind: "unlinkRow" };
 
-export type TripFilter =
-  | { mode: "all" }
-  | { mode: "none" }
-  | { mode: "trip"; tripId: string };
+export type TripFilter = { mode: "all" } | { mode: "none" } | { mode: "trip"; tripId: string };
 
 export type TripLedgerShare = {
   personName: string | null;
@@ -133,10 +130,7 @@ export function parseTripFilter(raw?: string | null): TripFilter {
   return { mode: "all" };
 }
 
-export function matchesTripFilter(
-  tripId: string | null | undefined,
-  filter: TripFilter,
-): boolean {
+export function matchesTripFilter(tripId: string | null | undefined, filter: TripFilter): boolean {
   switch (filter.mode) {
     case "all":
       return true;

@@ -32,7 +32,10 @@ export function EstablishmentsTopCategories({ categories }: EstablishmentsTopCat
                     {formatPurchaseCount(category.count)}
                   </p>
                 </div>
-                <MoneyValue amount={category.totalAmount} className="shrink-0 font-medium text-sm" />
+                <MoneyValue
+                  amount={category.totalAmount}
+                  className="shrink-0 font-medium text-sm"
+                />
               </li>
             ))}
           </ol>
