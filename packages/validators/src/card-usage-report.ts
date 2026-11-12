@@ -1,10 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { cardBrands } from "@openmonetis/domain/cards";
 import {
   cardUsageInvoiceStates,
   cardUsageTones,
   cardUsageTrends,
 } from "@openmonetis/domain/card-usage-report";
+import { cardBrands } from "@openmonetis/domain/cards";
 
 const periodSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const usageToneSchema = z.enum(cardUsageTones);
@@ -15,7 +15,10 @@ export const ListCardUsageReportQuerySchema = z
     period: periodSchema
       .optional()
       .openapi({ param: { name: "period", in: "query" }, example: "2026-11" }),
-    cardId: z.uuid().optional().openapi({ param: { name: "cardId", in: "query" } }),
+    cardId: z
+      .uuid()
+      .optional()
+      .openapi({ param: { name: "cardId", in: "query" } }),
   })
   .openapi("ListCardUsageReportQuery");
 

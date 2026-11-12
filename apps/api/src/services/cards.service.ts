@@ -417,18 +417,19 @@ export function createCardsService(
       if (!card) throw notFound("Card not found", "card_not_found");
       const lastPeriod = periods.at(-1);
       if (!lastPeriod) return [];
-      const [dueDateRuleVersions, persistedMovements, recurringRules, invoiceStates, invoicePayments] =
-        await Promise.all([
-          dueDateRules.listVersions(userId),
-          repository.listMovementsByUser(userId, id),
-          repository.listActiveRecurringRulesThroughPeriod(
-            userId,
-            getPeriodEndDate(lastPeriod),
-            id,
-          ),
-          repository.listInvoiceStatesByUser(userId, id),
-          repository.listInvoicePaymentsByUser(userId, id),
-        ]);
+      const [
+        dueDateRuleVersions,
+        persistedMovements,
+        recurringRules,
+        invoiceStates,
+        invoicePayments,
+      ] = await Promise.all([
+        dueDateRules.listVersions(userId),
+        repository.listMovementsByUser(userId, id),
+        repository.listActiveRecurringRulesThroughPeriod(userId, getPeriodEndDate(lastPeriod), id),
+        repository.listInvoiceStatesByUser(userId, id),
+        repository.listInvoicePaymentsByUser(userId, id),
+      ]);
       const movements = [
         ...persistedMovements,
         ...expandRecurringInvoiceMovements(recurringRules, periods),
