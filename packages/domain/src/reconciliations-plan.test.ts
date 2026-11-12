@@ -341,9 +341,13 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
     name: string;
     targetType: ReconciliationTargetType;
     invoicePeriod: string | null;
+    typedName: string | undefined;
+    learnedName: string;
   }[] = [
-    { name: "account target", targetType: "account", invoicePeriod: null },
-    { name: "card target", targetType: "card", invoicePeriod: "2026-07" },
+    { name: "account target", targetType: "account", invoicePeriod: null, typedName: "Aluguel", learnedName: "Aluguel" },
+    { name: "card target", targetType: "card", invoicePeriod: "2026-07", typedName: "Aluguel", learnedName: "Aluguel" },
+    { name: "account target without a typed name learns the entry name", targetType: "account", invoicePeriod: null, typedName: undefined, learnedName: "Compra teste" },
+    { name: "card target without a typed name learns the entry name", targetType: "card", invoicePeriod: "2026-07", typedName: undefined, learnedName: "Compra teste" },
   ];
 
   for (const c of cases) {
@@ -353,7 +357,7 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
         classification: [bankOnly(0)],
         entries: [entry({ entryKey: "t:tx-7" })],
         decisions: [
-          { lineIndex: 0, action: "link", entryKey: "t:tx-7", name: "Aluguel" },
+          { lineIndex: 0, action: "link", entryKey: "t:tx-7", name: c.typedName },
         ],
         targetType: c.targetType,
         invoicePeriod: c.invoicePeriod,
@@ -363,7 +367,7 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
         { ref: { kind: "transaction", id: "tx-7" }, externalId: "ext-linha", lineIndex: 0 },
       ]);
       assert.deepEqual(plan.nameMappings, [
-        { descriptionKey: LEARNED_KEY, name: "Aluguel" },
+        { descriptionKey: LEARNED_KEY, name: c.learnedName },
       ]);
     });
   }

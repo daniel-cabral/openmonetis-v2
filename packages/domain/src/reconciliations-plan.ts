@@ -228,7 +228,7 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
         lineIndex: line.index,
       });
       settle(line, entry);
-      const name = decision?.name?.trim();
+      const name = decision?.name?.trim() || entry.name.trim();
       if (name && descriptionKey) nameByKey.set(descriptionKey, name);
       if (entry.categoryId && descriptionKey) categoryByKey.set(descriptionKey, entry.categoryId);
     }
