@@ -8,6 +8,24 @@
 
 **Input**: User description: "One-off V1 -> V2 data migration: pre-flight validator over a V1 production dump, load with global id remap and model conversions, idempotent re-runnable rehearsal, and per-user totals reconciliation. Production cutover itself is out of scope."
 
+## Clarifications
+
+### Session 2026-11-12
+
+- Q: V1 recurrences have a fixed count (6 to 48 months); where does the V2 rule end? → A: `recurrenceEndDate` = the last V1 occurrence of the series as V2 compares it: its due date resolved by `resolveRecurringDueDate` when the series has a due date, else its purchase date.
+- Q: How do zero-amount V1 rows that are recurrence occurrences load, given V2 forbids zero amounts? → A: As a `skip` exception on that occurrence of the rule (severity fixable); the balance effect stays zero.
+- Q: At which cutoff(s) does reconciliation compare account balances, given V1 holds future rows up to 2030? → A: At the end of every month in the V1 data range (first to last period), including the dump month.
+- Q: How does V2 represent V1 recurrence series whose amount, name, category or day changes along the series? → A: A change that holds from some occurrence through the end of the series becomes a new rule version effective from that occurrence; an isolated deviation becomes a one-occurrence version (V2 has no exception table: exceptions are one-occurrence versions, skips are gaps between versions, settlements are occurrence rows).
+- Q: Which V1 pre-launch inbox items load into V2 (the dump has 274 discarded, 110 processed, 0 pending)? → A: All of them, keeping status and timestamps; processed items link to the V2 transaction mapped from their V1 `lancamento_id`.
+- Q: How does a V1 initial balance load when the account is not flagged to exclude it from income? → A: As a regular settled income transaction on the account in its V1 category, so income totals keep V1's effect; flagged accounts get an `accountBalanceAdjustment` transaction.
+- Q: V2 posts a boleto in its payment month, V1 in its period; how does reconciliation treat a boleto paid in another month? → A: Accepted as a documented expected difference: V1 balances are computed twice (V1 posting and V2 posting); each month end must satisfy V2 = V1-with-V2-posting, the last month end must also equal raw V1, and the report lists each shifted row with month, amount and difference vs raw V1. Any other difference fails.
+- Q: What happens to a recurring series with two occurrences in the same period? → A: Resolution `detach`: the row farther from the series day becomes a single transaction; totals are unchanged.
+- Q: How are V1 transfer pairs represented in V2? → A: As a V2 transfer pair (two `transfer` rows with signed amounts sharing one new `transferId`), not a single row; no count collapse.
+- Q: What happens to V1 reconciliation stamps (`ofx_import_fingerprint`, `import_batch_id`), which V2 identities cannot reproduce? → A: Dropped; the load report counts them.
+- Q: Do V1 import category and name mappings load? → A: Yes, into V2 `import_category_mappings` and `import_name_mappings`, with category ids remapped (subcategory -> child category). This overrides the earlier skip decision.
+- Q: How does a non-card V1 row whose purchase month differs from its period load (1 settled Pix row in the dump, purchase 2026-09, period 2026-06)? → A: The validator reports it as a blocker (`transaction.period-date-mismatch`, boletos excluded since their period follows the due date); the operator chooses `use-date` (keep the date, period follows it) or `use-period` (move the date into the period month, same day clamped). Reconciliation counts the row on the chosen side and lists it. For the real dump the operator chose `use-period` (the date was mistyped).
+- Q: How are passkeys handled when the relying party may differ? → A: Informational: passkeys load only when `--v1-rp-id` equals the target host; otherwise they are reported as not loaded.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Pre-flight validation of a V1 dump (Priority: P1)
@@ -21,7 +39,7 @@ The operator (Daniel) points the validator at a restored copy of the V1 producti
 **Acceptance Scenarios**:
 
 1. **Given** a V1 dump with two users whose emails differ only by letter case, **When** the validator runs, **Then** both users are reported under the email-uniqueness rule with their ids and emails.
-2. **Given** a V1 `lancamento` with value zero, **When** the validator runs, **Then** it is reported (V2 forbids zero amounts) with its id, user, date and name.
+2. **Given** a V1 `lancamento` with value zero, **When** the validator runs, **Then** it is reported (V2 forbids zero amounts) with its id, user, date and name: as fixable when it belongs to a recurrence series (loaded as a skip), otherwise as a blocker.
 3. **Given** an invoice with no card, a budget with no category, a note without a title, a task without a due date, a pre-launch inbox item missing identity fields, or a paid invoice without a payment date, **When** the validator runs, **Then** each is reported under its own rule.
 4. **Given** a card closing or due day outside 1 to 31, a card brand outside the V2 brand list, or a subcategory whose type differs from its parent, **When** the validator runs, **Then** each is reported; unrecognized brands are reported as "will map to other" (warning), not as blockers.
 5. **Given** an installment series with fewer than 2 or more than 60 installments, duplicate installment numbers within a series, or a series whose rows disagree on name, total or card, **When** the validator runs, **Then** the series is reported with all its rows.
@@ -45,7 +63,7 @@ The operator restores a V1 dump, runs the load into an empty, migrated V2 scratc
 2. **Given** a completed load, **When** the load runs again on the same dump, **Then** no row is duplicated, no row changes, and the report shows zero new writes.
 3. **Given** a load interrupted halfway (process killed), **When** it is run again, **Then** it completes and the final state equals an uninterrupted run (no partial user, no orphan rows).
 4. **Given** blocker violations exist, **When** the load starts, **Then** it refuses to run and prints the pre-flight report, unless the operator supplies an explicit resolution for each blocker.
-5. **Given** a rehearsal against a database that contains non-migrated data, **When** the load starts, **Then** it refuses unless told it is a scratch target, and it never runs against a database whose name or configuration marks it as production without an explicit, separate confirmation.
+5. **Given** a rehearsal against a database that contains non-migrated data, **When** the load starts, **Then** it refuses even when told it is a scratch target; it also refuses any target not marked as scratch, and it never runs against a database whose name or configuration marks it as production without an explicit, separate confirmation.
 6. **Given** the load fails inside one user's data, **When** it stops, **Then** that user's data is rolled back entirely and the report names the user and the cause; other users' data is unaffected.
 
 ---
@@ -60,9 +78,9 @@ After a load, a reconciliation report compares V1 and V2 per user, and states pa
 
 **Acceptance Scenarios**:
 
-1. **Given** a loaded user, **When** reconciliation runs, **Then** each account balance in V2 equals the V1 balance for the same cutoff, to the cent.
-2. **Given** a loaded user, **When** reconciliation runs, **Then** each card invoice total per period in V2 equals the V1 total, and paid/pending status and payment dates agree.
-3. **Given** a loaded user, **When** reconciliation runs, **Then** the number of transactions per month (and per type: income, expense, transfer) in V2 equals V1, after accounting for documented collapses (transfer pairs, split groups, anticipated installments), which the report lists explicitly as expected differences with their counts.
+1. **Given** a loaded user, **When** reconciliation runs, **Then** each account balance in V2 equals the V1 balance at the end of every month in the V1 data range (first to last period, dump month included), to the cent.
+2. **Given** a loaded user, **When** reconciliation runs, **Then** each card invoice total per period in V2 equals the V1 total, and paid/pending status and payment dates agree (the V1 payment date of a paid invoice is the date of the latest invoice auto-payment row for that card and period; pending invoices have none).
+3. **Given** a loaded user, **When** reconciliation runs, **Then** the number of transactions per month (and per type: income, expense, transfer) in V2 equals V1, after accounting for documented collapses (split groups, zero-amount recurrence occurrences loaded as skips), which the report lists explicitly as expected differences with their counts.
 4. **Given** a loaded user, **When** reconciliation runs, **Then** per-month income and expense totals per category (child categories rolled up to their parent) agree, and per-person totals agree.
 5. **Given** any mismatch, **When** the report is produced, **Then** it names the user, figure, V1 value, V2 value and difference, and exits with a failure status.
 6. **Given** the whole dump, **When** all users reconcile, **Then** the report states the migration is rehearsal-ready and prints global totals.
@@ -80,15 +98,15 @@ The load converts V1's model into V2's without changing any financial result. Th
 **Acceptance Scenarios**:
 
 1. **Given** V1 signed amounts (negative expenses), **When** loaded, **Then** V2 holds a positive amount plus the right type (income, expense), and the balance effect is identical.
-2. **Given** a V1 transfer stored as two rows sharing a transfer id, **When** loaded, **Then** V2 holds a single transfer transaction; the balances of both accounts equal V1.
+2. **Given** a V1 transfer stored as two rows sharing a transfer id, **When** loaded, **Then** V2 holds a V2 transfer pair (two `transfer` rows with signed amounts sharing one new transfer id); the balances of both accounts equal V1.
 3. **Given** a V1 split group (rows with the same split group id for different people), **When** loaded, **Then** V2 holds one transaction with splits for each person whose amounts add up to the original total with no cent lost.
 4. **Given** V1 installment rows grouped by series id, **When** loaded, **Then** each series gets an installment series (count 2 to 60) and every installment keeps its number, period and settled state; a series with a gap is reported and still loaded with its existing numbers.
 5. **Given** V1 anticipated installments with anticipation records, **When** loaded, **Then** V2 holds anticipation records with an item per original installment including its original period; lost V1 columns (total, count, date, note, payer, category) are derived from the items or dropped as listed in the report.
-6. **Given** V1 recurring ("Recorrente") rows, **When** loaded, **Then** V2 holds a recurrence rule per series with frequency inferred from the data, and occurrences; every V1 row that was settled or edited (amount, name, category, date different from the series baseline) becomes a per-occurrence exception, and the occurrence list for every month V1 had equals V1's.
+6. **Given** V1 recurring ("Recorrente") rows, **When** loaded, **Then** V2 holds a recurrence rule per series with frequency inferred from the data, and occurrences; a change (amount, name, category, day) that holds through the end of the series becomes a new rule version from that occurrence, every settled row and every isolated deviation becomes a per-occurrence exception, and the occurrence list for every month V1 had equals V1's.
 7. **Given** a V1 note beginning with the invoice auto-payment marker, **When** loaded, **Then** it becomes an invoice payment against the right card and period (full or partial) and is not counted as income or expense.
 8. **Given** a V1 note beginning with the refund marker pointing at another transaction, **When** loaded, **Then** it becomes a refund record linked to the original transaction, with the refund origin; the net effect on balances and category totals equals V1.
 9. **Given** a V1 invoice credit line (credit marker with card, period and fingerprint), **When** loaded, **Then** it becomes a transaction with the new typed invoice-credit origin from feature 003 and is excluded from income and expense exactly as V1 excluded it.
-10. **Given** a V1 account with an initial balance, **When** loaded, **Then** V2 holds an account-balance-adjustment transaction dated at the account creation so the balance equals V1; accounts flagged to exclude the initial balance from income keep that effect.
+10. **Given** a V1 account with an initial balance, **When** loaded, **Then** the balance equals V1: accounts flagged to exclude the initial balance from income get an account-balance-adjustment transaction; unflagged accounts get a regular settled income transaction in the V1 category, so income totals equal V1. Both are dated as the V1 initial balance row (or the account creation when V1 has no such row).
 11. **Given** V1 categories and subcategories, **When** loaded, **Then** each subcategory becomes a child category of its parent (same type), transactions that pointed to a subcategory point to the child, and parent totals are unchanged.
 12. **Given** V1 trips and trip links, **When** loaded, **Then** V2 holds trips (feature 004) and every transaction keeps its trip.
 13. **Given** V1 note attachments, **When** loaded, **Then** V2 holds note attachments (feature 011) pointing to the same stored files; transaction attachments and the attachment library carry over with owner checks.
@@ -126,7 +144,7 @@ Tables with no V2 target are skipped, counted and listed so nothing disappears s
 
 **Acceptance Scenarios**:
 
-1. **Given** rows in sessions, verifications, saved AI insights, import category mappings, reconciliation ignores and import name mappings, **When** the load runs, **Then** each table is reported as skipped by decision (disposable, re-learnable, or re-doable) with its row count.
+1. **Given** rows in sessions, verifications, saved AI insights and reconciliation ignores, **When** the load runs, **Then** each table is reported as skipped by decision (disposable or re-doable) with its row count; import category mappings and import name mappings are loaded (category ids remapped, subcategory to child category), and V1 reconciliation stamps (`ofx_import_fingerprint`, `import_batch_id`) are dropped and counted.
 2. **Given** a table that is not in the inventory mapping (a V1 table added later), **When** the validator runs, **Then** it fails with "unmapped table" instead of ignoring it.
 
 ### Edge Cases
@@ -135,7 +153,7 @@ Tables with no V2 target are skipped, counted and listed so nothing disappears s
 - V1 `lancamentos` referencing a deleted account, card, category or payer (dangling references): reported by the validator as a blocker.
 - Case-duplicate emails or duplicate passkey credential ids: blocker with a required operator decision.
 - Name collisions after merging subcategories into categories (same name under different parents, or a subcategory that shares a name with a root category of the same type): handled by parent scoping and reported when a rename is needed.
-- Amount rounding: V1 numeric(12,2) to integer cents; any value with more than 2 decimals is reported.
+- Amount rounding: V1 numeric(12,2) to integer cents; the column cannot hold more than 2 decimals, so the precision rule only guards a future V1 schema change.
 - Dates and periods: V1 text periods and dates convert without timezone shifts; a transaction near a month boundary stays in the same month.
 - Very large users (tens of thousands of transactions): load completes without exhausting memory; progress is reported per user.
 - The V1 dump has newer columns or tables than the inventory: validator fails with the list of unknown schema elements.
@@ -148,20 +166,20 @@ Tables with no V2 target are skipped, counted and listed so nothing disappears s
 ### Functional Requirements
 
 - **FR-001**: System MUST provide a read-only pre-flight validator that takes a V1 database (a restored dump) and reports every row that would violate a V2 constraint, with table, row id, user, rule, severity (blocker, fixable, informational) and a human-readable reason.
-- **FR-002**: The validator MUST cover at least: case-insensitive email duplicates; duplicate passkey credential ids; zero amounts and amounts with more than two decimals; dangling references; invoices without a card; budgets without a category; notes without a title or beyond length limits; tasks without due date; inbox items missing identity fields or with non-positive amounts; paid invoices without payment date; card day and brand rules; subcategory type mismatches and name collisions; installment series count, duplicate numbers and inconsistent members; recurrence series that cannot be reduced to a rule; markers that point to a missing target; admin payer cardinality (exactly one per user) and blank payer names; password hash compatibility; unknown tables or columns.
+- **FR-002**: The validator MUST cover at least: case-insensitive email duplicates; duplicate passkey credential ids; zero amounts and amounts with more than two decimals; dangling references; invoices without a card; budgets without a category; notes without a title or beyond length limits; tasks without due date; inbox items missing identity fields or with non-positive amounts; text values longer than their V2 column; non-card rows whose purchase month differs from their period (boletos excluded); paid invoices without payment date; card day and brand rules; subcategory type mismatches and name collisions; installment series count, duplicate numbers and inconsistent members; recurrence series that cannot be reduced to a rule; markers that point to a missing target; admin payer cardinality (exactly one per user) and blank payer names; password hash compatibility; unknown tables or columns.
 - **FR-003**: The validator MUST also print per-table V1 row counts and the list of tables skipped by decision, and MUST fail on any V1 table not present in the inventory mapping.
 - **FR-004**: System MUST load V1 data into an empty, migrated V2 scratch database, creating a new identifier for every record and keeping one global mapping from every V1 id to its V2 id, persisted so re-runs and reconciliation can use it.
 - **FR-005**: The load MUST be idempotent and resumable: running it again on the same dump yields the same V2 state with no duplicate rows; an interrupted run can be resumed; each user is loaded atomically.
 - **FR-006**: The load MUST refuse to start when blockers exist without an explicit operator resolution recorded per blocker, and MUST refuse to target a non-scratch or production-marked database without a separate explicit confirmation. Running against production is NOT part of this feature.
 - **FR-007**: The load MUST convert signed V1 amounts into positive integer cents with a type, preserving every balance effect.
 - **FR-008**: The load MUST synthesize an installment series for every V1 installment group and preserve installment numbers, periods, settled state and anticipation records (with an item per original installment and its original period).
-- **FR-009**: The load MUST rebuild recurrence as V2 rules with occurrences; settled or edited V1 rows MUST become per-occurrence exceptions; the occurrences generated for every month V1 contained MUST equal V1's rows for that month (count and amount).
+- **FR-009**: The load MUST rebuild recurrence as V2 rules with occurrences; a change in amount, name, category or day that holds from one occurrence through the end of the series MUST become a new rule version effective from that occurrence; isolated deviations MUST become one-occurrence versions and settled rows MUST become occurrence rows (V2 has no exception table; a skip is a gap between versions); the occurrences generated for every month V1 contained MUST equal V1's rows for that month (count and amount). Each rule's `recurrenceEndDate` MUST be the date of the series' last V1 occurrence, so V2 generates nothing beyond what V1 held. A zero-amount V1 occurrence MUST become a `skip` exception on that occurrence; a zero-amount row outside a recurrence series stays a blocker.
 - **FR-010**: The load MUST convert invoice auto-payment notes into invoice payments (full and partial), refund notes into refund records with their origin, and invoice credit lines into transactions with the typed credit origin from feature 003; none of them may count as income or expense unless V1 counted them.
-- **FR-011**: The load MUST collapse transfer row pairs into single transfers, split groups into one transaction with splits, and move initial account balances into balance-adjustment transactions, all without changing any balance or any per-person total.
-- **FR-012**: The load MUST convert subcategories into child categories, trips into the trips entity (feature 004), and note attachments into note attachments (feature 011), and MUST carry transaction attachments, the attachment library, budgets, notes and tasks, pre-launch inbox items (with synthesized identity fields), notification states, logos, passkeys and credentials per the inventory mapping.
+- **FR-011**: The load MUST convert V1 transfer row pairs into V2 transfer pairs (two signed `transfer` rows sharing one new transfer id), collapse split groups into one transaction with splits, and load initial account balances as balance-adjustment transactions (accounts flagged to exclude the initial balance from income) or regular settled income (unflagged accounts), all without changing any balance, any per-person total or any income total.
+- **FR-012**: The load MUST convert subcategories into child categories, trips into the trips entity (feature 004), and note attachments into note attachments (feature 011), and MUST carry transaction attachments, the attachment library, budgets, notes and tasks, pre-launch inbox items of every status (with synthesized identity fields, status and timestamps kept, processed items linked to the mapped V2 transaction), notification states, logos, passkeys and credentials per the inventory mapping.
 - **FR-013**: The load MUST split V1 user preferences into V2 user preferences (including the preferences of feature 012) and dashboard preferences.
-- **FR-014**: The load MUST NOT migrate sessions, verifications, saved AI insights, import category mappings, reconciliation ignores, import name mappings, API tokens or payer shares, and MUST list per user the Companion re-pairing and share re-invitations required.
-- **FR-015**: System MUST provide a reconciliation report per user comparing V1 and V2: account balances, invoice totals and status per card and period, transaction counts per month and type (with documented collapses listed), per-month totals per root category, and per-person totals; any difference fails the run.
+- **FR-014**: The load MUST NOT migrate sessions, verifications, saved AI insights, reconciliation ignores, API tokens or payer shares, and MUST list per user the Companion re-pairing and share re-invitations required. It MUST load import category mappings and import name mappings into their V2 equivalents with category ids remapped (subcategory to child category), and MUST drop V1 reconciliation stamps (`ofx_import_fingerprint`, `import_batch_id`), reporting their counts.
+- **FR-015**: System MUST provide a reconciliation report per user comparing V1 and V2: account balances at every month end of the V1 data range, invoice totals and status per card and period, transaction counts per month and type (with documented collapses listed), per-month totals per root category, and per-person totals; any difference fails the run except the documented expected differences. For boletos paid in a month other than their period, V1 balances MUST be computed with V1 posting and with V2 posting (payment month): every month end MUST satisfy V2 = V1-with-V2-posting, the last month end MUST also equal raw V1, and the report MUST list each shifted row with month, amount and difference vs raw V1.
 - **FR-016**: Every report (validation, load, reconciliation) MUST be reproducible from the same inputs, machine-readable and human-readable, and MUST NOT contain password hashes, tokens or file contents; identifiers and emails appear only where needed to act.
 - **FR-017**: The tool MUST connect to V1 read-only, MUST never write to V1, MUST use a single worker thread against any shared database by default, and MUST NOT trigger emails, notifications or external calls.
 - **FR-018**: The migration MUST run only through documented commands and MUST include a runbook describing validate, rehearse, reconcile, and the information the operator needs to decide the cutover.
@@ -181,7 +199,7 @@ Tables with no V2 target are skipped, counted and listed so nothing disappears s
 
 ### Measurable Outcomes
 
-- **SC-001**: The validator reports 100% of seeded violations in the test dump and produces no finding on a clean dump.
+- **SC-001**: The validator reports 100% of seeded violations in the test dump and produces no blocker on a clean dump (designed fixable and informational findings may remain).
 - **SC-002**: Running the load twice on the same dump produces identical row counts and content checksums in the second run, with zero new writes.
 - **SC-003**: After a rehearsal on the production dump, for every user, 100% of account balances, invoice totals and monthly transaction counts reconcile with V1 to the cent (expected collapses listed).
 - **SC-004**: An interrupted and resumed load ends in a state equal to an uninterrupted load.
@@ -195,13 +213,13 @@ Tables with no V2 target are skipped, counted and listed so nothing disappears s
 - Production cutover, V1 shutdown, DNS and the final production run are out of scope; Daniel decides them after a passing rehearsal.
 - The rehearsal runs on a restored production dump on the operator's machine, never against live V1 or live V2.
 - Features 001 to 015 are merged first (016 depends on all), in particular 003 (typed invoice-credit origin), 004 (trips), 011 (note attachments) and 012 (preferences); the V2 schema at the time of implementation is the load target.
-- Recurrence decision (inventory): V2 rules plus occurrences; settled or edited V1 rows become per-occurrence exceptions. Frequency is inferred from V1 dates; a series whose pattern cannot be inferred is reported as a blocker for operator decision rather than guessed.
+- Recurrence decision (inventory, refined in Clarifications): V2 rules plus occurrences; changes that hold to the end of the series become rule versions, isolated deviations become one-occurrence versions, skips are gaps between versions, and settled rows become occurrence rows. Frequency is inferred from V1 dates; a series whose pattern cannot be inferred is reported as a blocker for operator decision rather than guessed.
 - Blockers default to "stop and report"; the operator may resolve each explicitly (the report states available choices); no automatic data deletion.
 - Password hashes are portable if both sides use the same hash format; the validator tests this on real data and falls back to forced password reset.
 - Passkeys survive only if the relying-party domain is unchanged; otherwise users re-register them.
 - Stored attachment files stay in place; only database references are migrated.
 - The tool is operator tooling (not a user feature) and lives outside the web UI; it is fork-only and not intended for the upstream PR.
-- Expected differences between V1 and V2 counts come only from documented collapses (transfer pairs, split groups, anticipated installments); any other difference is a failure.
+- Expected differences between V1 and V2 come only from: documented count collapses (split groups, zero-amount recurrence occurrences loaded as skips), duplicate recurrence occurrences detached as singles (no total change), and the boleto posting-month shift in month-end balances (V2 posts a boleto in its payment month; verified against V1 recomputed with V2 posting, with the final month equal to raw V1). Any other difference is a failure.
 
 ## Source
 
@@ -211,7 +229,7 @@ V2 evidence: `packages/db/src/schema.ts` (transactions with amount-nonzero check
 
 Inventory rows covered: section 3 in full (all 29 V1 tables, "Top data risks" 1 to 8, and "Not verified yet"), the Decisions (cutover gate, recurrence in the ETL, trips as own entity, subcategories as child categories, invoice credit as typed origin), and section 1 rows that define targets: Update email and preferences (012), Note attachments (011), Trips (004), Invoice credit line (003), API tokens (re-pair), Payer sharing (recreate).
 
-Kept / changed / dropped vs V1: kept every financial fact and per-user ownership; changed the model (positive amounts, rules and occurrences, typed origins, child categories); dropped sessions, verifications, tokens, shares, regenerable insights and re-learnable mappings, each reported.
+Kept / changed / dropped vs V1: kept every financial fact and per-user ownership; changed the model (positive amounts, rules and occurrences, typed origins, child categories); kept import category and name mappings (remapped); dropped sessions, verifications, tokens, shares, regenerable insights, reconciliation ignores and V1 reconciliation stamps, each reported.
 
 ## Dependencies
 
