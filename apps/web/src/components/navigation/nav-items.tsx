@@ -184,6 +184,13 @@ export const navSections: NavSection[] = [
         preservePeriod: true,
       },
       {
+        href: "/reports/card-usage",
+        label: "Uso de cartões",
+        description: "Limite usado por cartão no mês",
+        icon: <CreditCard className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+      },
+      {
         href: "/reports/commitments",
         label: "Compromissos futuros",
         description: "Quanto da renda já está comprometido",
