@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict 9amQC48AubEDvbKJe3Gfg9KNDs2IkltQefqlbQoveusSdwaMe9OG5ypDIjtecXO
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
@@ -1491,5 +1490,4 @@ ALTER TABLE ONLY public.viagens
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 9amQC48AubEDvbKJe3Gfg9KNDs2IkltQefqlbQoveusSdwaMe9OG5ypDIjtecXO
 
