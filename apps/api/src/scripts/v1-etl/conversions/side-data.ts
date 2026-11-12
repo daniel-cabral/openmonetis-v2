@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import {
   attachments,
   establishmentLogos,
+  importCategoryMappings,
+  importNameMappings,
   inboxItems,
   notificationStates,
 } from "@openmonetis/db/schema";
@@ -42,6 +44,8 @@ const T = {
   inbox: "pre_lancamentos",
   notificationStates: "dashboard_notification_states",
   logos: "establishment_logos",
+  categoryMappings: "import_category_mappings",
+  nameMappings: "import_name_mappings",
 } as const;
 
 const TEXT_TOO_LONG = ["truncate", "drop"];
@@ -799,4 +803,108 @@ export function convertSideData(
   ].filter((batch) => batch.rows.length > 0);
 
   return { batches, idMap: c.idMap, counts: c.tableCounts(), findings: c.findings };
+}
+
+// Import mappings (data-model rows 22 and 23). The key is copied verbatim: the validator owns
+// `mapping.key-not-normalized`, so it is not re-emitted here.
+export function convertImportMappings(
+  x: ExtractedUser,
+  refs: CatalogRefs,
+  r: Resolved,
+): ConversionResult {
+  const c = new Collector(x.user.id, r);
+  const categoryRows = convertCategoryMappings(x, refs, c);
+  const nameRows = convertNameMappings(x, refs, c);
+  const batches: InsertBatch[] = [
+    { table: "importCategoryMappings", rows: categoryRows },
+    { table: "importNameMappings", rows: nameRows },
+  ].filter((batch) => batch.rows.length > 0);
+  return { batches, idMap: c.idMap, counts: c.tableCounts(), findings: c.findings };
+}
+
+function convertCategoryMappings(
+  x: ExtractedUser,
+  refs: CatalogRefs,
+  c: Collector,
+): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  c.read(T.categoryMappings, x.categoryMappings.length);
+  for (const mapping of x.categoryMappings) {
+    const v1Id = mapping.description_key;
+    const categoryId =
+      mapping.subcategory_id === null
+        ? refs.categoryByV1.get(mapping.category_id)
+        : refs.childBySubcategory.get(mapping.subcategory_id);
+    if (categoryId === undefined) {
+      c.report(
+        "reference.dangling",
+        "blocker",
+        T.categoryMappings,
+        v1Id,
+        "mapped category missing or owned by another user",
+        { column: mapping.subcategory_id === null ? "category_id" : "subcategory_id" },
+        DROP,
+      );
+      c.skipped(T.categoryMappings, "reference.dangling");
+      continue;
+    }
+    const descriptionKey = c.fit(
+      T.categoryMappings,
+      v1Id,
+      "description_key",
+      mapping.description_key,
+      limitOf(importCategoryMappings.descriptionKey),
+    );
+    if (descriptionKey === null) {
+      c.skipped(T.categoryMappings, "text.too-long");
+      continue;
+    }
+    rows.push({
+      userId: refs.userId,
+      descriptionKey,
+      categoryId,
+      updatedAt: mapping.updated_at,
+    });
+    c.written(
+      T.categoryMappings,
+      v1Id,
+      "",
+      "import_category_mappings",
+      `${refs.userId}:${descriptionKey}`,
+    );
+  }
+  return rows;
+}
+
+function convertNameMappings(
+  x: ExtractedUser,
+  refs: CatalogRefs,
+  c: Collector,
+): Record<string, unknown>[] {
+  const rows: Record<string, unknown>[] = [];
+  c.read(T.nameMappings, x.nameMappings.length);
+  for (const mapping of x.nameMappings) {
+    const v1Id = mapping.description_key;
+    const descriptionKey = c.fit(
+      T.nameMappings,
+      v1Id,
+      "description_key",
+      mapping.description_key,
+      limitOf(importNameMappings.descriptionKey),
+    );
+    const name = c.fit(
+      T.nameMappings,
+      v1Id,
+      "name",
+      mapping.name,
+      limitOf(importNameMappings.name),
+    );
+    if (descriptionKey === null || name === null) {
+      c.skipped(T.nameMappings, "text.too-long");
+      continue;
+    }
+    rows.push({ userId: refs.userId, descriptionKey, name, updatedAt: mapping.updated_at });
+    c.written(T.nameMappings, v1Id, "", "import_name_mappings", `${refs.userId}:${descriptionKey}`);
+  }
+  return rows;
 }
