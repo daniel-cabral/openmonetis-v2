@@ -1,7 +1,17 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
+import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
 import type { Pool, PoolClient } from "pg";
-import type { LoadReport, RepairList, Resolutions, TableCount, WriteResult } from "./types";
+import type {
+  ExtractedUser,
+  LoadReport,
+  ReconciliationReport,
+  RepairList,
+  Resolutions,
+  TableCount,
+  UserReconciliation,
+  WriteResult,
+} from "./types";
 
 const COMMANDS = ["validate", "load", "reconcile", "rehearse"] as const;
 type CliCommand = (typeof COMMANDS)[number];
@@ -315,6 +325,159 @@ async function runLoad(options: CliOptions, env: NodeJS.ProcessEnv): Promise<num
   }
 }
 
+async function runReconcile(options: CliOptions, env: NodeJS.ProcessEnv): Promise<number> {
+  const targetUrl = options.targetUrl;
+  if (targetUrl === null) throw new UsageError("The reconcile command requires --target-url.");
+  const resolutions =
+    options.resolutionsPath === null ? null : await readResolutions(options.resolutionsPath);
+  const targetRpId = new URL(env.WEB_URL ?? DEFAULT_WEB_URL).hostname;
+  // The V2 services read through the @openmonetis/db singleton: it must point at the target.
+  const { pool: v2Pool } = await import("@openmonetis/db");
+  if (v2Pool.options.connectionString !== targetUrl) {
+    await v2Pool.end();
+    process.stderr.write("Reconcile refused: the V2 database client does not use --target-url.\n");
+    return EXIT_CODES.guardRefusal;
+  }
+  const { openV1, withV1Snapshot, listV1Users, extractUser, computeDumpFingerprint } = await import(
+    "./v1-source"
+  );
+  const { defaultOutDir, renderReconcileText, writeOutput } = await import("./output/render");
+  const { getRun } = await import("./load/etl-state");
+  const { planUser } = await import("./load/plan-user");
+  const { computeUserChecksum, openTarget } = await import("./load/v2-writer");
+  const { buildExpectedDifferences, compareUser } = await import("./reconcile/compare");
+  const { computeV1Figures } = await import("./reconcile/v1-figures");
+  const { computeV2Figures } = await import("./reconcile/v2-figures");
+
+  const v1Pool = openV1(options.v1Url);
+  const target = openTarget(targetUrl);
+  try {
+    return await withV1Snapshot(v1Pool, async (v1) => {
+      const { fingerprint } = await computeDumpFingerprint(v1);
+      const loads = await withTargetClient(target, async (c) => {
+        const { rows: state } = await c.query<{ present: boolean }>(
+          "SELECT to_regclass('v1_etl.runs') IS NOT NULL AS present",
+        );
+        if (!state[0]?.present) return null;
+        const run = await getRun(c);
+        if (run?.dumpFingerprint !== fingerprint) return null;
+        const { rows } = await c.query<{
+          v1_user_id: string;
+          v2_user_id: string;
+          checksum: string;
+        }>(
+          `SELECT v1_user_id, v2_user_id, checksum FROM v1_etl.user_loads
+           WHERE dump_fingerprint = $1 ORDER BY v1_user_id`,
+          [fingerprint],
+        );
+        return rows;
+      });
+      if (loads === null) {
+        process.stderr.write("Reconcile refused: the target holds no load of this V1 dump.\n");
+        return EXIT_CODES.guardRefusal;
+      }
+
+      const index = await listV1Users(v1);
+      const users: UserReconciliation[] = [];
+      for (const load of loads) {
+        if (options.user !== null && load.v1_user_id !== options.user) continue;
+        const x = await extractUser(v1, load.v1_user_id, index);
+        const planned = planUser(x, resolutions, { v1RpId: options.v1RpId, targetRpId });
+        if (!planned.ok) {
+          users.push({
+            v1UserId: load.v1_user_id,
+            pass: false,
+            figures: [],
+            informational: [{ reason: "plan-unresolved-blocker", rows: planned.unresolved.length }],
+            expectedDifferences: [],
+          });
+          continue;
+        }
+        const { plan } = planned;
+        const { expected, informational } = buildExpectedDifferences(x, plan, resolutions);
+        const v1Figures = await computeV1Figures(v1, load.v1_user_id, resolutions);
+        const v2Figures = await computeV2Figures(load.v2_user_id, periodRange(x));
+        const result = compareUser(
+          load.v1_user_id,
+          v1Figures,
+          v2Figures,
+          plan.counts,
+          informational,
+          expected,
+        );
+        const checksum = await withTargetClient(target, (c) =>
+          computeUserChecksum(c, load.v2_user_id, plan.checksumColumns),
+        );
+        if (checksum !== load.checksum) {
+          result.pass = false;
+          result.informational = [
+            ...result.informational,
+            { reason: "checksum-mismatch", rows: 1 },
+          ];
+        }
+        users.push(result);
+      }
+
+      const figures = users.flatMap((user) => user.figures);
+      const passed = users.filter((user) => user.pass).length;
+      const report: ReconciliationReport = {
+        header: {
+          tool: "v1-etl",
+          command: "reconcile",
+          dumpFingerprint: fingerprint,
+          generatedAt: new Date().toISOString(),
+        },
+        users: users.sort((a, b) => a.v1UserId.localeCompare(b.v1UserId)),
+        global: {
+          users: users.length,
+          passed,
+          rehearsalReady: passed === users.length,
+          totals: {
+            figures: figures.length,
+            failingFigures: figures.filter((figure) => !figure.pass).length,
+          },
+        },
+      };
+      const text = renderReconcileText(report);
+      await writeOutput(options.outDir ?? defaultOutDir(fingerprint), "reconcile", report, text);
+      process.stdout.write(`${text}\n`);
+      return report.global.rehearsalReady ? EXIT_CODES.success : EXIT_CODES.findings;
+    });
+  } catch (error) {
+    if (isConnectionError(error)) {
+      process.stderr.write(`Cannot reach a database: ${(error as Error).message}\n`);
+      return EXIT_CODES.usage;
+    }
+    throw error;
+  } finally {
+    await target.end();
+    await v1Pool.end();
+    await v2Pool.end();
+  }
+}
+
+// Every month from the user's first to last V1 `periodo`, inclusive.
+function periodRange(x: ExtractedUser): string[] {
+  const sorted = x.transactions.map((row) => row.periodo).sort();
+  const first = sorted[0];
+  const last = sorted.at(-1);
+  if (first === undefined || last === undefined) return [];
+  const periods = [first];
+  for (let period = first; period < last; ) {
+    period = addMonthsToPeriod(period, 1);
+    periods.push(period);
+  }
+  return periods;
+}
+
+async function runRehearse(options: CliOptions, env: NodeJS.ProcessEnv): Promise<number> {
+  const validated = await runValidate(options);
+  if (validated !== EXIT_CODES.success) return validated;
+  const loaded = await runLoad(options, env);
+  if (loaded !== EXIT_CODES.success) return loaded;
+  return runReconcile(options, env);
+}
+
 async function withTargetClient<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
@@ -327,8 +490,8 @@ async function withTargetClient<T>(pool: Pool, fn: (client: PoolClient) => Promi
 async function runCommand(options: CliOptions, env: NodeJS.ProcessEnv): Promise<number> {
   if (options.command === "validate") return runValidate(options);
   if (options.command === "load") return runLoad(options, env);
-  process.stderr.write(`etl:v1 ${options.command} is not wired yet.\n`);
-  return EXIT_CODES.usage;
+  if (options.command === "reconcile") return runReconcile(options, env);
+  return runRehearse(options, env);
 }
 
 async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Promise<number> {
