@@ -1,5 +1,8 @@
 import { serve } from "@hono/node-server";
-import { type AiProvider, aiProviders } from "@openmonetis/domain/ai-providers";
+import {
+  type AiSubscriptionProvider,
+  aiSubscriptionProviders,
+} from "@openmonetis/domain/ai-providers";
 import { createAiServiceApp } from "./app";
 import { createAntigravityProvider } from "./providers/antigravity";
 import { createClaudeProvider } from "./providers/claude";
@@ -28,7 +31,7 @@ const adapterFactories = {
   claude: createClaudeProvider,
   codex: createCodexProvider,
   antigravity: createAntigravityProvider,
-} satisfies Record<AiProvider, (command: CommandSource) => ProviderAdapter>;
+} satisfies Record<AiSubscriptionProvider, (command: CommandSource) => ProviderAdapter>;
 const platform = currentToolPlatform();
 const tools = platform
   ? createToolManager({
@@ -45,7 +48,7 @@ const app = createAiServiceApp({
   secret,
   homesDirectory: requireEnv("AI_HOMES_DIR", production ? "/data/homes" : ".ai-homes"),
   // Each call reads the active build, so an update applies from the next run on.
-  providers: aiProviders.map((provider) =>
+  providers: aiSubscriptionProviders.map((provider) =>
     adapterFactories[provider](() => tools?.command(provider) ?? bundled[provider]),
   ),
   tools,

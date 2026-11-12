@@ -6,6 +6,7 @@ import {
   aiProviderLoginCodeMaximumLength,
   aiProviderModelIdPattern,
   aiProviders,
+  aiSubscriptionProviders,
 } from "@openmonetis/domain/ai-providers";
 import { aiToolVersionPattern } from "@openmonetis/domain/ai-tools";
 import { fail, ok } from "@openmonetis/shared/api";
@@ -36,7 +37,7 @@ const runSchema = z
   })
   .strict();
 const chatSchema = runSchema.omit({ schema: true });
-const toolParamsSchema = z.object({ provider: z.enum(aiProviders) });
+const toolParamsSchema = z.object({ provider: z.enum(aiSubscriptionProviders) });
 const toolJobParamsSchema = toolParamsSchema.extend({ jobId: z.uuid() });
 const toolInstallSchema = z
   .object({
