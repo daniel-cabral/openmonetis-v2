@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { moneyToCents } from "@openmonetis/domain/installments";
 import {
   assignReconciliationBuckets,
@@ -13,17 +14,25 @@ import {
   resolveAmountAlignment,
   suggestLineName,
 } from "@openmonetis/domain/reconciliations";
+import {
+  buildReconciliationPlan,
+  ReconciliationPlanError,
+} from "@openmonetis/domain/reconciliations-plan";
 import { addMonthsToPeriod, getImportedDescriptionKey } from "@openmonetis/domain/transactions";
 import type {
+  ApplyReconciliationInput,
   DetectReconciliationInput,
+  ReconciliationApplyResult,
   ReconciliationDetection,
   ReconciliationFileInput,
   ReconciliationPreview,
 } from "@openmonetis/validators/reconciliations";
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
+import type * as categoriesRepository from "../repositories/categories.repository";
+import type * as peopleRepository from "../repositories/people.repository";
 import type * as reconciliationsRepository from "../repositories/reconciliations.repository";
 import type * as transactionsRepository from "../repositories/transactions.repository";
-import { badRequest, notFound } from "../utils/errors";
+import { badRequest, conflict, notFound } from "../utils/errors";
 import { importMemoryKeys, type TransactionsService } from "./transactions.service";
 
 export type ReconciliationsServiceDependencies = {
@@ -34,6 +43,8 @@ export type ReconciliationsServiceDependencies = {
     | "listReconciliationOccurrences"
     | "listReconciliationIgnores"
     | "listImportNameMappings"
+    | "applyReconciliationPlan"
+    | "undoReconciliationBatch"
   >;
   transactions: Pick<
     TransactionsService,
@@ -41,6 +52,9 @@ export type ReconciliationsServiceDependencies = {
   >;
   listImportCategoryMappingsForUser: typeof transactionsRepository.listImportCategoryMappingsForUser;
   listPaidInvoicePeriodsForUser: typeof transactionsRepository.listPaidInvoicePeriodsForUser;
+  listPeopleByIdsForUser: typeof peopleRepository.listPeopleByIdsForUser;
+  findAdminPersonByUserId: typeof peopleRepository.findAdminPersonByUserId;
+  listCategoriesByIdsForUser: typeof categoriesRepository.listCategoriesByIdsForUser;
   findCardByIdForUser: (
     id: string,
     userId: string,
@@ -121,10 +135,8 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
     };
   }
 
-  async function previewReconciliation(
-    input: ReconciliationFileInput,
-    userId: string,
-  ): Promise<ReconciliationPreview> {
+  // Shared by preview and apply, so apply re-classifies exactly what the user saw.
+  async function runPipeline(input: ReconciliationFileInput, userId: string) {
     if (input.targetType === "card" && !input.invoicePeriod) {
       throw badRequest("Cards require invoicePeriod", "RECONCILIATION_INVOICE_PERIOD_REQUIRED");
     }
@@ -408,7 +420,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
     const countOf = (bucket: (typeof buckets)[number]["bucket"]) =>
       buckets.filter((outcome) => outcome.bucket === bucket).length;
 
-    return {
+    const preview: ReconciliationPreview = {
       fileRange,
       invoicePeriod: isCard ? cardPeriod : null,
       lines: previewLines,
@@ -445,9 +457,148 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
         )
         .digest("hex"),
     };
+
+    return {
+      preview,
+      sourceFingerprint: csv.sourceFingerprint,
+      lines,
+      buckets,
+      classifications,
+      entries,
+    };
   }
 
-  return { detectReconciliation, previewReconciliation };
+  async function previewReconciliation(
+    input: ReconciliationFileInput,
+    userId: string,
+  ): Promise<ReconciliationPreview> {
+    return (await runPipeline(input, userId)).preview;
+  }
+
+  async function applyReconciliation(
+    input: ApplyReconciliationInput,
+    userId: string,
+  ): Promise<ReconciliationApplyResult> {
+    const pipeline = await runPipeline(input, userId);
+    if (pipeline.preview.classificationDigest !== input.classificationDigest) {
+      throw conflict("Reconciliation no longer matches the file", "RECONCILIATION_STALE");
+    }
+
+    const isCard = input.targetType === "card";
+    const invoicePeriod = isCard ? (input.invoicePeriod ?? null) : null;
+    const linesByIndex = new Map(pipeline.lines.map((line) => [line.index, line]));
+    const decisionByIndex = new Map(
+      input.decisions.map((decision) => [decision.lineIndex, decision]),
+    );
+    const creations = input.decisions.filter((decision) => decision.action === "create");
+
+    const personIds = [
+      ...new Set(
+        input.decisions.flatMap((decision) => (decision.personId ? [decision.personId] : [])),
+      ),
+    ];
+    const categoryIds = [
+      ...new Set(
+        creations.flatMap((decision) => (decision.categoryId ? [decision.categoryId] : [])),
+      ),
+    ];
+    const [people, categories, admin] = await Promise.all([
+      dependencies.listPeopleByIdsForUser(personIds, userId),
+      dependencies.listCategoriesByIdsForUser(categoryIds, userId),
+      dependencies.findAdminPersonByUserId(userId),
+    ]);
+
+    const activePersonIds = new Set(
+      people.filter((person) => person.status === "active").map((person) => person.id),
+    );
+    if (personIds.some((id) => !activePersonIds.has(id))) {
+      throw notFound("Person not found", "PERSON_NOT_FOUND");
+    }
+    if (!admin && creations.length) throw notFound("Person not found", "PERSON_NOT_FOUND");
+
+    const categoriesById = new Map(categories.map((category) => [category.id, category]));
+    for (const decision of creations) {
+      const line = linesByIndex.get(decision.lineIndex);
+      if (!decision.categoryId || !line) continue;
+      const category = categoriesById.get(decision.categoryId);
+      if (
+        !category ||
+        category.type !== lineTypeOf(line.signedCents) ||
+        (category.name === invoicePaymentCategoryName && category.isSystem !== false)
+      ) {
+        throw notFound("Category not found", "CATEGORY_NOT_FOUND");
+      }
+    }
+
+    const reconciled = pipeline.lines.filter((line, position) => {
+      const bucket = pipeline.buckets[position].bucket;
+      const action =
+        decisionByIndex.get(line.index)?.action ??
+        (bucket === "matched" || bucket === "needs-decision" ? "keep" : "skip");
+      return action === "keep" || action === "link";
+    }).length;
+
+    const batchId = randomUUID();
+    try {
+      const plan = buildReconciliationPlan({
+        lines: pipeline.lines,
+        classification: pipeline.classifications,
+        buckets: pipeline.buckets,
+        entries: pipeline.entries,
+        decisions: input.decisions,
+        targetType: input.targetType,
+        invoicePeriod,
+        defaultPersonId: admin?.id ?? "",
+      });
+      if (invoicePeriod && plan.creations.length) {
+        const paidPeriods = await dependencies.listPaidInvoicePeriodsForUser(
+          input.targetId,
+          [invoicePeriod],
+          userId,
+        );
+        if (paidPeriods.length) {
+          throw badRequest("Paid invoices cannot receive transactions", "INVOICE_ALREADY_PAID");
+        }
+      }
+
+      const result = await repository.applyReconciliationPlan({
+        userId,
+        batchId,
+        target: { type: input.targetType, id: input.targetId },
+        sourceFingerprint: pipeline.sourceFingerprint,
+        plan,
+        paymentMethod: isCard ? "credit_card" : "bank_transfer",
+        invoicePeriod,
+      });
+      return {
+        batchId,
+        created: result.created,
+        reconciled,
+        ignored: plan.ignores.length,
+        skipped: result.skipped,
+      };
+    } catch (error) {
+      return translatePlanError(error);
+    }
+  }
+
+  async function undoReconciliation(batchId: string, userId: string) {
+    const undone = await repository.undoReconciliationBatch(batchId, userId);
+    if (!undone) {
+      throw notFound("Reconciliation batch not found", "RECONCILIATION_BATCH_NOT_FOUND");
+    }
+    return { batchId, undone: true as const };
+  }
+
+  return { detectReconciliation, previewReconciliation, applyReconciliation, undoReconciliation };
+}
+
+function translatePlanError(error: unknown): never {
+  if (!(error instanceof ReconciliationPlanError)) throw error;
+  if (error.code === "RECONCILIATION_STALE") {
+    throw conflict("Reconciliation no longer matches the file", error.code);
+  }
+  throw badRequest("Reconciliation cannot be applied", error.code);
 }
 
 export type ReconciliationsService = ReturnType<typeof createReconciliationsService>;
