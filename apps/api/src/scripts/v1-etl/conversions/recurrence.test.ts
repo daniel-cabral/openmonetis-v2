@@ -212,6 +212,19 @@ const cases: {
     occurrences: [],
     detached: ["h-extra"],
   },
+  {
+    name: "(i) month-end day clamped in short months stays one version",
+    rows: [
+      row("i1", "2026-01-31"),
+      row("i2", "2026-02-28"),
+      row("i3", "2026-03-31"),
+      row("i4", "2026-04-30"),
+      row("i5", "2026-05-31"),
+    ],
+    versions: [version("2026-01-31", "2026-05-31", 10000)],
+    recurrenceEndDate: "2026-05-31",
+    occurrences: [],
+  },
 ];
 
 test("convertRecurrence turns V1 series into reproducible V2 versions", () => {

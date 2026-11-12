@@ -163,23 +163,26 @@ function buildOccurrence(
       occurrence.paymentMethod,
       occurrence.personId,
       occurrence.splits,
-      day(occurrence.date),
-      occurrence.dueDate === null ? null : day(occurrence.dueDate),
     ]),
   };
 }
 
-// Consecutive months with equal attributes form one run.
+// Consecutive months with equal attributes form one run. Purchase and due days are compared
+// against the run's first occurrence after the month-end clamping the V2 expansion applies.
 function buildRuns(occurrences: Occurrence[]): Occurrence[][] {
   const runs: Occurrence[][] = [];
   for (const occurrence of occurrences) {
     const run = runs.at(-1);
+    const first = run?.[0];
     const last = run?.at(-1);
     if (
       run &&
+      first &&
       last &&
       addMonthsToPeriod(last.date.slice(0, 7), 1) === occurrence.date.slice(0, 7) &&
-      last.attributes === occurrence.attributes
+      last.attributes === occurrence.attributes &&
+      resolveRecurringDueDate(occurrence.date, first.date) === occurrence.date &&
+      resolveRecurringDueDate(occurrence.date, first.dueDate) === occurrence.dueDate
     ) {
       run.push(occurrence);
     } else {
