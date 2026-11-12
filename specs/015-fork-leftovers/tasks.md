@@ -79,13 +79,13 @@ the list via `subcategory=<uuid>|none`.
 
 - [x] T016 [P] Docs in maintainer style (English, short): `docs/invoice-payments.md` (announcement numbers: value = amount + creditAmount, covered = credits + payments; refusal codes `invoice_payment_balance_changed` and `invoice_payment_conflict`; announced == recorded) and `docs/category-breakdown.md` (`subcategoryBreakdown` rules, rounding, `subcategory` URL param, `categoryMatch`). Test: none, because documentation.
 - [x] T017 Depends on T001-T016. `CHANGELOG.md`: append PT-BR bullets at the end of the existing `### Fork` section inside `## [Unreleased]` (before `## [0.16.0]`): payment dialog announces value, abatido and valor a registrar (and "já cobrem esta fatura"); typed 409 `invoice_payment_balance_changed` replacing 400 for over-balance; `creditAmount` on invoices; "Por subcategoria" block with URL filter, `subcategoryBreakdown` on category trends and `categoryMatch` on transactions; regression test for connection recipients. No version bump. Test: none, because documentation.
-- [ ] T018 Run `pnpm biome check --write` on touched files only if lint reports formatting. Then gate (each must pass; fix and rerun only the failing step):
+- [x] T018 Run `pnpm biome check --write` on touched files only if lint reports formatting. Then gate (each must pass; fix and rerun only the failing step):
   - Lint: `pnpm lint`
   - Typecheck: `pnpm typecheck`
   - Scoped unit tests: `pnpm exec tsx --test packages/domain/src/invoices.test.ts packages/domain/src/category-trends.test.ts apps/api/src/services/invoices.service.test.ts apps/api/src/services/category-trends.service.test.ts apps/web/src/features/invoices/invoices.presentation.test.ts`
   - Integration (from bash, lane database from the worktree `.env`, one at a time): `pnpm test:financial-integrity:integration && pnpm test:connections:integration && pnpm test:transactions:integration`
   Test: none, because this is the verification step.
-- [ ] T019 Depends on T018. Delete the untracked previews folder `previews/015/` (and `previews/` if it is then empty); confirm with `git status --short` that no preview file remains and only intended paths are modified. Test: none, because cleanup.
+- [x] T019 Depends on T018. Delete the untracked previews folder `previews/015/` (and `previews/` if it is then empty); confirm with `git status --short` that no preview file remains and only intended paths are modified. Test: none, because cleanup.
 
 ---
 
