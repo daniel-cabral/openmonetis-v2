@@ -300,7 +300,12 @@ export function detectMatchSuspicions(input: {
   return suspicions;
 }
 
-export type AmountKeptReason = "splits" | "transfer" | "generated" | "paid-invoice" | "card-recurring";
+export type AmountKeptReason =
+  | "splits"
+  | "transfer"
+  | "generated"
+  | "paid-invoice"
+  | "card-recurring";
 
 export type AmountAlignment =
   | { kind: "none" }

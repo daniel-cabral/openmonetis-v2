@@ -6,9 +6,9 @@ import { EstablishmentLogo } from "@/features/establishments/components/establis
 import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { formatCompactDate } from "../transactions.presentation";
 import { TransactionCategory } from "./transaction-category";
-import { TransactionUnreconciledBadge } from "./transaction-unreconciled-badge";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionPeople } from "./transaction-people";
+import { TransactionUnreconciledBadge } from "./transaction-unreconciled-badge";
 
 import type { TransactionRowProps } from "./transactions-table.types";
 

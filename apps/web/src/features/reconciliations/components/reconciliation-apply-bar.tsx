@@ -25,7 +25,9 @@ function ProjectionLine({ projection }: { projection: ProjectionView }) {
       <div className="flex flex-wrap items-center gap-2">
         {badge ? (
           <Badge
-            className={badge.tone === "success" ? "bg-success/10 text-success" : "bg-warning/15 text-warning"}
+            className={
+              badge.tone === "success" ? "bg-success/10 text-success" : "bg-warning/15 text-warning"
+            }
             variant="outline"
           >
             {badge.label}

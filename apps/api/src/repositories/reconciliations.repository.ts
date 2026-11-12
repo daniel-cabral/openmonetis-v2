@@ -189,7 +189,9 @@ export async function listReconciliationOccurrences(input: {
       date: sql<string>`to_char(${recurringTransactionOccurrences.purchaseDate}, 'YYYY-MM-DD')`,
       isSettled: recurringTransactionOccurrences.isSettled,
       settledAmount: recurringTransactionOccurrences.settledAmount,
-      settledDate: sql<string | null>`to_char(${recurringTransactionOccurrences.settledDate}, 'YYYY-MM-DD')`,
+      settledDate: sql<
+        string | null
+      >`to_char(${recurringTransactionOccurrences.settledDate}, 'YYYY-MM-DD')`,
       importSourceFingerprint: recurringTransactionOccurrences.importSourceFingerprint,
       importExternalId: recurringTransactionOccurrences.importExternalId,
     })

@@ -13,9 +13,7 @@ type Counts = ReconciliationPreview["counts"];
 function ClosurePanel({ closure }: { closure: ClosureView }) {
   if (closure.kind === "invoice") {
     const summary = formatInvoiceClosureSummary(closure.closure);
-    return (
-      <ClosureText badge={summary.badge} text={summary.text} tone={summary.tone} />
-    );
+    return <ClosureText badge={summary.badge} text={summary.text} tone={summary.tone} />;
   }
   const summary = formatStatementClosureSummary(closure);
   return (
@@ -45,7 +43,9 @@ function ClosureText({
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <Badge
-        className={tone === "success" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}
+        className={
+          tone === "success" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+        }
         variant="outline"
       >
         {badge}
@@ -83,7 +83,11 @@ export function ReconciliationSummary({
           </Card>
         ))}
       </div>
-      {closure ? <div className="border-t pt-3"><ClosurePanel closure={closure} /></div> : null}
+      {closure ? (
+        <div className="border-t pt-3">
+          <ClosurePanel closure={closure} />
+        </div>
+      ) : null}
     </div>
   );
 }

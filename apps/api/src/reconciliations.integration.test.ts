@@ -397,278 +397,278 @@ test("reconciliation detects, previews and isolates owners without writing", {
 });
 
 async function invoiceCreditWorkflow(api: TestApi) {
-    const owner = await api.register();
-    const account = await api.account(owner);
-    const card = await api.data<{ id: string }>(
-      await api.request("/cards", owner, "POST", {
-        name: "C6 card",
-        accountId: account.id,
-        brand: "visa",
-        closingDay: 5,
-        dueDay: 10,
-        limit: 50000,
-      }),
-      201,
-    );
-    const purchase = await api.data<{ id: string; period: string }>(
-      await api.request("/transactions", owner, "POST", {
-        type: "expense",
-        paymentMethod: "credit_card",
-        condition: "single",
-        name: "LOJA TESTE",
-        amount: 19484.72,
-        purchaseDate: "2026-06-20",
-        personId: owner.personId,
-        categoryId: owner.expenseCategoryId,
-        cardId: card.id,
-      }),
-      201,
-    );
-    assert.equal(purchase.period, "2026-07");
-    await api.data(
-      await api.request("/budgets", owner, "POST", {
-        categoryId: owner.expenseCategoryId,
-        period: "2026-07",
-        amount: 25000,
-      }),
-      201,
-    );
+  const owner = await api.register();
+  const account = await api.account(owner);
+  const card = await api.data<{ id: string }>(
+    await api.request("/cards", owner, "POST", {
+      name: "C6 card",
+      accountId: account.id,
+      brand: "visa",
+      closingDay: 5,
+      dueDay: 10,
+      limit: 50000,
+    }),
+    201,
+  );
+  const purchase = await api.data<{ id: string; period: string }>(
+    await api.request("/transactions", owner, "POST", {
+      type: "expense",
+      paymentMethod: "credit_card",
+      condition: "single",
+      name: "LOJA TESTE",
+      amount: 19484.72,
+      purchaseDate: "2026-06-20",
+      personId: owner.personId,
+      categoryId: owner.expenseCategoryId,
+      cardId: card.id,
+    }),
+    201,
+  );
+  assert.equal(purchase.period, "2026-07");
+  await api.data(
+    await api.request("/budgets", owner, "POST", {
+      categoryId: owner.expenseCategoryId,
+      period: "2026-07",
+      amount: 25000,
+    }),
+    201,
+  );
 
-    async function reportSnapshot() {
-      const query = "period=2026-07";
-      return {
-        dashboard: await api.data(await api.request(`/dashboard?${query}`, owner)),
-        paymentStatus: await api.data(await api.request(`/dashboard/payment-status?${query}`, owner)),
-        categoryBreakdown: await api.data(
-          await api.request(`/dashboard/category-breakdown?${query}`, owner),
-        ),
-        peopleExpenses: await api.data(
-          await api.request(`/dashboard/people-expenses?${query}`, owner),
-        ),
-        budgets: await api.data(await api.request(`/budgets?${query}`, owner)),
-        distribution: await api.data(
-          await api.request(`/reports/financial-distribution?${query}`, owner),
-        ),
-      };
-    }
-    const before = await reportSnapshot();
-
-    const invoiceTarget = {
-      ...invoiceFile([
-        { date: "20/06/2026", description: "LOJA TESTE", amount: "19484.72" },
-        { date: "04/07/2026", description: "Estorno Tarifa", amount: "-98.00" },
-        { date: "15/06/2026", description: "Inclusao de Pagamento", amount: "-5222.62" },
-        { date: "26/06/2026", description: "Inclusao de Pagamento", amount: "-2000.00" },
-        { date: "10/06/2026", description: "Pag Fatura Boleto", amount: "-12164.10" },
-      ]),
-      profileId: "c6-invoice",
-      targetType: "card" as const,
-      targetId: card.id,
-      invoicePeriod: "2026-07",
+  async function reportSnapshot() {
+    const query = "period=2026-07";
+    return {
+      dashboard: await api.data(await api.request(`/dashboard?${query}`, owner)),
+      paymentStatus: await api.data(await api.request(`/dashboard/payment-status?${query}`, owner)),
+      categoryBreakdown: await api.data(
+        await api.request(`/dashboard/category-breakdown?${query}`, owner),
+      ),
+      peopleExpenses: await api.data(
+        await api.request(`/dashboard/people-expenses?${query}`, owner),
+      ),
+      budgets: await api.data(await api.request(`/budgets?${query}`, owner)),
+      distribution: await api.data(
+        await api.request(`/reports/financial-distribution?${query}`, owner),
+      ),
     };
-    const preview = await api.data<ReconciliationPreview>(
-      await api.request("/reconciliations/preview", owner, "POST", invoiceTarget),
-    );
-    assert.deepEqual(preview.closure, { kind: "invoice", netCents: 1216410 });
+  }
+  const before = await reportSnapshot();
 
-    const credits = preview.lines.filter((line) => line.lineKind === "credit");
-    assert.equal(credits.length, 3);
-    assert.ok(credits.every((line) => line.bucket === "bank-only"));
-    const informational = preview.lines.filter((line) => line.bucket === "informational");
-    assert.equal(informational.length, 1);
-    assert.ok(informational[0].name.startsWith("Pag Fatura Boleto"));
+  const invoiceTarget = {
+    ...invoiceFile([
+      { date: "20/06/2026", description: "LOJA TESTE", amount: "19484.72" },
+      { date: "04/07/2026", description: "Estorno Tarifa", amount: "-98.00" },
+      { date: "15/06/2026", description: "Inclusao de Pagamento", amount: "-5222.62" },
+      { date: "26/06/2026", description: "Inclusao de Pagamento", amount: "-2000.00" },
+      { date: "10/06/2026", description: "Pag Fatura Boleto", amount: "-12164.10" },
+    ]),
+    profileId: "c6-invoice",
+    targetType: "card" as const,
+    targetId: card.id,
+    invoicePeriod: "2026-07",
+  };
+  const preview = await api.data<ReconciliationPreview>(
+    await api.request("/reconciliations/preview", owner, "POST", invoiceTarget),
+  );
+  assert.deepEqual(preview.closure, { kind: "invoice", netCents: 1216410 });
 
-    const applied = await api.data<ReconciliationApplyResult>(
-      await api.request("/reconciliations", owner, "POST", {
-        ...invoiceTarget,
-        classificationDigest: preview.classificationDigest,
-        decisions: credits.map((line) => ({
-          lineIndex: line.index,
-          action: "create",
-          name: line.name,
-          personId: owner.personId,
-          categoryId: owner.incomeCategoryId,
-        })),
-      }),
-      201,
-    );
-    assert.equal(applied.created, 3);
-    const creditRows = await transactionsInBatch(applied.batchId);
-    assert.equal(creditRows.length, 3);
-    for (const row of creditRows) {
-      assert.equal(row.origin, "invoiceCredit");
-      assert.equal(row.type, "income");
-      assert.equal(row.paymentMethod, "credit_card");
-      assert.equal(row.period, "2026-07");
-      assert.notEqual(row.importSourceFingerprint, null);
-      assert.notEqual(row.importExternalId, null);
-    }
-    assert.equal(
-      Math.round(creditRows.reduce((sum, row) => sum + Number(row.amount), 0) * 100),
-      732062,
-    );
-    assert.deepEqual(await reportSnapshot(), before);
+  const credits = preview.lines.filter((line) => line.lineKind === "credit");
+  assert.equal(credits.length, 3);
+  assert.ok(credits.every((line) => line.bucket === "bank-only"));
+  const informational = preview.lines.filter((line) => line.bucket === "informational");
+  assert.equal(informational.length, 1);
+  assert.ok(informational[0].name.startsWith("Pag Fatura Boleto"));
 
-    async function cardInvoice() {
-      const list = await api.data<{
-        items: Array<{
-          cardId: string;
-          amount: number;
-          paidAmount: number;
-          remainingAmount: number;
-          status: string;
-        }>;
-      }>(await api.request("/invoices?period=2026-07", owner));
-      const item = list.items.find((candidate) => candidate.cardId === card.id);
-      assert.ok(item);
-      return item;
-    }
-    const open = await cardInvoice();
-    assert.equal(open.amount, 12164.1);
-    assert.equal(open.remainingAmount, 12164.1);
+  const applied = await api.data<ReconciliationApplyResult>(
+    await api.request("/reconciliations", owner, "POST", {
+      ...invoiceTarget,
+      classificationDigest: preview.classificationDigest,
+      decisions: credits.map((line) => ({
+        lineIndex: line.index,
+        action: "create",
+        name: line.name,
+        personId: owner.personId,
+        categoryId: owner.incomeCategoryId,
+      })),
+    }),
+    201,
+  );
+  assert.equal(applied.created, 3);
+  const creditRows = await transactionsInBatch(applied.batchId);
+  assert.equal(creditRows.length, 3);
+  for (const row of creditRows) {
+    assert.equal(row.origin, "invoiceCredit");
+    assert.equal(row.type, "income");
+    assert.equal(row.paymentMethod, "credit_card");
+    assert.equal(row.period, "2026-07");
+    assert.notEqual(row.importSourceFingerprint, null);
+    assert.notEqual(row.importExternalId, null);
+  }
+  assert.equal(
+    Math.round(creditRows.reduce((sum, row) => sum + Number(row.amount), 0) * 100),
+    732062,
+  );
+  assert.deepEqual(await reportSnapshot(), before);
 
-    const payment = await api.data<{ id: string; amount: number; status: string }>(
-      await api.request(`/invoices/${card.id}/2026-07/payments`, owner, "POST", {
-        accountId: account.id,
-        paidAt: "2026-07-25",
-        allocations: [{ personId: owner.personId, amount: 12164.1 }],
-      }),
-      201,
-    );
-    assert.equal(payment.amount, 12164.1);
-    const paid = await cardInvoice();
-    assert.equal(paid.status, "paid");
-    assert.equal(paid.paidAmount, 12164.1);
-    assert.equal(paid.remainingAmount, 0);
+  async function cardInvoice() {
+    const list = await api.data<{
+      items: Array<{
+        cardId: string;
+        amount: number;
+        paidAmount: number;
+        remainingAmount: number;
+        status: string;
+      }>;
+    }>(await api.request("/invoices?period=2026-07", owner));
+    const item = list.items.find((candidate) => candidate.cardId === card.id);
+    assert.ok(item);
+    return item;
+  }
+  const open = await cardInvoice();
+  assert.equal(open.amount, 12164.1);
+  assert.equal(open.remainingAmount, 12164.1);
 
-    await api.data(
-      await api.request(`/invoices/${card.id}/2026-07/payments/${payment.id}`, owner, "DELETE"),
-    );
-    assert.equal((await transactionsInBatch(applied.batchId)).length, 3);
+  const payment = await api.data<{ id: string; amount: number; status: string }>(
+    await api.request(`/invoices/${card.id}/2026-07/payments`, owner, "POST", {
+      accountId: account.id,
+      paidAt: "2026-07-25",
+      allocations: [{ personId: owner.personId, amount: 12164.1 }],
+    }),
+    201,
+  );
+  assert.equal(payment.amount, 12164.1);
+  const paid = await cardInvoice();
+  assert.equal(paid.status, "paid");
+  assert.equal(paid.paidAmount, 12164.1);
+  assert.equal(paid.remainingAmount, 0);
 
-    const again = await api.data<ReconciliationPreview>(
-      await api.request("/reconciliations/preview", owner, "POST", invoiceTarget),
-    );
-    const repeated = again.lines.filter((line) => line.lineKind === "credit");
-    assert.equal(repeated.length, 3);
-    assert.ok(repeated.every((line) => line.bucket === "matched" && line.rule === "identity"));
+  await api.data(
+    await api.request(`/invoices/${card.id}/2026-07/payments/${payment.id}`, owner, "DELETE"),
+  );
+  assert.equal((await transactionsInBatch(applied.batchId)).length, 3);
 
-    const estorno = creditRows.find((row) => row.name === "Estorno Tarifa");
-    assert.ok(estorno);
-    await api.data(
-      await api.request(`/transactions/${estorno.id}`, owner, "PATCH", {
-        name: "Estorno Tarifa renomeado",
-      }),
-    );
-    await api.error(
-      await api.request(`/transactions/${estorno.id}`, owner, "PATCH", { type: "expense" }),
-      400,
-      "INVOICE_CREDIT_SHAPE_LOCKED",
-    );
-    const unchanged = await transactionRow(estorno.id);
-    assert.equal(unchanged.type, "income");
-    assert.equal(unchanged.name, "Estorno Tarifa renomeado");
+  const again = await api.data<ReconciliationPreview>(
+    await api.request("/reconciliations/preview", owner, "POST", invoiceTarget),
+  );
+  const repeated = again.lines.filter((line) => line.lineKind === "credit");
+  assert.equal(repeated.length, 3);
+  assert.ok(repeated.every((line) => line.bucket === "matched" && line.rule === "identity"));
 
-    await api.data(
-      await api.request(`/transactions/${estorno.id}`, owner, "DELETE", { scope: "single" }),
-    );
-    assert.equal((await transactionsInBatch(applied.batchId)).length, 2);
+  const estorno = creditRows.find((row) => row.name === "Estorno Tarifa");
+  assert.ok(estorno);
+  await api.data(
+    await api.request(`/transactions/${estorno.id}`, owner, "PATCH", {
+      name: "Estorno Tarifa renomeado",
+    }),
+  );
+  await api.error(
+    await api.request(`/transactions/${estorno.id}`, owner, "PATCH", { type: "expense" }),
+    400,
+    "INVOICE_CREDIT_SHAPE_LOCKED",
+  );
+  const unchanged = await transactionRow(estorno.id);
+  assert.equal(unchanged.type, "income");
+  assert.equal(unchanged.name, "Estorno Tarifa renomeado");
 
-    await api.data(await api.request(`/reconciliations/${applied.batchId}`, owner, "DELETE"));
-    assert.equal((await transactionsInBatch(applied.batchId)).length, 0);
-    assert.deepEqual(await reportSnapshot(), before);
+  await api.data(
+    await api.request(`/transactions/${estorno.id}`, owner, "DELETE", { scope: "single" }),
+  );
+  assert.equal((await transactionsInBatch(applied.batchId)).length, 2);
+
+  await api.data(await api.request(`/reconciliations/${applied.batchId}`, owner, "DELETE"));
+  assert.equal((await transactionsInBatch(applied.batchId)).length, 0);
+  assert.deepEqual(await reportSnapshot(), before);
 }
 
 async function statementPaidFlagWorkflow(api: TestApi) {
-    const owner = await api.register();
-    const { db, transactions, eq } = await loadPersistence();
-    const account = await api.account(owner);
-    const otherAccount = await api.account(owner);
-    const identified = await api.expense(owner, {
+  const owner = await api.register();
+  const { db, transactions, eq } = await loadPersistence();
+  const account = await api.account(owner);
+  const otherAccount = await api.account(owner);
+  const identified = await api.expense(owner, {
+    accountId: account.id,
+    name: "Pago com identidade",
+    amount: 10,
+    purchaseDate: "2026-09-01",
+    settledDate: "2026-09-01",
+    isSettled: true,
+  });
+  await db
+    .update(transactions)
+    .set({ importExternalId: "identity-september" })
+    .where(eq(transactions.id, identified.id));
+  const afterDate = await api.expense(owner, {
+    accountId: account.id,
+    name: "Pago sem identidade em novembro",
+    amount: 20,
+    purchaseDate: "2026-11-22",
+  });
+  // Future dates cannot be settled through the API, so the paid state is set directly.
+  await db
+    .update(transactions)
+    .set({ isSettled: true, settledDate: new Date("2026-11-22T00:00:00.000Z") })
+    .where(eq(transactions.id, afterDate.id));
+  const beforeDate = await api.expense(owner, {
+    accountId: account.id,
+    name: "Pago sem identidade em agosto",
+    amount: 30,
+    purchaseDate: "2026-08-31",
+    settledDate: "2026-08-31",
+    isSettled: true,
+  });
+  const elsewhere = await api.expense(owner, {
+    accountId: otherAccount.id,
+    name: "Pago em outra conta",
+    amount: 40,
+    purchaseDate: "2026-11-23",
+  });
+  await db
+    .update(transactions)
+    .set({ isSettled: true, settledDate: new Date("2026-11-23T00:00:00.000Z") })
+    .where(eq(transactions.id, elsewhere.id));
+  const card = await api.data<{ id: string }>(
+    await api.request("/cards", owner, "POST", {
+      name: "Card statement",
       accountId: account.id,
-      name: "Pago com identidade",
-      amount: 10,
-      purchaseDate: "2026-09-01",
-      settledDate: "2026-09-01",
-      isSettled: true,
-    });
-    await db
-      .update(transactions)
-      .set({ importExternalId: "identity-september" })
-      .where(eq(transactions.id, identified.id));
-    const afterDate = await api.expense(owner, {
-      accountId: account.id,
-      name: "Pago sem identidade em novembro",
-      amount: 20,
-      purchaseDate: "2026-11-22",
-    });
-    // Future dates cannot be settled through the API, so the paid state is set directly.
-    await db
-      .update(transactions)
-      .set({ isSettled: true, settledDate: new Date("2026-11-22T00:00:00.000Z") })
-      .where(eq(transactions.id, afterDate.id));
-    const beforeDate = await api.expense(owner, {
-      accountId: account.id,
-      name: "Pago sem identidade em agosto",
-      amount: 30,
-      purchaseDate: "2026-08-31",
-      settledDate: "2026-08-31",
-      isSettled: true,
-    });
-    const elsewhere = await api.expense(owner, {
-      accountId: otherAccount.id,
-      name: "Pago em outra conta",
-      amount: 40,
-      purchaseDate: "2026-11-23",
-    });
-    await db
-      .update(transactions)
-      .set({ isSettled: true, settledDate: new Date("2026-11-23T00:00:00.000Z") })
-      .where(eq(transactions.id, elsewhere.id));
-    const card = await api.data<{ id: string }>(
-      await api.request("/cards", owner, "POST", {
-        name: "Card statement",
-        accountId: account.id,
-        brand: "visa",
-        closingDay: 5,
-        dueDay: 10,
-        limit: 50000,
-      }),
-      201,
-    );
-    await api.expense(owner, {
-      accountId: null,
-      cardId: card.id,
-      paymentMethod: "credit_card",
-      condition: "single",
-      name: "Compra no cartao",
-      amount: 50,
-      purchaseDate: "2026-11-05",
-    });
+      brand: "visa",
+      closingDay: 5,
+      dueDay: 10,
+      limit: 50000,
+    }),
+    201,
+  );
+  await api.expense(owner, {
+    accountId: null,
+    cardId: card.id,
+    paymentMethod: "credit_card",
+    condition: "single",
+    name: "Compra no cartao",
+    amount: 50,
+    purchaseDate: "2026-11-05",
+  });
 
-    async function statementItems(period: string, accountId: string) {
-      const page = await api.data<{ items: TransactionOutput[] }>(
-        await api.request(
-          `/transactions?period=${period}&view=accountStatement&accountIds=${accountId}`,
-          owner,
-        ),
-      );
-      return page.items;
-    }
-    const november = await statementItems("2026-11", account.id);
-    assert.equal(november.find((item) => item.id === afterDate.id)?.isPaidUnreconciled, true);
-    const september = await statementItems("2026-09", account.id);
-    assert.equal(september.find((item) => item.id === identified.id)?.isPaidUnreconciled, false);
-    const august = await statementItems("2026-08", account.id);
-    assert.equal(august.find((item) => item.id === beforeDate.id)?.isPaidUnreconciled, false);
-    const other = await statementItems("2026-11", otherAccount.id);
-    assert.equal(other.find((item) => item.id === elsewhere.id)?.isPaidUnreconciled, false);
-
-    const cardPage = await api.data<{ items: TransactionOutput[] }>(
-      await api.request(`/transactions?period=2026-11&cardIds=${card.id}`, owner),
+  async function statementItems(period: string, accountId: string) {
+    const page = await api.data<{ items: TransactionOutput[] }>(
+      await api.request(
+        `/transactions?period=${period}&view=accountStatement&accountIds=${accountId}`,
+        owner,
+      ),
     );
-    assert.ok(cardPage.items.length > 0);
-    assert.ok(cardPage.items.every((item) => item.isPaidUnreconciled !== true));
+    return page.items;
+  }
+  const november = await statementItems("2026-11", account.id);
+  assert.equal(november.find((item) => item.id === afterDate.id)?.isPaidUnreconciled, true);
+  const september = await statementItems("2026-09", account.id);
+  assert.equal(september.find((item) => item.id === identified.id)?.isPaidUnreconciled, false);
+  const august = await statementItems("2026-08", account.id);
+  assert.equal(august.find((item) => item.id === beforeDate.id)?.isPaidUnreconciled, false);
+  const other = await statementItems("2026-11", otherAccount.id);
+  assert.equal(other.find((item) => item.id === elsewhere.id)?.isPaidUnreconciled, false);
+
+  const cardPage = await api.data<{ items: TransactionOutput[] }>(
+    await api.request(`/transactions?period=2026-11&cardIds=${card.id}`, owner),
+  );
+  assert.ok(cardPage.items.length > 0);
+  assert.ok(cardPage.items.every((item) => item.isPaidUnreconciled !== true));
 }
 
 type TestApi = Awaited<ReturnType<typeof createTestApiClient>>;
@@ -705,7 +705,9 @@ function statementFile(rows: StatementRow[]) {
 }
 
 const invoiceHeader = readFileSync(
-  fileURLToPath(new URL("../../../packages/domain/src/__fixtures__/c6-fatura.csv", import.meta.url)),
+  fileURLToPath(
+    new URL("../../../packages/domain/src/__fixtures__/c6-fatura.csv", import.meta.url),
+  ),
   "utf8",
 ).split(/\r?\n/)[0];
 

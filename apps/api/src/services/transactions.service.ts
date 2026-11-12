@@ -17,6 +17,7 @@ import {
 import { decodeImportText } from "@openmonetis/domain/import-csv";
 import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
 import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
+import { isPaidButUnreconciled } from "@openmonetis/domain/reconciliations";
 import {
   getNextRecurringOccurrenceDate,
   getRecurringDueDate,
@@ -25,7 +26,6 @@ import {
   isActiveRecurringOccurrence,
   RecurringTransitionError,
 } from "@openmonetis/domain/recurring-transactions";
-import { isPaidButUnreconciled } from "@openmonetis/domain/reconciliations";
 import { getOccurrenceAmount, SettlementError } from "@openmonetis/domain/settlements";
 import { canAddTransactionTags, matchesTransactionTags } from "@openmonetis/domain/tags";
 import type { ImportedStatement, ImportedTransaction } from "@openmonetis/domain/transactions";
@@ -1510,51 +1510,47 @@ export function createTransactionsService(
       hasAttachments: query.hasAttachments,
       isDivided: query.isDivided,
     };
-    const [
-      transactions,
-      scheduledRecurringRules,
-      paidBoletoOccurrences,
-      firstReconciledDate,
-    ] = await Promise.all([
-      accountStatement
-        ? listAccountStatementTransactionsForUser(
-            userId,
-            period,
-            periodStart,
-            periodEnd,
-            Boolean(query.dateStart || query.dateEnd),
-            persistedFilters,
-          )
-        : query.dateStart || query.dateEnd
-          ? listTransactionsByPurchaseDateRange(
+    const [transactions, scheduledRecurringRules, paidBoletoOccurrences, firstReconciledDate] =
+      await Promise.all([
+        accountStatement
+          ? listAccountStatementTransactionsForUser(
               userId,
-              query.dateStart ? toDate(query.dateStart) : undefined,
-              query.dateEnd ? toDate(query.dateEnd) : undefined,
+              period,
+              periodStart,
+              periodEnd,
+              Boolean(query.dateStart || query.dateEnd),
               persistedFilters,
             )
-          : query.payables
-            ? listTransactionsByDueDateRange(
+          : query.dateStart || query.dateEnd
+            ? listTransactionsByPurchaseDateRange(
                 userId,
-                `${addMonthsToPeriod(period, -13)}-01`,
-                toDateString(getPeriodEndDate(addMonthsToPeriod(period, 13))),
+                query.dateStart ? toDate(query.dateStart) : undefined,
+                query.dateEnd ? toDate(query.dateEnd) : undefined,
+                persistedFilters,
               )
-            : listTransactionsByPeriod(userId, period, persistedFilters),
-      listRecurringRulesForPeriod(
-        userId,
-        query.payables ? getPeriodEndDate(addMonthsToPeriod(period, 13)) : periodEnd,
-      ),
-      accountStatement
-        ? listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
-            userId,
-            query.accountIds[0] as string,
-            periodStart,
-            periodEnd,
-          )
-        : Promise.resolve([]),
-      accountStatement
-        ? findFirstReconciledDateForAccount(userId, query.accountIds[0] as string)
-        : Promise.resolve(null),
-    ]);
+            : query.payables
+              ? listTransactionsByDueDateRange(
+                  userId,
+                  `${addMonthsToPeriod(period, -13)}-01`,
+                  toDateString(getPeriodEndDate(addMonthsToPeriod(period, 13))),
+                )
+              : listTransactionsByPeriod(userId, period, persistedFilters),
+        listRecurringRulesForPeriod(
+          userId,
+          query.payables ? getPeriodEndDate(addMonthsToPeriod(period, 13)) : periodEnd,
+        ),
+        accountStatement
+          ? listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
+              userId,
+              query.accountIds[0] as string,
+              periodStart,
+              periodEnd,
+            )
+          : Promise.resolve([]),
+        accountStatement
+          ? findFirstReconciledDateForAccount(userId, query.accountIds[0] as string)
+          : Promise.resolve(null),
+      ]);
     const scheduledRuleIds = new Set(scheduledRecurringRules.map((rule) => rule.id));
     const additionalRuleIds = [
       ...new Set(paidBoletoOccurrences.map((occurrence) => occurrence.recurringRuleId)),

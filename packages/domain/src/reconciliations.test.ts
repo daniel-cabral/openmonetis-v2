@@ -753,7 +753,13 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
       entries: [entry({ entryKey: "t:tx-estorno", signedCents: 10000 })],
       expected: {
         lines: [
-          { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-estorno", divergence: null },
+          {
+            lineIndex: 0,
+            status: "matched",
+            rule: "exact",
+            entryKey: "t:tx-estorno",
+            divergence: null,
+          },
         ],
         appOnlyKeys: [],
       },

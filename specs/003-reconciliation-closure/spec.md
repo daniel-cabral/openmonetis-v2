@@ -248,3 +248,10 @@ Chosen autonomously (mockup-ui, 2026-11-11): **option A**. Previews (local, not 
 - Buckets: credit lines appear in the normal buckets (matched, "Só no banco", ambiguous) with the meta suffix "Crédito da fatura"; the informational bucket title becomes "Pagamento da fatura anterior" and lists only previous-invoice payment lines.
 - Account statement: lucide `Link2Off` icon (`size-4 text-warning`) with Tooltip "Pago, mas não conciliado com o extrato" (and sr-only text) before the name badges in the description cell (desktop) and in the mobile row; never on card invoices.
 - Discarded: option B (dedicated cards, projection fixed at the top) moves the projection away from Aplicar, against FR-009's "fixed bar next to Apply", and splits credits into a bucket that hides their match state; option C (side panel) breaks the single-column V1 walk and cramps the per-row creation fields on mid widths.
+
+## Execution decisions
+
+- T001: `pnpm db:migrate` on the lane database failed because its migration journal registers 0033 tables under 0032. The lane DB was left untouched; migration 0034 is validated by `pnpm test:migrations:integration` (temp DB) and by `db:migrations:check` on an LF export.
+- Lane gate (same as 002): Biome over the files changed vs `main` from a committed export outside `.claude` with `--line-ending=crlf`; `db:migrations:check` on that export with LF-normalised SQL (the CRLF checkout changes the baseline hash).
+- `apps/ai` unit tests are excluded from the lane gate: they hang on this machine and are untouched by 003.
+- T013 was blocked in the executor (needed a stub in `transactions.service.test.ts`); the final fix round delivered T013-T020.

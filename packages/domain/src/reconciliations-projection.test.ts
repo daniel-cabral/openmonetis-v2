@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  compareProjection,
   type ProjectionEffect,
   type ProjectionEntry,
-  compareProjection,
   projectAccountBalance,
   projectInvoiceTotal,
   toBalanceStatus,
@@ -182,10 +182,42 @@ test("projectAccountBalance lists after-end entries until a line links them", ()
 
 test("projectInvoiceTotal sums the invoice period with effects applied", () => {
   const invoiceEntries: ProjectionEntry[] = [
-    { entryKey: "a", name: "A", postingDate: "2026-11-02", period: "2026-11", signedCents: -10000, alignable: true, status: null },
-    { entryKey: "b", name: "B", postingDate: "2026-11-03", period: "2026-11", signedCents: -5000, alignable: true, status: null },
-    { entryKey: "c", name: "C", postingDate: "2026-11-04", period: "2026-11", signedCents: 2000, alignable: true, status: null },
-    { entryKey: "d", name: "D", postingDate: "2026-10-05", period: "2026-10", signedCents: -99900, alignable: true, status: null },
+    {
+      entryKey: "a",
+      name: "A",
+      postingDate: "2026-11-02",
+      period: "2026-11",
+      signedCents: -10000,
+      alignable: true,
+      status: null,
+    },
+    {
+      entryKey: "b",
+      name: "B",
+      postingDate: "2026-11-03",
+      period: "2026-11",
+      signedCents: -5000,
+      alignable: true,
+      status: null,
+    },
+    {
+      entryKey: "c",
+      name: "C",
+      postingDate: "2026-11-04",
+      period: "2026-11",
+      signedCents: 2000,
+      alignable: true,
+      status: null,
+    },
+    {
+      entryKey: "d",
+      name: "D",
+      postingDate: "2026-10-05",
+      period: "2026-10",
+      signedCents: -99900,
+      alignable: true,
+      status: null,
+    },
   ];
 
   const total = projectInvoiceTotal({

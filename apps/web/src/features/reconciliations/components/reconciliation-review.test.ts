@@ -461,7 +461,12 @@ test("account projection keeps the app balance until a decision moves it", () =>
       name: "the line created for the admin",
       decisions: {
         ...decisions,
-        0: { ...decisions[0], action: "create" as const, name: "Terapia", personId: ADMIN_PERSON_ID },
+        0: {
+          ...decisions[0],
+          action: "create" as const,
+          name: "Terapia",
+          personId: ADMIN_PERSON_ID,
+        },
       },
       expected: { projectedCents: 84344, differenceCents: 0, matches: true },
     },
@@ -469,7 +474,12 @@ test("account projection keeps the app balance until a decision moves it", () =>
       name: "the line created for another person",
       decisions: {
         ...decisions,
-        0: { ...decisions[0], action: "create" as const, name: "Terapia", personId: OTHER_PERSON_ID },
+        0: {
+          ...decisions[0],
+          action: "create" as const,
+          name: "Terapia",
+          personId: OTHER_PERSON_ID,
+        },
       },
       expected: { projectedCents: 111844, differenceCents: 27500, matches: false },
     },
@@ -485,10 +495,14 @@ test("account projection keeps the app balance until a decision moves it", () =>
     assert.ok(view?.kind === "account", name);
     assert.equal(view.projectedCents, expected.projectedCents, name);
     assert.deepEqual(view.target, { date: "2026-11-11", cents: 84344 }, name);
-    assert.deepEqual(view.comparison, {
-      differenceCents: expected.differenceCents,
-      matches: expected.matches,
-    }, name);
+    assert.deepEqual(
+      view.comparison,
+      {
+        differenceCents: expected.differenceCents,
+        matches: expected.matches,
+      },
+      name,
+    );
     assert.deepEqual(view.paidAfterEnd, [pendingAfterEnd], name);
   }
 });

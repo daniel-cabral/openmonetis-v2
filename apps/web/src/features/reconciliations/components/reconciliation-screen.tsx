@@ -11,11 +11,8 @@ import { TransactionImportUpload } from "@/features/transactions/components/tran
 import { useReconciliationReview } from "../useReconciliationReview";
 import { ReconciliationApplyBar } from "./reconciliation-apply-bar";
 import { ReconciliationBuckets } from "./reconciliation-buckets";
-import {
-  buildClosureView,
-  buildProjectionView,
-} from "./reconciliation-review";
 import { ReconciliationOriginStep } from "./reconciliation-origin-step";
+import { buildClosureView, buildProjectionView } from "./reconciliation-review";
 import { ReconciliationSummary } from "./reconciliation-summary";
 
 export function ReconciliationScreen() {
@@ -30,7 +27,9 @@ export function ReconciliationScreen() {
   const activePeople = people.data?.filter((person) => person.status === "active") ?? [];
   const adminPersonId = people.data?.find((person) => person.role === "admin")?.id ?? null;
   const review = useReconciliationReview({ adminPersonId });
-  const closure = review.preview ? buildClosureView(review.preview, review.invoiceTotalCents) : null;
+  const closure = review.preview
+    ? buildClosureView(review.preview, review.invoiceTotalCents)
+    : null;
   const projection = review.preview
     ? buildProjectionView({
         preview: review.preview,

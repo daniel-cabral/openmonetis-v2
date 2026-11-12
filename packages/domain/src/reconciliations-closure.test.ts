@@ -10,13 +10,16 @@ import {
   parseAmountInputToCents,
   statementFinalBalance,
 } from "./reconciliations-closure";
-import { type ImportedStatement, type ImportedTransaction } from "./transactions";
+import type { ImportedStatement, ImportedTransaction } from "./transactions";
 
 const statementFixture = readFileSync(
   new URL("./__fixtures__/c6-extrato.csv", import.meta.url),
   "utf8",
 );
-const invoiceFixture = readFileSync(new URL("./__fixtures__/c6-fatura.csv", import.meta.url), "utf8");
+const invoiceFixture = readFileSync(
+  new URL("./__fixtures__/c6-fatura.csv", import.meta.url),
+  "utf8",
+);
 
 function signedCentsOf(transaction: ImportedTransaction) {
   const cents = Math.round(transaction.amount * 100);
@@ -47,15 +50,18 @@ test("C6 statement fixture closes day by day, leaving only the first day unverif
   assert.equal(closure.days.length, 34);
   assert.deepEqual(closure.unverifiedDays, ["2026-07-06"]);
   assert.equal(closure.days[0]?.day, "2026-07-07");
-  assert.deepEqual(closure.days.find((day) => day.day === "2026-08-31"), {
-    day: "2026-08-31",
-    balanceCents: -36273,
-    previousBalanceCents: 9827,
-    movementCents: -46100,
-    sumCents: -46100,
-    differenceCents: 0,
-    closes: true,
-  });
+  assert.deepEqual(
+    closure.days.find((day) => day.day === "2026-08-31"),
+    {
+      day: "2026-08-31",
+      balanceCents: -36273,
+      previousBalanceCents: 9827,
+      movementCents: -46100,
+      sumCents: -46100,
+      differenceCents: 0,
+      closes: true,
+    },
+  );
 });
 
 test("a line made 1000 cents more negative surfaces as one divergence on its day", () => {
@@ -112,7 +118,9 @@ test("statement final balance is the first balance of the last accounting day, o
   ]);
   assert.equal(lastDayWithoutBalance, null);
 
-  const fixtureFinal = statementFinalBalance(toStatementLines(parseC6StatementCsv(statementFixture)));
+  const fixtureFinal = statementFinalBalance(
+    toStatementLines(parseC6StatementCsv(statementFixture)),
+  );
   assert.deepEqual(fixtureFinal, { date: "2026-09-01", cents: -58023 });
 });
 

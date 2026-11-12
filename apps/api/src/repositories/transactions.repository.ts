@@ -1317,7 +1317,9 @@ export async function findFirstReconciledDateForAccount(
 ): Promise<string | null> {
   const [row] = await db
     .select({
-      date: sql<string | null>`to_char(min(coalesce(${transactions.settledDate}, ${transactions.purchaseDate})), 'YYYY-MM-DD')`,
+      date: sql<
+        string | null
+      >`to_char(min(coalesce(${transactions.settledDate}, ${transactions.purchaseDate})), 'YYYY-MM-DD')`,
     })
     .from(transactions)
     .where(

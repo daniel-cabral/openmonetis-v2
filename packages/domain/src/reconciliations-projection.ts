@@ -87,7 +87,10 @@ export function projectInvoiceTotal(input: {
   return totalCents;
 }
 
-export function compareProjection(projectedCents: number, targetCents: number): ProjectionComparison {
+export function compareProjection(
+  projectedCents: number,
+  targetCents: number,
+): ProjectionComparison {
   const differenceCents = Math.abs(targetCents - projectedCents);
   return { differenceCents, matches: differenceCents === 0 };
 }

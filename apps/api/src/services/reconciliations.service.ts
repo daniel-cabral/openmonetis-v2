@@ -16,8 +16,8 @@ import {
   suggestLineName,
 } from "@openmonetis/domain/reconciliations";
 import {
-  checkStatementClosure,
   type ClosureLine,
+  checkStatementClosure,
   invoiceNetCents,
   statementFinalBalance,
 } from "@openmonetis/domain/reconciliations-closure";
@@ -80,7 +80,11 @@ export type ReconciliationsServiceDependencies = {
   listCategoriesForUser: (
     userId: string,
   ) => Promise<{ id: string; name: string; type: "income" | "expense" }[]>;
-  getAccountBalanceThroughDate: (accountId: string, userId: string, date: string) => Promise<number>;
+  getAccountBalanceThroughDate: (
+    accountId: string,
+    userId: string,
+    date: string,
+  ) => Promise<number>;
 };
 
 const accountReadMarginDays = 3;

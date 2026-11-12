@@ -139,9 +139,7 @@ export function formatPaidAfterEndItem(item: PaidAfterEnd) {
   };
 }
 
-export function formatStatementClosureSummary(
-  view: Extract<ClosureView, { kind: "statement" }>,
-) {
+export function formatStatementClosureSummary(view: Extract<ClosureView, { kind: "statement" }>) {
   const { closure } = view;
   const unverified =
     closure.unverifiedDays.length > 0
