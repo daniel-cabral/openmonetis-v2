@@ -143,7 +143,40 @@ test("reading and unreading a notification persists the current fingerprint and 
     { fingerprint: item.fingerprint, isRead: false },
     "owner",
   );
+  assert.equal(f.states[0].readAt, null);
   assert.equal((await f.service.list("owner")).unreadCount, 2);
+});
+
+test("archiving an archivable notification hides it from active counts and restoring it returns it as read", async () => {
+  const f = fixture();
+  const item = (await f.service.list("owner")).items.find((row) => row.canArchive);
+  assert.ok(item);
+  const itemIn = (snapshot: Awaited<ReturnType<typeof f.service.list>>) =>
+    snapshot.items.find((row) => row.notificationKey === item.notificationKey);
+
+  await f.service.update(
+    item.notificationKey,
+    { fingerprint: item.fingerprint, isArchived: true },
+    "owner",
+  );
+  const archived = await f.service.list("owner");
+  assert.equal(archived.activeCount, 1);
+  assert.equal(archived.archivedCount, 1);
+  assert.equal(archived.unreadCount, 1);
+  assert.equal(itemIn(archived)?.isArchived, true);
+  assert.equal(itemIn(archived)?.isRead, true);
+
+  await f.service.update(
+    item.notificationKey,
+    { fingerprint: item.fingerprint, isArchived: false },
+    "owner",
+  );
+  const restored = await f.service.list("owner");
+  assert.equal(restored.activeCount, 2);
+  assert.equal(restored.archivedCount, 0);
+  assert.equal(restored.unreadCount, 1);
+  assert.equal(itemIn(restored)?.isArchived, false);
+  assert.equal(itemIn(restored)?.isRead, true);
 });
 
 for (const scenario of ["missing", "stale", "required action"] as const)
