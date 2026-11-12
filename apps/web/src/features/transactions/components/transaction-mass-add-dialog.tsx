@@ -100,7 +100,7 @@ function getDefaultPersonId(people: PersonOutput[]) {
 }
 
 function createMassAddRow(purchaseDate: string, personId: string): MassAddRowValues {
-  return { purchaseDate, name: "", amount: "", categoryId: "", personId };
+  return { id: crypto.randomUUID(), purchaseDate, name: "", amount: "", categoryId: "", personId };
 }
 
 function getMassAddDefaultValues({
@@ -426,7 +426,7 @@ export function TransactionMassAddDialog({
                                 errorField={errors.rows[index]?.field}
                                 errorMessage={errors.rows[index]?.message}
                                 index={index}
-                                key={index}
+                                key={row.id}
                                 onChange={(field, value) =>
                                   form.setFieldValue("rows", (rows) =>
                                     rows.map((current, rowIndex) =>

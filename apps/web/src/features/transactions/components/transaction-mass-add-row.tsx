@@ -16,6 +16,7 @@ import { PersonOption } from "@/features/people/components/person-option";
 import { noneValue } from "./transaction-form-options";
 
 export type MassAddRowValues = {
+  id: string;
   purchaseDate: string;
   name: string;
   amount: string;
@@ -23,7 +24,7 @@ export type MassAddRowValues = {
   personId: string;
 };
 
-export type MassAddRowField = keyof MassAddRowValues;
+export type MassAddRowField = Exclude<keyof MassAddRowValues, "id">;
 
 export function TransactionMassAddRow({
   index,
