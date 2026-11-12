@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import type { LoadReport } from "./scripts/v1-etl/types";
+import type { LoadReport, ReconciliationReport } from "./scripts/v1-etl/types";
 import { createTestApiClient } from "./test-support/api-client";
 import { withIntegrationDatabase } from "./test-support/integration-database";
 
@@ -94,12 +94,12 @@ async function dropTestDatabases(): Promise<void> {
 }
 
 // One process per command: @openmonetis/db reads its environment once, and exit codes stay real.
-function runCli(args: string[]): Promise<CliRun> {
+function runCli(args: string[], env: NodeJS.ProcessEnv = {}): Promise<CliRun> {
   return new Promise((resolve) => {
     execFile(
       process.execPath,
       ["--import", "tsx", cliPath, ...args],
-      { cwd: repositoryRoot, env: { ...process.env, NODE_ENV: "test" } },
+      { cwd: repositoryRoot, env: { ...process.env, NODE_ENV: "test", ...env } },
       (error, stdout, stderr) => {
         const code = error === null ? 0 : typeof error.code === "number" ? error.code : -1;
         resolve({ code, stdout, stderr });
@@ -140,6 +140,24 @@ async function runLoad(v1Url: string, targetUrl: string, flags = ["--scratch"]) 
     const report =
       run.code === 0 || run.code === 1
         ? (JSON.parse(readFileSync(join(out, "load.json"), "utf8")) as LoadReport)
+        : null;
+    return { ...run, report };
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
+
+// The V2 services read through the @openmonetis/db singleton, so it is pointed at the target.
+async function runReconcile(v1Url: string, targetUrl: string) {
+  const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
+  try {
+    const run = await runCli(
+      ["reconcile", "--v1-url", v1Url, "--target-url", targetUrl, "--out", out],
+      { DATABASE_URL: targetUrl, EXTERNAL_DATABASE_URL: targetUrl },
+    );
+    const report =
+      run.code === 0 || run.code === 1
+        ? (JSON.parse(readFileSync(join(out, "reconcile.json"), "utf8")) as ReconciliationReport)
         : null;
     return { ...run, report };
   } finally {
@@ -271,6 +289,40 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
             ["v1-user-b", "loaded"],
           ],
         );
+
+        // US3: every figure of both users reconciles; the boleto paid a month later is expected.
+        const reconciled = await runReconcile(v1Url, target);
+        assert.equal(reconciled.code, 0, reconciled.stdout + reconciled.stderr);
+        assert.deepEqual(
+          reconciled.report?.users.map((user) => [
+            user.v1UserId,
+            user.pass,
+            user.figures.filter((figure) => !figure.pass).length,
+          ]),
+          [
+            ["v1-user-a", true, 0],
+            ["v1-user-b", true, 0],
+          ],
+        );
+        assert.deepEqual(
+          reconciled.report?.users[0]?.expectedDifferences.find(
+            (item) => item.reason === "boleto-posting-month",
+          ),
+          {
+            reason: "boleto-posting-month",
+            kind: "accountBalance",
+            rows: [
+              {
+                v1Id: "60000000-0000-4000-8000-000000000014",
+                period: "2026-01",
+                paymentMonth: "2026-02",
+                amount: "-300.00",
+                differenceVsRawV1: { periodEnd: "2026-01", value: "300.00" },
+              },
+            ],
+          },
+        );
+        assert.equal(reconciled.report?.global.rehearsalReady, true);
 
         const db = new Pool({ connectionString: target, max: 1 });
         // One "a | b | c" line per row keeps the expected tables readable.
@@ -549,6 +601,49 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
         const freshLoad = await runLoad(v1Url, fresh);
         assert.equal(freshLoad.code, 0, freshLoad.stderr);
         assert.deepEqual(await storedChecksums(v1Url, fresh), loaded);
+
+        // US3.5: a one-cent drift in V2 fails reconcile naming the user, figure and difference.
+        const drift = new Pool({ connectionString: target, max: 1 });
+        try {
+          await drift.query(
+            "UPDATE transactions SET amount = amount - 0.01 WHERE name = 'Padaria Sol'",
+          );
+        } finally {
+          await drift.end();
+        }
+        const drifted = await runReconcile(v1Url, target);
+        assert.equal(drifted.code, 1, drifted.stderr);
+        assert.deepEqual(
+          drifted.report?.users.map((user) => [
+            user.v1UserId,
+            user.pass,
+            user.figures
+              .filter((figure) => !figure.pass)
+              .map(
+                (figure) =>
+                  `${figure.kind} | ${figure.key.periodEnd ?? figure.key.period} | ${figure.difference}`,
+              ),
+          ]),
+          [
+            [
+              "v1-user-a",
+              false,
+              [
+                // The boleto allowance of January no longer matches once the cent drifts.
+                "accountBalance | 2026-01 | 299.99",
+                "accountBalance | 2026-02 | -0.01",
+                "accountBalance | 2026-03 | -0.01",
+                "accountBalance | 2026-04 | -0.01",
+                "accountBalance | 2026-05 | -0.01",
+                "accountBalance | 2026-06 | -0.01",
+                "categoryTotal | 2026-01 | 0.01",
+                "personTotal | 2026-01 | 0.01",
+              ],
+            ],
+            ["v1-user-b", true, []],
+          ],
+        );
+        assert.equal(drifted.report?.global.rehearsalReady, false);
       },
     );
 
