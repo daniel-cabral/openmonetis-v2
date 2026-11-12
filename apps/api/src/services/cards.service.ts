@@ -153,6 +153,50 @@ function toInvoicePaymentSummaries(payments: CardInvoicePaymentRecord[], period:
     .map((payment) => ({ id: payment.id, amount: Number(payment.amount), paidAt: payment.paidAt }));
 }
 
+function summarizeCardInvoice(
+  input: {
+    card: CardRecord;
+    states: CardInvoiceStateRecord[];
+    movements: CardMovementRecord[];
+    payments: CardInvoicePaymentRecord[];
+    dueDateRuleVersions: Awaited<ReturnType<DueDateRulesReader["listVersions"]>>;
+    today: string;
+  },
+  invoicePeriod: string,
+) {
+  const { card, states, movements, payments, dueDateRuleVersions, today } = input;
+  const invoiceState = states.find((state) => state.period === invoicePeriod);
+  return calculateCardInvoiceSummary({
+    period: invoicePeriod,
+    cardId: card.id,
+    dueDateRuleVersions,
+    persistedOriginalDueDate: invoiceState?.originalDueDate,
+    persistedDueDateAdjustment: invoiceState?.dueDateAdjustment,
+    dueDateRuleExcluded: invoiceState?.dueDateRuleExcluded,
+    limit: Number(card.limit),
+    closingDay: card.closingDay,
+    closingRule: resolveCardClosingRule(card),
+    dueDay: card.dueDay,
+    today,
+    paymentStatus: invoiceState?.paymentStatus ?? "pending",
+    persistedClosingDate: invoiceState?.closingDate,
+    persistedDueDate: invoiceState?.dueDate,
+    datesCustomized: invoiceState?.datesCustomized ?? false,
+    hasPayments: payments.some((payment) => payment.period === invoicePeriod),
+    paidPeriods: states
+      .filter((state) => state.paymentStatus === "paid")
+      .map((state) => state.period),
+    movements: movements.map((movement) => ({
+      period: movement.period,
+      amount: Number(movement.amount),
+    })),
+    payments: payments.map((payment) => ({
+      period: payment.period,
+      amount: Number(payment.amount),
+    })),
+  });
+}
+
 export function createCardsService(
   repository: CardsRepository,
   getToday: () => string = getCurrentDateInBrazil,
@@ -197,39 +241,18 @@ export function createCardsService(
       const states = statesByCard.get(card.id) ?? [];
       const cardMovements = movementsByCard.get(card.id) ?? [];
       const payments = invoicePayments.filter((payment) => payment.cardId === card.id);
-      const paidPeriods = states
-        .filter((state) => state.paymentStatus === "paid")
-        .map((state) => state.period);
-      const summarizeInvoice = (invoicePeriod: string) => {
-        const invoiceState = states.find((state) => state.period === invoicePeriod);
-        return calculateCardInvoiceSummary({
-          period: invoicePeriod,
-          cardId: card.id,
-          dueDateRuleVersions,
-          persistedOriginalDueDate: invoiceState?.originalDueDate,
-          persistedDueDateAdjustment: invoiceState?.dueDateAdjustment,
-          dueDateRuleExcluded: invoiceState?.dueDateRuleExcluded,
-          limit: Number(card.limit),
-          closingDay: card.closingDay,
-          closingRule: resolveCardClosingRule(card),
-          dueDay: card.dueDay,
-          today: getToday(),
-          paymentStatus: invoiceState?.paymentStatus ?? "pending",
-          persistedClosingDate: invoiceState?.closingDate,
-          persistedDueDate: invoiceState?.dueDate,
-          datesCustomized: invoiceState?.datesCustomized ?? false,
-          hasPayments: payments.some((payment) => payment.period === invoicePeriod),
-          paidPeriods,
-          movements: cardMovements.map((movement) => ({
-            period: movement.period,
-            amount: Number(movement.amount),
-          })),
-          payments: payments.map((payment) => ({
-            period: payment.period,
-            amount: Number(payment.amount),
-          })),
-        });
-      };
+      const summarizeInvoice = (invoicePeriod: string) =>
+        summarizeCardInvoice(
+          {
+            card,
+            states,
+            movements: cardMovements,
+            payments,
+            dueDateRuleVersions,
+            today: getToday(),
+          },
+          invoicePeriod,
+        );
       const invoiceSummary = {
         ...summarizeInvoice(period),
         payments: toInvoicePaymentSummaries(payments, period),
@@ -387,6 +410,51 @@ export function createCardsService(
       }
 
       return { id: result.id };
+    },
+
+    async listInvoiceTimeline(id: string, userId: string, periods: string[]) {
+      const card = await repository.findByIdForUser(id, userId);
+      if (!card) throw notFound("Card not found", "card_not_found");
+      const lastPeriod = periods.at(-1);
+      if (!lastPeriod) return [];
+      const [
+        dueDateRuleVersions,
+        persistedMovements,
+        recurringRules,
+        invoiceStates,
+        invoicePayments,
+      ] = await Promise.all([
+        dueDateRules.listVersions(userId),
+        repository.listMovementsByUser(userId, id),
+        repository.listActiveRecurringRulesThroughPeriod(userId, getPeriodEndDate(lastPeriod), id),
+        repository.listInvoiceStatesByUser(userId, id),
+        repository.listInvoicePaymentsByUser(userId, id),
+      ]);
+      const movements = [
+        ...persistedMovements,
+        ...expandRecurringInvoiceMovements(recurringRules, periods),
+      ];
+      return periods.map((period) => {
+        const { status, amount } = summarizeCardInvoice(
+          {
+            card,
+            states: invoiceStates,
+            movements,
+            payments: invoicePayments,
+            dueDateRuleVersions,
+            today: getToday(),
+          },
+          period,
+        );
+        return {
+          period,
+          status,
+          amount,
+          hasRecord:
+            invoiceStates.some((state) => state.period === period) ||
+            invoicePayments.some((payment) => payment.period === period),
+        };
+      });
     },
   };
 }

@@ -77,6 +77,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   (`exact` lista só a categoria escolhida). Detalhes em `docs/category-breakdown.md`.
 - Teste de regressão: destinatário de uma conexão de pessoas tem só leitura dos itens compartilhados
   e não consegue alterar ou criar lançamentos, contas, cartões ou pessoas do dono.
+- Relatório **Uso de cartões** em Relatórios: compara o limite usado de todos os cartões ativos no mês (parte própria, estornos descontados, recorrências só até hoje), com tendência contra o mês anterior, e detalha o cartão escolhido com 12 meses de uso, situação das faturas, categorias e maiores gastos. Novo endpoint `GET /reports/card-usage`. Detalhes em `docs/card-usage-report.md`.
 
 ## [0.16.0] - 2026-11-07
 
