@@ -52,6 +52,7 @@ type TransactionsScope = {
   accountIds?: string[];
   cardIds?: string[];
   categoryIds?: string[];
+  exactCategories?: boolean;
   header?: TransactionsScreenHeader;
   hiddenFilters?: readonly TransactionsFilterKey[];
   allowCreate?: boolean;
@@ -107,6 +108,7 @@ export function TransactionsContainer({
     tagIds: parseFilterSlugs(search.tags),
     categoryIds:
       scope?.categoryIds ?? resolveFilterIds(search.categories, categoriesSlugMap.slugToId),
+    categoryMatch: scope?.exactCategories ? ("exact" as const) : undefined,
     accountIds: scope?.accountIds ?? resolveFilterIds(search.accounts, accountsSlugMap.slugToId),
     cardIds: scope?.cardIds ?? resolveFilterIds(search.cards, cardsSlugMap.slugToId),
   };
