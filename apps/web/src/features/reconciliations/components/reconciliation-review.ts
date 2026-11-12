@@ -61,8 +61,13 @@ export function markAllBankOnlyAsCreate(decisions: UiDecisions, preview: Preview
   return next;
 }
 
+// A matched line keeps its own entry; an ambiguous line keeps the candidate the user picked.
+function keptEntryKey(line: PreviewLine, decision: UiLineDecision): string | null {
+  return line.bucket === "ambiguous" ? decision.entryKey : line.entryKey;
+}
+
 function consumedEntryKey(line: PreviewLine, decision: UiLineDecision): string | null {
-  if (decision.action === "keep") return line.entryKey;
+  if (decision.action === "keep") return keptEntryKey(line, decision);
   if (decision.action === "link") return decision.entryKey;
   return null;
 }
@@ -113,14 +118,18 @@ export function toApplyDecisions(
   for (const line of preview.lines) {
     const decision = decisions[line.index];
     if (decision.action === defaultAction(line)) continue;
-    payload.push(toWireDecision(decision));
+    payload.push(toWireDecision(decision, line));
   }
   return payload;
 }
 
-function toWireDecision(decision: UiLineDecision): ReconciliationLineDecision {
+function toWireDecision(decision: UiLineDecision, line: PreviewLine): ReconciliationLineDecision {
   const { lineIndex, action } = decision;
   switch (action) {
+    case "keep": {
+      const entryKey = keptEntryKey(line, decision);
+      return entryKey === null ? { lineIndex, action } : { lineIndex, action, entryKey };
+    }
     case "create":
       return {
         lineIndex,

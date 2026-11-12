@@ -115,17 +115,23 @@ test("consumed entries map to the line that consumes them, released matches are 
     line({ index: 0, bucket: "matched", rule: "exact", entryKey: "entry-1" }),
     line({ index: 1, bucket: "bank-only" }),
     line({ index: 2, bucket: "matched", rule: "identity", entryKey: "entry-3" }),
+    line({ index: 3, bucket: "ambiguous", candidateKeys: ["entry-4", "entry-5"] }),
+    line({ index: 4, bucket: "matched", rule: "exact", entryKey: "entry-6" }),
   ];
   const preview = review(lines);
   const decisions = initialDecisions(preview, ADMIN_PERSON_ID);
   decisions[1] = { ...decisions[1], action: "link", entryKey: "entry-2" };
   decisions[2] = { ...decisions[2], action: "skip" };
+  decisions[3] = { ...decisions[3], action: "keep", entryKey: "entry-5" };
+  decisions[4] = { ...decisions[4], action: "keep", entryKey: "entry-7" };
 
   assert.deepEqual(
     consumedEntryKeys(decisions, preview),
     new Map([
       ["entry-1", 0],
       ["entry-2", 1],
+      ["entry-5", 3],
+      ["entry-6", 4],
     ]),
   );
 });
@@ -286,6 +292,7 @@ test("apply sends only the lines that differ from the default, in wire shape", (
     line({ index: 1, bucket: "bank-only" }),
     line({ index: 2, bucket: "matched", rule: "exact", entryKey: "entry-1" }),
     line({ index: 3, bucket: "bank-only" }),
+    line({ index: 4, bucket: "ambiguous", candidateKeys: ["entry-7", "entry-8"] }),
   ];
   const preview = review(lines);
   const decisions: UiDecisions = markAllBankOnlyAsCreate(
@@ -294,6 +301,7 @@ test("apply sends only the lines that differ from the default, in wire shape", (
   );
   decisions[1] = { ...decisions[1], action: "link", entryKey: "entry-aug" };
   decisions[3] = { ...decisions[3], action: "ignore", ignoreReason: "Pagamento de fatura" };
+  decisions[4] = { ...decisions[4], action: "keep", entryKey: "entry-8" };
 
   assert.deepEqual(toApplyDecisions(decisions, preview), [
     {
@@ -305,5 +313,6 @@ test("apply sends only the lines that differ from the default, in wire shape", (
     },
     { lineIndex: 1, action: "link", entryKey: "entry-aug" },
     { lineIndex: 3, action: "ignore", ignoreReason: "Pagamento de fatura" },
+    { lineIndex: 4, action: "keep", entryKey: "entry-8" },
   ]);
 });
