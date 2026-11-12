@@ -65,6 +65,7 @@ export const invoicesRepository = {
     return db
       .select({
         cardId: transactions.cardId,
+        origin: transactions.origin,
         personId:
           sql<string>`case when ${transactionSplits.id} is not null then ${transactionSplits.personId} else ${transactions.personId} end`.as(
             "person_id",

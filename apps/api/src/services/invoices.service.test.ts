@@ -330,15 +330,19 @@ for (const outcome of ["deleted", "has_payments", "not_found"] as const) {
 
 const changedDates = { closingDate: "2026-09-05", dueDate: "2026-09-12" };
 
-for (const allocations of [
-  [{ personId: adminPersonId, amount: 1000.01 }],
-  [{ personId: adminPersonId, amount: 0 }],
-  [{ personId: "unowned", amount: 1 }],
+for (const [allocations, code, status] of [
+  [[{ personId: adminPersonId, amount: 1000.01 }], "invoice_payment_balance_changed", 409],
+  [[{ personId: adminPersonId, amount: 0 }], "invalid_invoice_payment_amount", 400],
+  [[{ personId: "unowned", amount: 1 }], "invalid_invoice_payment_amount", 400],
   [
-    { personId: adminPersonId, amount: 1 },
-    { personId: adminPersonId, amount: 1 },
+    [
+      { personId: adminPersonId, amount: 1 },
+      { personId: adminPersonId, amount: 1 },
+    ],
+    "invalid_invoice_payment_amount",
+    400,
   ],
-]) {
+] as Array<[{ personId: string; amount: number }[], string, number]>) {
   test(`invalid invoice allocations reject before ownership lookup and writes: ${JSON.stringify(allocations)}`, async () => {
     const service = createInvoicesService(
       createRepository(() => assert.fail("Unexpected payment write"), {
@@ -349,13 +353,46 @@ for (const allocations of [
     );
     await assert.rejects(
       service.pay(cardId, "2026-09", { accountId, paidAt: "2026-09-10", allocations }, userId),
-      {
-        code: "invalid_invoice_payment_amount",
-        status: 400,
-      },
+      { code, status },
     );
   });
 }
+
+test("invoice snapshot reports credit lines as already covered without changing the open balance", async () => {
+  const service = createInvoicesService(
+    createRepository(() => undefined, {
+      listMovements: async () => [
+        {
+          cardId,
+          personId: adminPersonId,
+          personName: "Pessoa principal",
+          personAvatarUrl: null,
+          personRole: "admin" as const,
+          amount: "-100.00",
+          origin: null,
+        },
+        {
+          cardId,
+          personId: adminPersonId,
+          personName: "Pessoa principal",
+          personAvatarUrl: null,
+          personRole: "admin" as const,
+          amount: "30.00",
+          origin: "invoiceCredit" as const,
+        },
+      ],
+    }),
+  );
+  const [invoice] = (await service.get("2026-09", userId)).items;
+  assert.deepEqual(
+    {
+      amount: invoice?.amount,
+      creditAmount: invoice?.creditAmount,
+      remainingAmount: invoice?.remainingAmount,
+    },
+    { amount: 70, creditAmount: 30, remainingAmount: 70 },
+  );
+});
 
 for (const [label, patch, code] of [
   ["card", { card: null }, "card_not_found"],
