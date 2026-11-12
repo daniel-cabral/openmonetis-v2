@@ -23,7 +23,7 @@ export function LandingHeader({ signupEnabled }: LandingHeaderProps) {
 
   return (
     <header className="sticky top-0 z-10 border-border border-b bg-background/85 backdrop-blur-md">
-      <div className="project-container flex h-14 items-center justify-between gap-4">
+      <div className="project-container px-4 flex h-14 items-center justify-between gap-4">
         <Link to="/">
           <OpenMonetisLogo />
         </Link>

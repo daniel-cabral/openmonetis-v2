@@ -33,7 +33,7 @@ export function LandingPage() {
             aria-hidden="true"
             className="atmospheric-wash absolute top-1/2 left-1/2 -z-10 size-[min(42rem,90vw)] -translate-x-1/2 -translate-y-1/2 opacity-55"
           />
-          <div className="project-container">
+          <div className="project-container px-4">
             <p className="eyebrow">Self-hosted · Código-fonte público</p>
             <h1 className="mx-auto mt-4 max-w-3xl font-heading text-4xl sm:text-6xl">
               Suas finanças, no seu servidor.
@@ -53,7 +53,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="scroll-mt-20 project-container py-16" id="recursos">
+        <section className="scroll-mt-20 project-container px-4 py-16" id="recursos">
           <h2 className="section-title">Tudo que você precisa para organizar suas finanças</h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {landingFeatures.map((item) => (
@@ -62,7 +62,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="scroll-mt-20 project-container py-16" id="mobile">
+        <section className="scroll-mt-20 project-container px-4 py-16" id="mobile">
           <h2 className="section-title">Leve o controle para o celular</h2>
           <div className="mt-8 grid gap-10 lg:grid-cols-2">
             <div>
@@ -93,7 +93,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="scroll-mt-20 project-container py-16" id="stack">
+        <section className="scroll-mt-20 project-container px-4 py-16" id="stack">
           <h2 className="section-title">Tecnologias por trás do projeto</h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {landingStack.map((item) => (
@@ -102,12 +102,12 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="scroll-mt-20 project-container py-16" id="como-usar">
+        <section className="scroll-mt-20 project-container px-4 py-16" id="como-usar">
           <h2 className="section-title">Como usar</h2>
           <LandingQuickStart />
         </section>
 
-        <section className="scroll-mt-20 project-container py-16" id="para-quem-e">
+        <section className="scroll-mt-20 project-container px-4 py-16" id="para-quem-e">
           <h2 className="section-title">Para quem é e para quem não é</h2>
           <div className="mt-8 grid gap-10 lg:grid-cols-2">
             <div>
@@ -134,7 +134,7 @@ export function LandingPage() {
             aria-hidden="true"
             className="atmospheric-wash absolute top-1/2 left-1/2 -z-10 size-[min(42rem,90vw)] -translate-x-1/2 -translate-y-1/2 opacity-55"
           />
-          <div className="project-container">
+          <div className="project-container px-4">
             <h2 className="section-title">Comece hoje, no seu servidor.</h2>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <PrimaryAction signupEnabled={signupEnabled} />
@@ -146,7 +146,7 @@ export function LandingPage() {
         </section>
       </main>
       <footer className="border-border border-t py-10 text-muted-foreground text-sm">
-        <div className="project-container flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="project-container px-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <OpenMonetisLogo />
           <p>{landingLicenseNote}</p>
           <nav aria-label="Links do projeto" className="flex flex-wrap gap-4">
