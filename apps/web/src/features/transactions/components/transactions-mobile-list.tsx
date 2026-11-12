@@ -3,7 +3,6 @@ import {
   invoicePaymentCategoryName,
   yieldCategoryName,
 } from "@openmonetis/domain/categories";
-import { dateOnlyToSafeInstant, formatDateInBrazil } from "@openmonetis/shared/date-time";
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
@@ -16,7 +15,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EstablishmentLogo } from "@/features/establishments/components/establishment-logo";
 import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { cn } from "@/lib/utils";
-import { formatCompactDate } from "../transactions.presentation";
+import {
+  formatCompactDate,
+  formatTransactionGroupDate,
+  groupTransactionsByDate,
+} from "../transactions.presentation";
 import { useTransactionSelection } from "../useTransactionSelection";
 import { TransactionBulkActionDock } from "./transaction-bulk-action-dock";
 import { TransactionDueDate } from "./transaction-due-date";
@@ -41,13 +44,11 @@ type TransactionsMobileListProps = {
 export function TransactionsMobileList(props: TransactionsMobileListProps) {
   const [selectionMode, setSelectionMode] = useState(false);
   const selection = useTransactionSelection(props.transactions);
-  const groups = new Map<string, TransactionOutput[]>();
-  for (const transaction of props.transactions) {
-    const date = props.accountStatement
+  const groups = groupTransactionsByDate(props.transactions, (transaction) =>
+    props.accountStatement
       ? (transaction.postingDate ?? transaction.purchaseDate)
-      : transaction.purchaseDate;
-    groups.set(date, [...(groups.get(date) ?? []), transaction]);
-  }
+      : transaction.purchaseDate,
+  );
 
   if (!props.transactions.length) {
     return (
@@ -108,10 +109,10 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
           </>
         )}
       </div>
-      {[...groups.entries()].map(([date, transactions]) => (
+      {groups.map(({ date, rows: transactions }) => (
         <section aria-labelledby={`transactions-${date}`} className="grid gap-2" key={date}>
           <h2 className="eyebrow px-1 text-muted-foreground" id={`transactions-${date}`}>
-            {formatGroupDate(date)}
+            {formatTransactionGroupDate(date)}
           </h2>
           <Card className="gap-0 overflow-hidden py-0">
             <ul className="divide-y">
@@ -333,13 +334,4 @@ function MobileTransactionRow({
       </div>
     </li>
   );
-}
-
-function formatGroupDate(value: string) {
-  const label = formatDateInBrazil(dateOnlyToSafeInstant(value), {
-    day: "2-digit",
-    month: "long",
-    weekday: "long",
-  });
-  return `${label.charAt(0).toLocaleUpperCase("pt-BR")}${label.slice(1)}`;
 }

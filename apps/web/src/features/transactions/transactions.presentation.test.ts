@@ -21,6 +21,7 @@ import {
   getTransactionsExportPeriodLabel,
   getTransactionsPdfFileName,
   groupTransactionRows,
+  groupTransactionsByDate,
   labelTransactionExportFileName,
   selectBulkTransactionIds,
   toTransactionPdfRow,
@@ -93,6 +94,24 @@ test("split rows connect by record identity, preserving every visible share", ()
     ],
   );
   assert.deepEqual(groupTransactionRows([]), []);
+});
+
+test("date groups keep first-appearance order and collect every row of the same date", () => {
+  const rows = [
+    { id: "a", date: "2026-11-12" },
+    { id: "b", date: "2026-11-10" },
+    { id: "c", date: "2026-11-12" },
+  ];
+  assert.deepEqual(
+    groupTransactionsByDate(rows, (row) => row.date).map(({ date, rows }) => [
+      date,
+      rows.map((row) => row.id),
+    ]),
+    [
+      ["2026-11-12", ["a", "c"]],
+      ["2026-11-10", ["b"]],
+    ],
+  );
 });
 
 test("settlement copy distinguishes receipts, payments and invoice-controlled amounts", () => {
