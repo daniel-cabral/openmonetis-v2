@@ -11,6 +11,8 @@ import {
   calculateRefund,
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
+  canDeleteTransactionOrigin,
+  canEditTransactionOrigin,
   deriveTransactionPostingDate,
   getImportedDescriptionKey,
   getPeriodEndDate,
@@ -428,6 +430,22 @@ test("selection excludes technical and neutral movements", () => {
     balance: -100,
     neutralCount: 4,
   });
+});
+
+test("invoice credits are editable and deletable while invoice payments stay locked", () => {
+  assert.deepEqual(
+    [
+      canEditTransactionOrigin("regular"),
+      canEditTransactionOrigin("invoiceCredit"),
+      canEditTransactionOrigin("refund"),
+      canEditTransactionOrigin("invoicePayment"),
+    ],
+    [true, true, false, false],
+  );
+  assert.deepEqual(
+    [canDeleteTransactionOrigin("invoiceCredit"), canDeleteTransactionOrigin("invoicePayment")],
+    [true, false],
+  );
 });
 
 test("two amount shares conserve cents when editing either participant", () => {

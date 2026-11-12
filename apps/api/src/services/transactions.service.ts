@@ -25,6 +25,7 @@ import {
   isActiveRecurringOccurrence,
   RecurringTransitionError,
 } from "@openmonetis/domain/recurring-transactions";
+import { isPaidButUnreconciled } from "@openmonetis/domain/reconciliations";
 import { getOccurrenceAmount, SettlementError } from "@openmonetis/domain/settlements";
 import { canAddTransactionTags, matchesTransactionTags } from "@openmonetis/domain/tags";
 import type { ImportedStatement, ImportedTransaction } from "@openmonetis/domain/transactions";
@@ -42,6 +43,7 @@ import {
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
   canDeleteTransactionOrigin,
+  canEditTransactionOrigin,
   deriveImportedPeriod,
   deriveTransactionPeriod,
   deriveTransactionPostingDate,
@@ -133,6 +135,7 @@ export type TransactionsServiceDependencies = Pick<
   | "deleteTransferPairForUser"
   | "findRecurringRuleByIdForUser"
   | "findInstallmentSeriesByIdForUser"
+  | "findFirstReconciledDateForAccount"
   | "findTransactionByIdForUser"
   | "getCardExpenseTotalForUser"
   | "insertImportedTransactions"
@@ -317,6 +320,7 @@ export function createTransactionsService(
     findRecurringRuleByIdForUser,
     findInstallmentSeriesByIdForUser,
     findSystemCategoryByNameForUser,
+    findFirstReconciledDateForAccount,
     findTransactionByIdForUser,
     getCardExpenseTotalForUser,
     getAccountBalanceSnapshotForUser,
@@ -1506,7 +1510,12 @@ export function createTransactionsService(
       hasAttachments: query.hasAttachments,
       isDivided: query.isDivided,
     };
-    const [transactions, scheduledRecurringRules, paidBoletoOccurrences] = await Promise.all([
+    const [
+      transactions,
+      scheduledRecurringRules,
+      paidBoletoOccurrences,
+      firstReconciledDate,
+    ] = await Promise.all([
       accountStatement
         ? listAccountStatementTransactionsForUser(
             userId,
@@ -1542,6 +1551,9 @@ export function createTransactionsService(
             periodEnd,
           )
         : Promise.resolve([]),
+      accountStatement
+        ? findFirstReconciledDateForAccount(userId, query.accountIds[0] as string)
+        : Promise.resolve(null),
     ]);
     const scheduledRuleIds = new Set(scheduledRecurringRules.map((rule) => rule.id));
     const additionalRuleIds = [
@@ -1723,6 +1735,16 @@ export function createTransactionsService(
         : undefined;
       return {
         ...item,
+        isPaidUnreconciled: accountStatement
+          ? isPaidButUnreconciled(
+              {
+                isSettled: item.isSettled,
+                hasIdentity: Boolean(persisted?.importExternalId ?? occurrence?.importExternalId),
+                date: item.postingDate ?? item.purchaseDate,
+              },
+              firstReconciledDate,
+            )
+          : undefined,
         dueDateRuleExcluded: occurrence?.dueDateRuleExcluded ?? item.dueDateRuleExcluded,
         ...resolveDueDate(
           {
@@ -2128,10 +2150,21 @@ export function createTransactionsService(
         "BALANCE_ADJUSTMENT_IMMUTABLE",
       );
     }
-    if (current.origin !== "regular") {
+    if (!canEditTransactionOrigin(current.origin)) {
       throw badRequest(
         "Generated transactions cannot be edited",
         "GENERATED_TRANSACTION_IMMUTABLE",
+      );
+    }
+    if (
+      current.origin === "invoiceCredit" &&
+      ((data.type !== undefined && data.type !== "income") ||
+        (data.paymentMethod !== undefined && data.paymentMethod !== "credit_card") ||
+        (data.cardId !== undefined && data.cardId !== current.cardId))
+    ) {
+      throw badRequest(
+        "Invoice credits keep their type, payment method and card",
+        "INVOICE_CREDIT_SHAPE_LOCKED",
       );
     }
 
@@ -2273,6 +2306,7 @@ export function createTransactionsService(
     );
     const values: TransactionUpdateRecord = {
       ...base,
+      origin: current.origin,
       settledDate: current.settledDate ?? null,
       tagIds: data.tagIds,
       amount: normalizeTransactionAmount(validatedMerged.type, validatedMerged.amount).toFixed(2),
