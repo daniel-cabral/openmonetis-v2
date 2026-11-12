@@ -117,30 +117,52 @@ test("create decisions become creations with the signed value, the period and th
     targetType: ReconciliationTargetType;
     invoicePeriod: string | null;
     personId?: string;
+    lineKind: ReconciliationLine["lineKind"];
+    signedCents: number;
     period: string;
     person: string;
+    origin: "regular" | "invoiceCredit";
   }[] = [
     {
       name: "account derives the period from the purchase date",
       targetType: "account",
       invoicePeriod: null,
+      lineKind: "purchase",
+      signedCents: -8659,
       period: "2026-08",
       person: "person-admin",
+      origin: "regular",
     },
     {
       name: "card uses the invoice period over the purchase date",
       targetType: "card",
       invoicePeriod: "2026-09",
+      lineKind: "purchase",
+      signedCents: -8659,
       period: "2026-09",
       person: "person-admin",
+      origin: "regular",
+    },
+    {
+      name: "card credit line is created as an invoiceCredit in the invoice period",
+      targetType: "card",
+      invoicePeriod: "2026-09",
+      lineKind: "credit",
+      signedCents: 9800,
+      period: "2026-09",
+      person: "person-admin",
+      origin: "invoiceCredit",
     },
     {
       name: "an explicit person replaces the default",
       targetType: "account",
       invoicePeriod: null,
       personId: "person-explicit",
+      lineKind: "purchase",
+      signedCents: -8659,
       period: "2026-08",
       person: "person-explicit",
+      origin: "regular",
     },
   ];
 
@@ -150,7 +172,8 @@ test("create decisions become creations with the signed value, the period and th
         lines: [
           line({
             purchaseDate: "2026-08-14",
-            signedCents: -8659,
+            lineKind: c.lineKind,
+            signedCents: c.signedCents,
             identity: { sourceFingerprint: "source-a", externalId: "ext-create" },
           }),
         ],
@@ -172,12 +195,13 @@ test("create decisions become creations with the signed value, the period and th
         {
           lineIndex: 0,
           name: "Mercado",
-          signedCents: -8659,
+          signedCents: c.signedCents,
           purchaseDate: "2026-08-14",
           period: c.period,
           categoryId: "category-1",
           personId: c.person,
           externalId: "ext-create",
+          origin: c.origin,
         },
       ]);
     });
@@ -587,7 +611,7 @@ test("a decision that no longer fits the classification is rejected as stale", a
     {
       name: "a decision on an informational invoice line",
       scenario: {
-        lines: [line({ lineKind: "credit" })],
+        lines: [line({ lineKind: "invoice-payment" })],
         classification: [bankOnly(0)],
         decisions: [{ lineIndex: 0, action: "create", name: "Mercado" }],
       },
@@ -735,6 +759,7 @@ test("a mixed review writes keep, create, ignore and skip exactly as decided", (
         categoryId: null,
         personId: "person-admin",
         externalId: "ext-1",
+        origin: "regular",
       },
     ],
     stamps: [{ ref: { kind: "transaction", id: "tx-1" }, externalId: "ext-0", lineIndex: 0 }],

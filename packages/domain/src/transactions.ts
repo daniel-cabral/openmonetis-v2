@@ -10,6 +10,7 @@ export const transactionOrigins = [
   "accountBalanceAdjustment",
   "invoiceAdjustment",
   "personSettlement",
+  "invoiceCredit",
 ] as const;
 export const transactionConditions = ["single", "installment", "recurring"] as const;
 export const minimumInstallmentCount = 2;
@@ -94,7 +95,8 @@ export function isNeutralTransactionSelectionItem(
   return (
     item.type === "transfer" ||
     item.origin === "accountBalanceAdjustment" ||
-    item.origin === "invoicePayment"
+    item.origin === "invoicePayment" ||
+    item.origin === "invoiceCredit"
   );
 }
 
@@ -131,7 +133,16 @@ export function summarizeTransactionSelection(
 }
 
 export function canDeleteTransactionOrigin(origin: TransactionOrigin) {
-  return origin === "regular" || origin === "refund" || origin === "accountBalanceAdjustment";
+  return (
+    origin === "regular" ||
+    origin === "refund" ||
+    origin === "accountBalanceAdjustment" ||
+    origin === "invoiceCredit"
+  );
+}
+
+export function canEditTransactionOrigin(origin: TransactionOrigin) {
+  return origin === "regular" || origin === "invoiceCredit";
 }
 
 export const bulkTransactionActions = [

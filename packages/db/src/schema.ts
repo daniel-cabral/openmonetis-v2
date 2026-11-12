@@ -171,6 +171,7 @@ export const transactionOrigin = pgEnum("transaction_origin", [
   "accountBalanceAdjustment",
   "invoiceAdjustment",
   "personSettlement",
+  "invoiceCredit",
 ]);
 
 export const user = pgTable(

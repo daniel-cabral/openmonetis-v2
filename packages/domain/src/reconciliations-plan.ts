@@ -33,6 +33,7 @@ export type ReconciliationPlan = {
     categoryId: string | null;
     personId: string;
     externalId: string;
+    origin: "regular" | "invoiceCredit";
   }[];
   stamps: { ref: EntryRef; externalId: string; lineIndex: number }[];
   alignments: { ref: EntryRef; toCents: number }[]; // entries already settled (account) or card entries
@@ -255,6 +256,7 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
         categoryId,
         personId: decision?.personId ?? defaultPersonId,
         externalId: line.identity.externalId,
+        origin: targetType === "card" && line.lineKind === "credit" ? "invoiceCredit" : "regular",
       });
       if (targetType === "account" && descriptionKey) nameByKey.set(descriptionKey, name);
       if (categoryId && descriptionKey) categoryByKey.set(descriptionKey, categoryId);

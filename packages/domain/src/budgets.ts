@@ -129,6 +129,7 @@ export function calculateBudgetSpending(
     const expenseImpact = calculateExpenseImpact(entry);
     if (
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment" ||
       expenseImpact === 0
     ) {

@@ -334,6 +334,17 @@ export function createAccountsService(
       return summarizeAccount(account, userId, period);
     },
 
+    async getBalanceThroughDate(id: string, userId: string, date: string) {
+      const account = await repository.findByIdForUser(id, userId);
+
+      if (!account) {
+        throw notFound("Account not found", "account_not_found");
+      }
+
+      const output = await summarizeAccount(account, userId, date.slice(0, 7), date);
+      return output.summary.balance;
+    },
+
     async cashFlow(id: string, userId: string, period = getCurrentPeriodInBrazil()) {
       const account = await repository.findByIdForUser(id, userId);
       if (!account) throw notFound("Account not found", "account_not_found");

@@ -210,6 +210,7 @@ export const transactionOriginLabels: Record<TransactionOrigin, string> = {
   accountBalanceAdjustment: "Ajuste de saldo",
   invoiceAdjustment: "Ajuste de fatura",
   personSettlement: "Repasse de pessoa",
+  invoiceCredit: "Crédito da fatura",
 };
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {

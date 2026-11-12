@@ -3,6 +3,8 @@ import test from "node:test";
 import type { ReconciliationPreview } from "@openmonetis/validators/reconciliations";
 import {
   applyBlockReason,
+  buildClosureView,
+  buildProjectionView,
   candidateOptions,
   consumedEntryKeys,
   defaultProfileId,
@@ -19,6 +21,7 @@ type PreviewLine = Preview["lines"][number];
 type PreviewEntry = Preview["entries"][number];
 
 const ADMIN_PERSON_ID = "00000000-0000-4000-8000-000000000004";
+const OTHER_PERSON_ID = "00000000-0000-4000-8000-000000000005";
 const CATEGORY_ID = "00000000-0000-4000-8000-000000000010";
 
 function line(
@@ -28,6 +31,7 @@ function line(
     purchaseDate: "2026-08-10",
     postedDate: null,
     amount: 100,
+    signedCents: -10000,
     type: "expense",
     name: "LOJA TESTE",
     installment: null,
@@ -61,6 +65,8 @@ function review(
     invoicePeriod,
     lines,
     entries,
+    closure: null,
+    projection: null,
     appOnlyKeys: [],
     counts: {
       needsDecision: 0,
@@ -366,4 +372,249 @@ test("apply sends only the lines that differ from the default, in wire shape", (
     { lineIndex: 3, action: "ignore", ignoreReason: "Pagamento de fatura" },
     { lineIndex: 4, action: "keep", entryKey: "entry-8" },
   ]);
+});
+
+const statementClosure = {
+  kind: "statement" as const,
+  closes: true,
+  days: [],
+  unverifiedDays: [],
+  divergences: [],
+  finalBalance: { date: "2026-11-11", cents: 84344 },
+};
+
+test("closure view follows the preview kind and waits for a typed invoice total", () => {
+  const accountPreviewView = { ...review([]), closure: statementClosure };
+  const invoiceClosure = { kind: "invoice" as const, netCents: 2590 };
+  const cardPreview = { ...review([], [], "2026-11"), closure: invoiceClosure };
+
+  assert.deepEqual(buildClosureView(accountPreviewView, null), {
+    kind: "statement",
+    closure: statementClosure,
+  });
+  assert.equal(buildClosureView(cardPreview, null), null);
+  assert.deepEqual(buildClosureView(cardPreview, 2590), {
+    kind: "invoice",
+    closure: { closes: true, netCents: 2590, expectedCents: 2590, differenceCents: 0 },
+  });
+  assert.deepEqual(buildClosureView(cardPreview, 1000), {
+    kind: "invoice",
+    closure: { closes: false, netCents: 2590, expectedCents: 1000, differenceCents: -1590 },
+  });
+});
+
+const accountPreview: Preview = {
+  ...review([
+    line({
+      index: 0,
+      bucket: "matched",
+      rule: "exact",
+      entryKey: "t:terapia",
+      amount: 275,
+      signedCents: -27500,
+    }),
+    line({ index: 1, bucket: "bank-only", amount: 1643, signedCents: -164300 }),
+  ]),
+  closure: statementClosure,
+  projection: {
+    kind: "account",
+    cutoffDate: "2026-11-11",
+    baselineCents: 111844,
+    entries: [
+      {
+        entryKey: "t:terapia",
+        name: "Terapia",
+        postingDate: "2026-10-16",
+        period: "2026-10",
+        signedCents: -27500,
+        alignable: true,
+        status: "in-balance",
+      },
+      {
+        entryKey: "t:mensalidade",
+        name: "Mensalidade Colégio Santo Agostinho",
+        postingDate: "2026-11-22",
+        period: "2026-11",
+        signedCents: -164300,
+        alignable: true,
+        status: "after-end",
+      },
+    ],
+  },
+};
+
+test("account projection keeps the app balance until a decision moves it", () => {
+  const decisions = initialDecisions(accountPreview, ADMIN_PERSON_ID);
+  const pendingAfterEnd = {
+    entryKey: "t:mensalidade",
+    name: "Mensalidade Colégio Santo Agostinho",
+    date: "2026-11-22",
+    signedCents: -164300,
+  };
+  const cases = [
+    {
+      name: "the line kept against the entry",
+      decisions,
+      expected: { projectedCents: 111844, differenceCents: 27500, matches: false },
+    },
+    {
+      name: "the line created for the admin",
+      decisions: {
+        ...decisions,
+        0: {
+          ...decisions[0],
+          action: "create" as const,
+          name: "Terapia",
+          personId: ADMIN_PERSON_ID,
+        },
+      },
+      expected: { projectedCents: 84344, differenceCents: 0, matches: true },
+    },
+    {
+      name: "the line created for another person",
+      decisions: {
+        ...decisions,
+        0: {
+          ...decisions[0],
+          action: "create" as const,
+          name: "Terapia",
+          personId: OTHER_PERSON_ID,
+        },
+      },
+      expected: { projectedCents: 111844, differenceCents: 27500, matches: false },
+    },
+  ];
+
+  for (const { name, decisions: current, expected } of cases) {
+    const view = buildProjectionView({
+      preview: accountPreview,
+      decisions: current,
+      adminPersonId: ADMIN_PERSON_ID,
+      invoiceTotalCents: null,
+    });
+    assert.ok(view?.kind === "account", name);
+    assert.equal(view.projectedCents, expected.projectedCents, name);
+    assert.deepEqual(view.target, { date: "2026-11-11", cents: 84344 }, name);
+    assert.deepEqual(
+      view.comparison,
+      {
+        differenceCents: expected.differenceCents,
+        matches: expected.matches,
+      },
+      name,
+    );
+    assert.deepEqual(view.paidAfterEnd, [pendingAfterEnd], name);
+  }
+});
+
+test("a line linked to a paid-after-end entry removes it from the pending list", () => {
+  const decisions = initialDecisions(accountPreview, ADMIN_PERSON_ID);
+  const view = buildProjectionView({
+    preview: accountPreview,
+    decisions: {
+      ...decisions,
+      1: { ...decisions[1], action: "link" as const, entryKey: "t:mensalidade" },
+    },
+    adminPersonId: ADMIN_PERSON_ID,
+    invoiceTotalCents: null,
+  });
+  assert.ok(view?.kind === "account");
+  assert.equal(view.projectedCents, -52456);
+  assert.deepEqual(view.paidAfterEnd, []);
+});
+
+const cardPreview: Preview = {
+  ...review(
+    [
+      line({
+        index: 0,
+        bucket: "matched",
+        rule: "exact",
+        entryKey: "t:b",
+        amount: 55,
+        signedCents: -5500,
+      }),
+      line({ index: 1, bucket: "bank-only", amount: 30, signedCents: -3000 }),
+    ],
+    [],
+    "2026-11",
+  ),
+  projection: {
+    kind: "card",
+    invoicePeriod: "2026-11",
+    entries: [
+      {
+        entryKey: "t:a",
+        name: "A",
+        postingDate: "2026-11-05",
+        period: "2026-11",
+        signedCents: -10000,
+        alignable: true,
+        status: null,
+      },
+      {
+        entryKey: "t:b",
+        name: "B",
+        postingDate: "2026-11-06",
+        period: "2026-11",
+        signedCents: -5000,
+        alignable: true,
+        status: null,
+      },
+      {
+        entryKey: "t:c",
+        name: "C",
+        postingDate: "2026-11-07",
+        period: "2026-11",
+        signedCents: 2000,
+        alignable: true,
+        status: null,
+      },
+      {
+        entryKey: "t:d",
+        name: "D",
+        postingDate: "2026-10-07",
+        period: "2026-10",
+        signedCents: -99900,
+        alignable: true,
+        status: null,
+      },
+    ],
+  },
+};
+
+test("card projection compares against a typed total only when one is present", () => {
+  const decisions = initialDecisions(cardPreview, ADMIN_PERSON_ID);
+  const withCreate = {
+    ...decisions,
+    1: { ...decisions[1], action: "create" as const, name: "Compra", personId: ADMIN_PERSON_ID },
+  };
+  const cases = [
+    {
+      name: "typed total matched by the created line",
+      input: { decisions: withCreate, invoiceTotalCents: 16500 },
+      expected: {
+        projectedCents: 16500,
+        targetCents: 16500,
+        comparison: { differenceCents: 0, matches: true },
+      },
+    },
+    {
+      name: "no typed total",
+      input: { decisions, invoiceTotalCents: null },
+      expected: { projectedCents: 13500, targetCents: null, comparison: null },
+    },
+  ];
+
+  for (const { name, input, expected } of cases) {
+    const view = buildProjectionView({
+      preview: cardPreview,
+      adminPersonId: ADMIN_PERSON_ID,
+      ...input,
+    });
+    assert.ok(view?.kind === "card", name);
+    assert.equal(view.projectedCents, expected.projectedCents, name);
+    assert.equal(view.targetCents, expected.targetCents, name);
+    assert.deepEqual(view.comparison, expected.comparison, name);
+  }
 });

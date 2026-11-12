@@ -1,3 +1,4 @@
+import { canEditTransactionOrigin } from "@openmonetis/domain/transactions";
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, X } from "lucide-react";
@@ -38,10 +39,11 @@ export function TransactionDetailsSheet({
     enabled: open && Boolean(recordId),
   });
   const detail = detailQuery.data ?? transaction;
-  const canEdit = detail?.origin === "regular" && detail.paymentMethod !== null;
+  const canEdit =
+    detail != null && canEditTransactionOrigin(detail.origin) && detail.paymentMethod !== null;
   const hasMobileActions =
     detail &&
-    (detail.origin === "regular" ||
+    (canEditTransactionOrigin(detail.origin) ||
       detail.recurringRuleId ||
       detail.anticipationId ||
       detail.origin === "invoiceAdjustment");

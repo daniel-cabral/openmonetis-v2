@@ -840,6 +840,7 @@ export const TransactionOutputSchema = z
     refundedAmount: z.number().nonnegative(),
     refundableAmount: z.number().nonnegative(),
     hasAttachments: z.boolean(),
+    isPaidUnreconciled: z.boolean().optional(),
     createdAt: z.string().nullable().openapi({ example: "2026-07-07T12:00:00.000Z" }),
     updatedAt: z.string().nullable().openapi({ example: "2026-07-07T12:00:00.000Z" }),
   })

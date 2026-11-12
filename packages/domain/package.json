@@ -53,7 +53,9 @@
     "./import-profiles": "./src/import-profiles.ts",
     "./import-row-identity": "./src/import-row-identity.ts",
     "./reconciliations": "./src/reconciliations.ts",
-    "./reconciliations-plan": "./src/reconciliations-plan.ts"
+    "./reconciliations-plan": "./src/reconciliations-plan.ts",
+    "./reconciliations-closure": "./src/reconciliations-closure.ts",
+    "./reconciliations-projection": "./src/reconciliations-projection.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

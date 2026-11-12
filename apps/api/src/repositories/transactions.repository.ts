@@ -304,6 +304,7 @@ export type TransactionUpdateRecord = Partial<
     | "isSettled"
     | "note"
     | "tagIds"
+    | "origin"
   >
 >;
 
@@ -1106,6 +1107,7 @@ export async function listRecurringOccurrencesForUser(
       settledDate: recurringTransactionOccurrences.settledDate,
       settledAmount: recurringTransactionOccurrences.settledAmount,
       settledAllocations: recurringTransactionOccurrences.settledAllocations,
+      importExternalId: recurringTransactionOccurrences.importExternalId,
     })
     .from(recurringTransactionOccurrences)
     .leftJoin(
@@ -1147,6 +1149,7 @@ export async function listSettledRecurringBoletoOccurrencesByPaymentDateForUser(
       settledDate: recurringTransactionOccurrences.settledDate,
       settledAmount: recurringTransactionOccurrences.settledAmount,
       settledAllocations: recurringTransactionOccurrences.settledAllocations,
+      importExternalId: recurringTransactionOccurrences.importExternalId,
     })
     .from(recurringTransactionOccurrences)
     .innerJoin(
@@ -1306,6 +1309,27 @@ export async function listTransactionIdsWithAttachmentsForUser(
         inArray(transactionAttachments.transactionId, transactionIds),
       ),
     );
+}
+
+export async function findFirstReconciledDateForAccount(
+  userId: string,
+  accountId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({
+      date: sql<
+        string | null
+      >`to_char(min(coalesce(${transactions.settledDate}, ${transactions.purchaseDate})), 'YYYY-MM-DD')`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.accountId, accountId),
+        isNotNull(transactions.importExternalId),
+      ),
+    );
+  return row?.date ?? null;
 }
 
 export async function listTransactionsByPeriod(

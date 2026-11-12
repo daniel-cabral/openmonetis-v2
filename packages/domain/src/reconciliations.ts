@@ -166,9 +166,9 @@ const MATCH_RULES: { rule: MatchRule; find: CandidateFinder }[] = [
   { rule: "name-period", find: findNamePeriodCandidates },
 ];
 
-// Credit and invoice-payment lines are informational: they never take an app entry.
+// Invoice-payment lines settle the previous invoice: they are informational and never take an app entry.
 function isInformationalLine(line: ReconciliationLine): boolean {
-  return line.lineKind === "credit" || line.lineKind === "invoice-payment";
+  return line.lineKind === "invoice-payment";
 }
 
 /**
@@ -300,13 +300,30 @@ export function detectMatchSuspicions(input: {
   return suspicions;
 }
 
+export type AmountKeptReason =
+  | "splits"
+  | "transfer"
+  | "generated"
+  | "paid-invoice"
+  | "card-recurring";
+
 export type AmountAlignment =
   | { kind: "none" }
   | { kind: "align"; toCents: number }
-  | {
-      kind: "kept";
-      reason: "splits" | "transfer" | "generated" | "paid-invoice" | "card-recurring";
-    };
+  | { kind: "kept"; reason: AmountKeptReason };
+
+/** Why a matched entry must keep its own value instead of taking the file value; null when it can align. */
+export function amountKeptReason(
+  entry: ReconciliationEntry,
+  targetType: ReconciliationTargetType,
+): AmountKeptReason | null {
+  if (entry.hasSplits) return "splits";
+  if (entry.isTransfer) return "transfer";
+  if (entry.isGenerated) return "generated";
+  if (entry.inPaidInvoice) return "paid-invoice";
+  if (targetType === "card" && entry.isRecurring) return "card-recurring";
+  return null;
+}
 
 /** Decides whether a matched entry takes the file value, and keeps its value when it cannot. */
 export function resolveAmountAlignment(input: {
@@ -316,12 +333,21 @@ export function resolveAmountAlignment(input: {
 }): AmountAlignment {
   const { line, entry, targetType } = input;
   if (entry.signedCents === line.signedCents) return { kind: "none" };
-  if (entry.hasSplits) return { kind: "kept", reason: "splits" };
-  if (entry.isTransfer) return { kind: "kept", reason: "transfer" };
-  if (entry.isGenerated) return { kind: "kept", reason: "generated" };
-  if (entry.inPaidInvoice) return { kind: "kept", reason: "paid-invoice" };
-  if (targetType === "card" && entry.isRecurring) return { kind: "kept", reason: "card-recurring" };
+  const reason = amountKeptReason(entry, targetType);
+  if (reason !== null) return { kind: "kept", reason };
   return { kind: "align", toCents: line.signedCents };
+}
+
+/**
+ * A settled row with no import identity, dated from the account's first reconciled
+ * row on, was paid outside the statement. Card rows (`isSettled` null) never qualify.
+ */
+export function isPaidButUnreconciled(
+  entry: { isSettled: boolean | null; hasIdentity: boolean; date: string },
+  firstReconciledDate: string | null,
+): boolean {
+  if (entry.isSettled !== true || entry.hasIdentity || firstReconciledDate === null) return false;
+  return entry.date >= firstReconciledDate;
 }
 
 export type ReconciliationBucket =
@@ -334,7 +360,7 @@ export type ReconciliationBucket =
 
 /**
  * Puts every line in exactly one bucket. Order: ignored lines first, then
- * informational invoice lines (credits and invoice payments), then the match
+ * informational invoice lines (previous-invoice payments), then the match
  * outcome. A matched line with suspicions needs a decision.
  */
 export function assignReconciliationBuckets(input: {

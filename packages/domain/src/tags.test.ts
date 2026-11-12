@@ -52,6 +52,7 @@ test("tag totals respect allocations, refunds, neutral movements and duplicate e
       amount: 300,
       tagIds: ["a"],
     },
+    { id: "invoiceCredit", type: "income", origin: "invoiceCredit", amount: 150, tagIds: ["a"] },
   ];
   assert.deepEqual(summarizeTags(["a", "b", "empty"], [...entries, entries[0]]), [
     { tagId: "a", income: 200, expenses: 75, transfers: 0, balance: 125, transactionCount: 4 },

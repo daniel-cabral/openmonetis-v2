@@ -25,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { MonthPicker } from "@/components/ui/month-picker";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -70,6 +71,8 @@ export function ReconciliationOriginStep({
   onRead,
   onOriginChange,
   onReset,
+  invoiceTotalText,
+  onInvoiceTotalChange,
 }: {
   file: File;
   detection: Detection;
@@ -79,6 +82,8 @@ export function ReconciliationOriginStep({
   onRead: (origin: ReconciliationOrigin) => void;
   onOriginChange: () => void;
   onReset: () => void;
+  invoiceTotalText: string;
+  onInvoiceTotalChange: (text: string) => void;
 }) {
   const [periodOpen, setPeriodOpen] = useState(false);
   const initialProfileId = defaultProfileId(detection) ?? "";
@@ -243,6 +248,16 @@ export function ReconciliationOriginStep({
                         </Field>
                       )}
                     </form.Field>
+                  ) : null}
+                  {destinationType === "card" ? (
+                    <Field label="Total da fatura (R$), para o fechamento aritmético">
+                      <Input
+                        inputMode="decimal"
+                        onChange={(event) => onInvoiceTotalChange(event.target.value)}
+                        placeholder="0,00"
+                        value={invoiceTotalText}
+                      />
+                    </Field>
                   ) : null}
                 </>
               );
