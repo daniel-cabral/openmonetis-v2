@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftRight, FileUp, ListChecks } from "lucide-react";
+import { ArrowLeftRight, FileUp, GitCompareArrows, ListChecks } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -307,6 +307,14 @@ export function TransactionsScreen({
                 <Link to="/transactions/import">
                   <FileUp aria-hidden="true" />
                   Importar extrato
+                </Link>
+              </Button>
+            ) : null}
+            {allowImport && isMobile !== true ? (
+              <Button asChild className="!normal-case" variant="outline">
+                <Link to="/transactions/reconciliation">
+                  <GitCompareArrows aria-hidden="true" />
+                  Conciliar extrato
                 </Link>
               </Button>
             ) : null}

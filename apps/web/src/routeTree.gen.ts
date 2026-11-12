@@ -41,6 +41,7 @@ import { Route as ReportsInstallmentsRouteImport } from './routes/reports/instal
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
 import { Route as ReportsRecurringTransactionsRouteImport } from './routes/reports/recurring-transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions_.import'
+import { Route as TransactionsReconciliationRouteImport } from './routes/transactions_.reconciliation'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -205,6 +206,12 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
   path: '/transactions/import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TransactionsReconciliationRoute =
+  TransactionsReconciliationRouteImport.update({
+    id: '/transactions_/reconciliation',
+    path: '/transactions/reconciliation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/transactions/reconciliation': typeof TransactionsReconciliationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -273,6 +281,7 @@ export interface FileRoutesByTo {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/transactions/reconciliation': typeof TransactionsReconciliationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -308,6 +317,7 @@ export interface FileRoutesById {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions_/import': typeof TransactionsImportRoute
+  '/transactions_/reconciliation': typeof TransactionsReconciliationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/transactions/reconciliation'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -378,6 +389,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/transactions/reconciliation'
   id:
     | '__root__'
     | '/'
@@ -412,6 +424,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions_/import'
+    | '/transactions_/reconciliation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -447,6 +460,7 @@ export interface RootRouteChildren {
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
   ReportsRecurringTransactionsRoute: typeof ReportsRecurringTransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
+  TransactionsReconciliationRoute: typeof TransactionsReconciliationRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -675,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/transactions_/reconciliation': {
+      id: '/transactions_/reconciliation'
+      path: '/transactions/reconciliation'
+      fullPath: '/transactions/reconciliation'
+      preLoaderRoute: typeof TransactionsReconciliationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -711,6 +732,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,
   ReportsRecurringTransactionsRoute: ReportsRecurringTransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,
+  TransactionsReconciliationRoute: TransactionsReconciliationRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
