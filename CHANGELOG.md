@@ -79,6 +79,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   e não consegue alterar ou criar lançamentos, contas, cartões ou pessoas do dono.
 - Relatório **Uso de cartões** em Relatórios: compara o limite usado de todos os cartões ativos no mês (parte própria, estornos descontados, recorrências só até hoje), com tendência contra o mês anterior, e detalha o cartão escolhido com 12 meses de uso, situação das faturas, categorias e maiores gastos. Novo endpoint `GET /reports/card-usage`. Detalhes em `docs/card-usage-report.md`.
 - Preferências de lançamentos e troca de e-mail: em Ajustes > Preferências dá para ordenar as colunas da lista, mostrar a anotação como coluna, agrupar por data, ocultar parcelas antecipadas da lista, ocultar o resumo nos detalhes do lançamento e escolher o tamanho máximo de anexo (5, 10, 25 ou 50 MB, validado também na API). Em Ajustes > Perfil, **Alterar e-mail** pede a senha atual (ou um login recente com Google), recusa e-mails já usados sem diferenciar maiúsculas, encerra as outras sessões e envia confirmação quando o Resend está configurado. Migration `0037_account_preferences` adiciona seis colunas em `user_preferences`; `UserPreferencesOutput` ganha os campos novos e há a rota `POST /settings/email` (contrato adicionado). Ver `docs/account-preferences.md`.
+- Landing page pública opcional em `/`, ligada por `LANDING_PAGE_ENABLED=true` (padrão `false`).
+  A tela de login fica sempre em `/login`; com a landing desligada, `/` continua mostrando o login.
+  Ver `docs/environment-variables.md`.
 
 ## [0.16.0] - 2026-11-07
 

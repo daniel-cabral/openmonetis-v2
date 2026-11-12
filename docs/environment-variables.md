@@ -166,11 +166,12 @@ dos demais. Consulte o [assistente de IA](ai-diagnoses.md) para o fluxo completo
 | `API_INTERNAL_URL` | Web | `http://localhost:7001`; no Compose, `http://api:7001` | Destino HTTP(S) do proxy same-origin, acessível pelo servidor web. |
 | `API_PROXY_MAX_BODY_BYTES` | Web | `8388608` (8 MiB) | Limite dos corpos de requisição no proxy. Deve ser um inteiro positivo seguro; valores inválidos usam o padrão. As rotas Companion mantêm limites fixos de 16 KiB por item e 256 KiB por lote. |
 | `RELEASE_REPOSITORY` | API | `felipegcoutinho/openmonetis-v2` | Repositório GitHub consultado para avisos de atualização, no formato `owner/repository`. Valor vazio ou inválido usa o padrão. |
+| `LANDING_PAGE_ENABLED` | Web | `false` | Ativa a landing page pública em `/`. Só `true` (sem diferenciar maiúsculas) liga a opção. Desligada, `/` mostra o login; o login fica sempre em `/login`. Reinicie o web após alterar. |
 
 ### Aplicação das variáveis opcionais
 
 O `.env` do Compose serve para interpolar o YAML: uma variável só chega ao container quando está
-declarada no `environment` do serviço. O Compose atual já define `API_INTERNAL_URL` para a web, mas
+declarada no `environment` do serviço. O Compose atual já define `API_INTERNAL_URL` e `LANDING_PAGE_ENABLED` para a web, mas
 não repassa `API_PROXY_MAX_BODY_BYTES`, `RELEASE_REPOSITORY` nem as quatro variáveis do pool.
 
 Para personalizá-las em Docker, adicione as entradas aos serviços correspondentes em um arquivo

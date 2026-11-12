@@ -58,7 +58,7 @@ function SignupPage() {
           </div>
           <p className="mt-6 text-center text-muted-foreground text-sm">
             Já tem conta?{" "}
-            <Link className="font-medium text-brand-strong hover:underline" to="/">
+            <Link className="font-medium text-brand-strong hover:underline" to="/login">
               Entrar
             </Link>
           </p>

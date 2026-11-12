@@ -246,7 +246,7 @@ export function SignupForm() {
         <div className="grid gap-1 text-destructive text-sm" role="alert">
           <p>{error}</p>
           {error.startsWith("Este e-mail já") ? (
-            <Link className="font-medium underline" to="/">
+            <Link className="font-medium underline" to="/login">
               Entrar na minha conta
             </Link>
           ) : null}

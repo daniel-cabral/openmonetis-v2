@@ -20,6 +20,7 @@ import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
@@ -101,6 +102,11 @@ const GoalsRoute = GoalsRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotesRoute = NotesRouteImport.update({
@@ -255,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -336,6 +344,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/goals': typeof GoalsRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/notes': typeof NotesRoute
   '/people': typeof PeopleRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/goals'
     | '/inbox'
+    | '/login'
     | '/notes'
     | '/people'
     | '/robots.txt'
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/goals'
     | '/inbox'
+    | '/login'
     | '/notes'
     | '/people'
     | '/robots.txt'
@@ -458,6 +469,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/goals'
     | '/inbox'
+    | '/login'
     | '/notes'
     | '/people'
     | '/robots.txt'
@@ -499,6 +511,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   GoalsRoute: typeof GoalsRoute
   InboxRoute: typeof InboxRoute
+  LoginRoute: typeof LoginRoute
   NotesRoute: typeof NotesRoute
   PeopleRoute: typeof PeopleRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -605,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notes': {
@@ -811,6 +831,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   GoalsRoute: GoalsRoute,
   InboxRoute: InboxRoute,
+  LoginRoute: LoginRoute,
   NotesRoute: NotesRoute,
   PeopleRoute: PeopleRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
