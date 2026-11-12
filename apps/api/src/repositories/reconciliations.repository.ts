@@ -36,7 +36,7 @@ export type ReconciliationRecurringRuleRow = Awaited<
 >[number];
 
 export type ReconciliationOccurrenceRow = {
-  ruleId: string;
+  seriesId: string;
   date: string;
   isSettled: boolean;
   settledAmount: string | null;
@@ -130,15 +130,15 @@ export async function listReconciliationRecurringRules(input: {
 
 export async function listReconciliationOccurrences(input: {
   userId: string;
-  ruleIds: string[];
+  seriesIds: string[];
   from: string;
   to: string;
 }): Promise<ReconciliationOccurrenceRow[]> {
-  if (!input.ruleIds.length) return [];
+  if (!input.seriesIds.length) return [];
 
   return db
     .select({
-      ruleId: recurringTransactionOccurrences.recurringRuleId,
+      seriesId: recurringTransactionOccurrences.recurringSeriesId,
       date: sql<string>`to_char(${recurringTransactionOccurrences.purchaseDate}, 'YYYY-MM-DD')`,
       isSettled: recurringTransactionOccurrences.isSettled,
       settledAmount: recurringTransactionOccurrences.settledAmount,
@@ -149,7 +149,7 @@ export async function listReconciliationOccurrences(input: {
     .where(
       and(
         eq(recurringTransactionOccurrences.userId, input.userId),
-        inArray(recurringTransactionOccurrences.recurringRuleId, input.ruleIds),
+        inArray(recurringTransactionOccurrences.recurringSeriesId, input.seriesIds),
         sql`${recurringTransactionOccurrences.purchaseDate} between ${input.from}::date and ${input.to}::date`,
       ),
     );
