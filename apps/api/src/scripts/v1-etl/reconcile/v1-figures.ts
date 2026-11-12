@@ -50,7 +50,8 @@ const BALANCE_SQL = `
    GROUP BY c.id, c.saldo_inicial, m.period
    ORDER BY c.id, m.period`;
 
-// Invoice total = sum of the card rows of the period (all payers); paid date = latest
+// Invoice total = payable amount (V2 sign: the negated sum of the card rows of the period, all
+// payers); paid date = latest
 // `AUTO_FATURA:<card>:<period>[:<partial>]` row, only for a paid invoice.
 const INVOICE_SQL = `
   WITH keys AS (
@@ -60,7 +61,7 @@ const INVOICE_SQL = `
      WHERE user_id = $1 AND cartao_id IS NOT NULL AND periodo IS NOT NULL
   )
   SELECT k.cartao_id::text AS card, k.periodo AS period,
-         (SELECT round(coalesce(sum(l.valor), 0) * 100)::bigint::text
+         (SELECT round(-coalesce(sum(l.valor), 0) * 100)::bigint::text
             FROM public.lancamentos l
            WHERE l.user_id = $1 AND l.cartao_id = k.cartao_id AND l.periodo = k.periodo) AS total,
          (SELECT f.status_pagamento
@@ -78,10 +79,11 @@ const INVOICE_SQL = `
 // Dashboard category totals: admin payer, no invoice auto-payment rows, expense rows on expense
 // categories and income rows on income categories; the "saldo inicial" income row is left out when
 // its account sets `excluir_saldo_inicial_receitas`. Subcategories roll up into `categoria_id`.
+// V2 sign: expense categories report the spent amount (negated sum), income categories the sum.
 const CATEGORY_SQL = `
   WITH ${TX_CTE}
   SELECT tx.categoria_id::text AS category, tx.period, cat.tipo AS category_type,
-         round(sum(tx.valor) * 100)::bigint::text AS total
+         round(CASE WHEN cat.tipo = 'despesa' THEN -sum(tx.valor) ELSE sum(tx.valor) END * 100)::bigint::text AS total
     FROM tx
     JOIN public.categorias cat ON cat.id = tx.categoria_id
     LEFT JOIN public.contas c ON c.id = tx.conta_id
@@ -95,11 +97,21 @@ const CATEGORY_SQL = `
    GROUP BY tx.categoria_id, tx.period, cat.tipo
    ORDER BY 1, 2, 3`;
 
+// Person expense impact, as the V2 person summary reads the loaded rows: transfers, invoice
+// payments and credits (`AUTO_FATURA:`) and the excluded "saldo inicial" row do not count; a refund
+// (`AUTO_REEMBOLSO:`) reduces it; any other negative row adds its magnitude, positive rows add 0.
 const PERSON_SQL = `
   WITH ${TX_CTE}
-  SELECT pagador_id::text AS payer, period, round(sum(valor) * 100)::bigint::text AS total
+  SELECT tx.pagador_id::text AS payer, tx.period,
+         round(sum(CASE WHEN starts_with(tx.anotacao, 'AUTO_REEMBOLSO:') THEN -abs(tx.valor)
+                        WHEN tx.valor < 0 THEN -tx.valor
+                        ELSE 0 END) * 100)::bigint::text AS total
     FROM tx
-   GROUP BY pagador_id, period
+    LEFT JOIN public.contas c ON c.id = tx.conta_id
+   WHERE tx.transfer_id IS NULL
+     AND (tx.anotacao IS NULL OR NOT starts_with(tx.anotacao, 'AUTO_FATURA:'))
+     AND (tx.anotacao IS DISTINCT FROM 'saldo inicial' OR c.excluir_saldo_inicial_receitas IS NOT TRUE)
+   GROUP BY tx.pagador_id, tx.period
    ORDER BY 1, 2`;
 
 // Count type as V2 stores it: transfer pairs are `transfer`, other rows follow the amount sign;
@@ -196,8 +208,9 @@ export async function computeV1Figures(
     const person = row.payer === null ? refs.adminPersonId : v2Id("pagadores", row.payer);
     addTo(personTotals, { person, period: row.period }, Number(row.total));
   }
+  // V2 clamps a period's expenses at 0 and lists only positive periods.
   for (const { key, cents } of personTotals.values()) {
-    figures.push({ kind: "personTotal", key, value: cents });
+    if (cents > 0) figures.push({ kind: "personTotal", key, value: cents });
   }
 
   const counts = await c.query<{ period: string; type: string; rows: number }>(COUNT_SQL, txParams);
