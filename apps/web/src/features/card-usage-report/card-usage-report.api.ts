@@ -9,9 +9,7 @@ export function getCardUsageReport({ period, cardId }: ListCardUsageReportQuery)
   if (period) params.set("period", period);
   if (cardId) params.set("cardId", cardId);
 
-  return requestApi<CardUsageReportOutput>(
-    `/reports/card-usage?${params.toString()}`,
-    undefined,
-    { useResponseMessage: true },
-  );
+  return requestApi<CardUsageReportOutput>(`/reports/card-usage?${params.toString()}`, undefined, {
+    useResponseMessage: true,
+  });
 }

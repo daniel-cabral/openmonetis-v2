@@ -6,10 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { getCardBrandAsset } from "@/features/cards/card-brand-assets";
 import { cn } from "@/lib/utils";
-import {
-  cardUsageToneClassName,
-  formatCardUsageTrend,
-} from "../card-usage-report.presentation";
+import { cardUsageToneClassName, formatCardUsageTrend } from "../card-usage-report.presentation";
 
 type CardUsageListProps = {
   cards: CardUsageReportOutput["cards"];
@@ -64,9 +61,7 @@ export function CardUsageList({ cards, onSelect, selectedCardId }: CardUsageList
                         <MoneyValue amount={card.limit} />
                       </span>
                     </span>
-                    <span
-                      className={cn("shrink-0 font-medium text-sm tabular-nums", tone.text)}
-                    >
+                    <span className={cn("shrink-0 font-medium text-sm tabular-nums", tone.text)}>
                       {card.usagePercentage.toLocaleString("pt-BR")}%
                     </span>
                   </span>
