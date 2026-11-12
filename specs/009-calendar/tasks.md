@@ -76,7 +76,7 @@ the establishments report feature (`packages/domain/src/establishments-report.ts
 
 - [X] T014 [P] Create `docs/calendar.md` in the style of `docs/establishments-report.md`: endpoint, placement rules, own share, installments, invoice state, exclusions.
 - [X] T015 [P] Add a PT-BR entry under `### Fork` at the end of `Unreleased` in `CHANGELOG.md`: "Calendário mensal com lançamentos, parcelas, boletos e faturas por dia, detalhe do dia e criação rápida."
-- [ ] T016 Gate: run `pnpm check`, `pnpm typecheck`, the touched unit tests (`node --import tsx --test packages/domain/src/calendar.test.ts apps/web/src/features/calendar/calendar.presentation.test.ts`) and `pnpm test:calendar:integration` (bash); fix failures; do not commit `apps/web/src/routeTree.gen.ts` incidental diffs beyond the new `/calendar` route.
+- [X] T016 Gate: run `pnpm check`, `pnpm typecheck`, the touched unit tests (`node --import tsx --test packages/domain/src/calendar.test.ts apps/web/src/features/calendar/calendar.presentation.test.ts`) and `pnpm test:calendar:integration` (bash); fix failures; do not commit `apps/web/src/routeTree.gen.ts` incidental diffs beyond the new `/calendar` route.
 
 ---
 
