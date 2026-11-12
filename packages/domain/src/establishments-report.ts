@@ -13,8 +13,10 @@ export const topCategoriesLimit = 10;
 export type EstablishmentsWindow = { startPeriod: string; endPeriod: string };
 
 export type EstablishmentPurchaseEntry = {
+  id?: string;
   name: string;
   period: string;
+  purchaseDate?: string;
   amount: string | number;
   origin: TransactionOrigin;
   transactionType: TransactionType;
@@ -27,6 +29,7 @@ export type EstablishmentPurchaseEntry = {
 };
 
 export type EstablishmentRecurringRule = Omit<CategoryTrendRecurringRule, "categoryId" | "type"> & {
+  id?: string;
   name: string;
   transactionType: TransactionType;
   categoryId: string | null;
@@ -145,7 +148,7 @@ export function calculateEstablishmentsReport(input: {
   };
 }
 
-function expandActiveRules(
+export function expandActiveRules(
   rules: readonly EstablishmentRecurringRule[],
   window: EstablishmentsWindow,
 ): EstablishmentPurchaseEntry[] {
@@ -153,8 +156,10 @@ function expandActiveRules(
     .filter((rule) => rule.status === "active")
     .flatMap((rule) =>
       listRuleOccurrences(rule, window.startPeriod, window.endPeriod).map((occurrence) => ({
+        id: rule.id,
         name: rule.name,
         period: occurrence.period,
+        purchaseDate: occurrence.purchaseDate,
         amount: occurrence.amount,
         origin: "regular" as const,
         transactionType: rule.transactionType,

@@ -40,8 +40,12 @@ export const establishmentsReportRepository = {
   ): Promise<EstablishmentPurchaseEntry[]> {
     return db
       .select({
+        id: transactions.id,
         name: transactions.name,
         period: transactions.period,
+        purchaseDate: sql<string>`to_char(${transactions.purchaseDate}, 'YYYY-MM-DD')`.as(
+          "purchase_date",
+        ),
         amount:
           sql<string>`case when ${transactionSplits.id} is not null then ${effectiveSplitAmountSql} else ${effectiveTransactionAmountSql} end`.as(
             "amount",
@@ -113,6 +117,7 @@ export const establishmentsReportRepository = {
   ): Promise<EstablishmentRecurringRule[]> {
     const rows = await db
       .select({
+        id: recurringTransactionRules.id,
         name: recurringTransactionRules.name,
         transactionType: recurringTransactionRules.type,
         categoryId: categories.id,
@@ -208,6 +213,7 @@ export const establishmentsReportRepository = {
       .orderBy(asc(recurringTransactionRules.startDate), asc(recurringTransactionRules.id));
 
     return rows.map((row) => ({
+      id: row.id,
       name: row.name,
       transactionType: row.transactionType,
       categoryId: row.categoryId,
