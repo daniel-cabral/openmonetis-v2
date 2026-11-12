@@ -94,7 +94,7 @@ headers; routes pass `userId`, `sessionId`, `sessionCreatedAt` as values. Do not
 
 ## Dependencies
 
-- Setup (T001) → Foundational (T002 → T003 → T005/T006/T007; T004 parallel; T008 after T003/T006).
+- Setup (T001) → Foundational (T002 and T004 first; T003 after T004 because it imports the attachment size options; then T005/T006/T007; T008 after T003/T006). T009 and T010 run as one unit: subtest (d) of T009 only passes once T010 is in.
 - US1 (T009-T013) after Foundational. US3 (T014-T019) after Foundational, independent of US1
   (shares only the integration test file; T017 adds a separate test). US2 (T020-T024) after
   Foundational; T021 extends T009's test, so run after T009.
@@ -102,7 +102,7 @@ headers; routes pass `userId`, `sessionId`, `sessionCreatedAt` as values. Do not
 
 ## Parallel examples
 
-- Foundational: T004 alongside T003.
+- Foundational: T004 alongside T002 (T003 waits for T004).
 - US1: T011 alongside T010.
 - US3: T015 and T018 alongside T014/T016.
 - US2: T022 and T023 alongside T020.
