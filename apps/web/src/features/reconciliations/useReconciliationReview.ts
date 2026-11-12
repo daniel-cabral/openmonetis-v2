@@ -4,15 +4,28 @@ import type {
   ReconciliationPreview,
 } from "@openmonetis/validators/reconciliations";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { acceptedExtensions } from "../transactions/components/transaction-import-screen-options";
 import { useTransactionImportTemplateMutation } from "../transactions/transactions.mutations";
-import { type UiDecisions, initialDecisions } from "./components/reconciliation-review";
+import {
+  type UiDecisions,
+  type UiLineDecision,
+  initialDecisions,
+  markAllBankOnlyAsCreate,
+  toApplyDecisions,
+} from "./components/reconciliation-review";
 import type { ReconciliationOrigin } from "./reconciliations.api";
 import {
+  useApplyReconciliationMutation,
   useDetectReconciliationMutation,
   usePreviewReconciliationMutation,
+  useUndoReconciliationMutation,
 } from "./reconciliations.mutations";
-import { formatReconciliationError } from "./reconciliations.presentation";
+import {
+  formatReconciliationError,
+  formatReconciliationResult,
+  formatSkippedWarning,
+} from "./reconciliations.presentation";
 
 function errorCode(error: unknown) {
   return error && typeof error === "object" && "code" in error && typeof error.code === "string"
@@ -32,6 +45,8 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
   const [error, setError] = useState<string | null>(null);
   const detectMutation = useDetectReconciliationMutation();
   const previewMutation = usePreviewReconciliationMutation();
+  const applyMutation = useApplyReconciliationMutation();
+  const undoMutation = useUndoReconciliationMutation();
   const templateMutation = useTransactionImportTemplateMutation();
 
   // Profile, target or period changed: the preview and its decisions no longer describe the form.
@@ -84,6 +99,47 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
     }
   }
 
+  function updateDecision(lineIndex: number, patch: Partial<UiLineDecision>) {
+    setDecisions((current) => ({ ...current, [lineIndex]: { ...current[lineIndex], ...patch } }));
+  }
+
+  function markAllBankOnly() {
+    if (preview) setDecisions((current) => markAllBankOnlyAsCreate(current, preview));
+  }
+
+  async function undoBatch(batchId: string) {
+    try {
+      await undoMutation.mutateAsync(batchId);
+      toast.success("Conciliação desfeita.");
+    } catch {
+      toast.error("Não foi possível desfazer.");
+    }
+  }
+
+  async function applyReview() {
+    if (!file || !origin || !preview) return;
+    setError(null);
+    try {
+      const result = await applyMutation.mutateAsync({
+        file,
+        origin,
+        review: {
+          classificationDigest: preview.classificationDigest,
+          decisions: toApplyDecisions(decisions, preview),
+        },
+      });
+      toast.success(formatReconciliationResult(result), {
+        duration: 8000,
+        action: { label: "Desfazer", onClick: () => void undoBatch(result.batchId) },
+      });
+      const skippedWarning = formatSkippedWarning(result.skipped);
+      if (skippedWarning) toast.warning(skippedWarning);
+      resetUpload();
+    } catch (applyError) {
+      setError(formatReconciliationError(errorCode(applyError)));
+    }
+  }
+
   async function downloadTemplate() {
     setError(null);
     try {
@@ -115,15 +171,18 @@ export function useReconciliationReview({ adminPersonId }: { adminPersonId: stri
     origin,
     preview,
     decisions,
-    setDecisions,
+    updateDecision,
+    markAllBankOnly,
     applyResult,
     setApplyResult,
     error,
     isDetecting: detectMutation.isPending,
     isReading: previewMutation.isPending,
+    isApplying: applyMutation.isPending,
     isDownloadingTemplate: templateMutation.isPending,
     handleFile,
     readFile,
+    applyReview,
     downloadTemplate,
     resetReview,
     resetUpload,

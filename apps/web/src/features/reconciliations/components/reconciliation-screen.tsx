@@ -5,15 +5,25 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { accountsQueryOptions } from "@/features/accounts/accounts.queries";
 import { cardsQueryOptions } from "@/features/cards/cards.queries";
+import { categoriesQueryOptions } from "@/features/categories/categories.queries";
 import { peopleQueryOptions } from "@/features/people/people.queries";
 import { TransactionImportUpload } from "@/features/transactions/components/transaction-import-upload";
 import { useReconciliationReview } from "../useReconciliationReview";
+import { ReconciliationApplyBar } from "./reconciliation-apply-bar";
+import { ReconciliationBuckets } from "./reconciliation-buckets";
 import { ReconciliationOriginStep } from "./reconciliation-origin-step";
+import { ReconciliationSummary } from "./reconciliation-summary";
 
 export function ReconciliationScreen() {
-  const [accounts, cards, people] = useQueries({
-    queries: [accountsQueryOptions(), cardsQueryOptions(), peopleQueryOptions()],
+  const [accounts, cards, categories, people] = useQueries({
+    queries: [
+      accountsQueryOptions(),
+      cardsQueryOptions(),
+      categoriesQueryOptions(),
+      peopleQueryOptions(),
+    ],
   });
+  const activePeople = people.data?.filter((person) => person.status === "active") ?? [];
   const review = useReconciliationReview({
     adminPersonId: people.data?.find((person) => person.role === "admin")?.id ?? null,
   });
@@ -59,6 +69,26 @@ export function ReconciliationScreen() {
           setDragging={review.setDragging}
         />
       )}
+
+      {review.preview ? (
+        <div className="grid gap-6">
+          <ReconciliationSummary counts={review.preview.counts} />
+          <ReconciliationBuckets
+            categories={categories.data ?? []}
+            decisions={review.decisions}
+            onChange={review.updateDecision}
+            onMarkAllBankOnlyAsCreate={review.markAllBankOnly}
+            people={activePeople}
+            preview={review.preview}
+          />
+          <ReconciliationApplyBar
+            decisions={review.decisions}
+            isApplying={review.isApplying}
+            onApply={() => void review.applyReview()}
+            preview={review.preview}
+          />
+        </div>
+      ) : null}
 
       {review.error ? (
         <p className="text-destructive text-sm" role="alert">
