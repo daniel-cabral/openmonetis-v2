@@ -891,6 +891,9 @@ test("assembled API protects financial endpoints and persists transfers and refu
     await t.test(
       "mass-add creates every row atomically with shared settings and rejects foreign or unusable references",
       async () => {
+        // Own users: the shared owner has spent the per-user mutation budget (120/min) by now.
+        const owner = await register();
+        const stranger = await register();
         const f = await fixture(owner, 0);
         const createCard = async (name: string) =>
           data<{ id: string }>(
@@ -997,7 +1000,29 @@ test("assembled API protects financial endpoints and persists transfers and refu
           201,
         );
 
+        const derived = await data<{ ids: string[] }>(
+          await request("/transactions/bulk/create", owner, "POST", {
+            type: "expense",
+            paymentMethod: "credit_card",
+            cardId: card.id,
+            rows: [{ ...rowFor("After closing", 12), purchaseDate: "2020-01-25" }],
+          }),
+          201,
+        );
+        assert.equal((await detail(derived.ids[0] as string)).period, "2020-02");
+
         const before = await ownerTransactions();
+        await error(
+          await request("/transactions/bulk/create", owner, "POST", {
+            type: "expense",
+            paymentMethod: "credit_card",
+            cardId: card.id,
+            invoicePeriod: period,
+            rows: [rowFor("Big 1", 600), rowFor("Big 2", 500)],
+          }),
+          400,
+          "CARD_LIMIT_EXCEEDED",
+        );
         await error(
           await request("/transactions/bulk/create", owner, "POST", {
             type: "expense",
@@ -1042,6 +1067,54 @@ test("assembled API protects financial endpoints and persists transfers and refu
           404,
           "ACCOUNT_NOT_FOUND",
         );
+        await error(
+          await request("/transactions/bulk/create", owner, "POST", {
+            type: "income",
+            paymentMethod: "pix",
+            accountId: f.source.id,
+            rows: [rowFor("Wrong type", 3)],
+          }),
+          404,
+          "CATEGORY_NOT_FOUND",
+        );
+        const pixRows = [rowFor("Pix row", 4)];
+        const invalidBodies = [
+          {
+            type: "expense",
+            paymentMethod: "pix",
+            accountId: f.source.id,
+            cardId: card.id,
+            rows: pixRows,
+          },
+          {
+            type: "expense",
+            paymentMethod: "credit_card",
+            cardId: card.id,
+            accountId: f.source.id,
+            rows: pixRows,
+          },
+          {
+            type: "expense",
+            paymentMethod: "pix",
+            accountId: f.source.id,
+            invoicePeriod: period,
+            rows: pixRows,
+          },
+          { type: "expense", paymentMethod: "pix", accountId: f.source.id, rows: [] },
+          {
+            type: "expense",
+            paymentMethod: "pix",
+            accountId: f.source.id,
+            rows: Array.from({ length: 501 }, (_, index) => rowFor(`Row ${index}`, 1)),
+          },
+        ];
+        for (const body of invalidBodies) {
+          await error(
+            await request("/transactions/bulk/create", owner, "POST", body),
+            400,
+            "validation_error",
+          );
+        }
         assert.equal(await ownerTransactions(), before);
       },
     );
@@ -1168,6 +1241,7 @@ test("assembled API protects financial endpoints and persists transfers and refu
           ],
         );
         await error(await edit([oneId], { condition: "installment" }), 400, "validation_error");
+        await error(await edit(singleIds, {}), 400, "validation_error");
 
         const split = await create({
           name: "Shared",
@@ -1246,6 +1320,142 @@ test("assembled API protects financial endpoints and persists transfers and refu
         await error(await edit([paidItemId], { amount: 20 }), 400, "INVOICE_ALREADY_PAID");
         assert.equal((await detail(openItemId)).period, "2020-06");
         assert.equal((await detail(paidItemId)).displayAmount, 10.01);
+
+        const seriesIds = async (seriesId: string | null) => {
+          const members = await db
+            .select({
+              id: schema.transactions.id,
+              installment: schema.transactions.currentInstallment,
+            })
+            .from(schema.transactions)
+            .where(
+              and(
+                eq(schema.transactions.userId, editor.id),
+                eq(schema.transactions.seriesId, seriesId as string),
+              ),
+            );
+          return members
+            .sort((a, b) => (a.installment ?? 0) - (b.installment ?? 0))
+            .map((member) => member.id);
+        };
+
+        // Card series: a future edit moves the anchor across a year boundary, then a series edit
+        // from installment 2 re-anchors the earlier installment too.
+        const cardPlan = await create({
+          name: "Card plan",
+          condition: "installment",
+          installmentCount: 3,
+          purchaseDate: "2021-03-10",
+          paymentMethod: "credit_card",
+          accountId: null,
+          cardId: invoiceCard.id,
+          isSettled: undefined,
+          settledDate: undefined,
+        });
+        const cardPlanIds = await seriesIds(cardPlan.seriesId);
+        assert.equal(cardPlanIds.length, 3);
+        await data(
+          await edit([cardPlanIds[0] as string], { purchaseDate: "2021-12-10" }, "future"),
+        );
+        const shifted = await details(cardPlanIds);
+        assert.deepEqual(
+          shifted.map((item) => item.purchaseDate),
+          ["2021-12-10", "2022-01-10", "2022-02-10"],
+        );
+        assert.deepEqual(
+          shifted.map((item) => item.period),
+          ["2021-12", "2022-01", "2022-02"],
+        );
+        await data(
+          await edit([cardPlanIds[1] as string], { purchaseDate: "2022-05-10" }, "series"),
+        );
+        const reanchored = await details(cardPlanIds);
+        assert.deepEqual(
+          reanchored.map((item) => item.purchaseDate),
+          ["2022-04-10", "2022-05-10", "2022-06-10"],
+        );
+        assert.deepEqual(
+          reanchored.map((item) => item.period),
+          ["2022-04", "2022-05", "2022-06"],
+        );
+
+        // A settled sibling inside the future scope locks its series: the whole edit aborts.
+        const fundedFixture = await fixture(editor, 500);
+        const payPlan = await data<TransactionOutput>(
+          await request("/transactions", editor, "POST", {
+            ...fundedFixture.expense,
+            name: "Pay plan",
+            condition: "installment",
+            installmentCount: 6,
+            purchaseDate: "2026-01-10",
+            dueDate: "2026-01-15",
+            isSettled: false,
+            settledDate: undefined,
+          }),
+          201,
+        );
+        const payIds = await seriesIds(payPlan.seriesId);
+        await data(
+          await request("/transactions/settlement", editor, "PATCH", {
+            ids: [payIds[4] as string],
+            isSettled: true,
+            settledDate: "2026-01-20",
+          }),
+        );
+        const payBefore = await details(payIds);
+        assert.equal(payBefore[4]?.isSettled, true);
+        await error(
+          await edit([payIds[2] as string], { amount: 20 }, "future"),
+          400,
+          "SETTLEMENT_REQUIRES_UNDO",
+        );
+        assert.deepEqual((await details(payIds)).map(keep), payBefore.map(keep));
+        await error(
+          await edit([openItemId], { accountId: f.source.id }),
+          400,
+          "BULK_UPDATE_FIELD_NOT_APPLICABLE",
+        );
+        assert.equal((await detail(openItemId)).accountId, null);
+        await error(
+          await edit(singleIds, { categoryId: editor.incomeCategoryId }),
+          400,
+          "BULK_CATEGORY_INCOMPATIBLE",
+        );
+        assert.deepEqual((await details(singleIds)).map(keep), singlesAfter.map(keep));
+
+        // Every related id must belong to the owner, even when the transactions do.
+        const strangerAccount = await data<Account>(
+          await request("/accounts", stranger, "POST", {
+            name: "Stranger bulk account",
+            type: "checking",
+          }),
+          201,
+        );
+        const strangerCard = await data<{ id: string }>(
+          await request("/cards", stranger, "POST", {
+            accountId: strangerAccount.id,
+            name: "Stranger card",
+            brand: "visa",
+            closingDay: 20,
+            dueDay: 25,
+            limit: 1000,
+          }),
+          201,
+        );
+        const foreignChanges: Array<[Record<string, string>, string]> = [
+          [{ personId: stranger.personId }, "PERSON_NOT_FOUND"],
+          [{ categoryId: stranger.expenseCategoryId }, "CATEGORY_NOT_FOUND"],
+          [{ accountId: strangerAccount.id }, "ACCOUNT_NOT_FOUND"],
+          [{ cardId: strangerCard.id }, "CARD_NOT_FOUND"],
+        ];
+        for (const [changes, code] of foreignChanges) {
+          await error(await edit(singleIds, changes), 404, code);
+        }
+        assert.deepEqual((await details(singleIds)).map(keep), singlesAfter.map(keep));
+        assert.deepEqual(
+          (await details(singleIds)).map((item) => item.personId),
+          [second.id, second.id, second.id],
+        );
 
         await error(
           await request("/transactions/bulk/update", stranger, "PATCH", {
