@@ -35,6 +35,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { categoriesQueryOptions } from "@/features/categories/categories.queries";
 import { tagsQueryOptions } from "@/features/tags/tags.queries";
+import { tripsQueryOptions } from "@/features/trips/trips.queries";
 import { cn } from "@/lib/utils";
 import {
   type BulkTransactionActionKey,
@@ -44,6 +45,7 @@ import { useTransactionBulkActions } from "../useTransactionBulkActions";
 import { TransactionBulkCategoryPicker } from "./transaction-bulk-category-picker";
 import { TransactionBulkRenameDialog } from "./transaction-bulk-rename-dialog";
 import { TransactionBulkTagPicker } from "./transaction-bulk-tag-picker";
+import { TransactionBulkTripPicker } from "./transaction-bulk-trip-picker";
 
 type TransactionBulkActionDockProps = {
   summary: TransactionSelectionSummary;
@@ -108,6 +110,7 @@ export function TransactionBulkActionDock({
 }: TransactionBulkActionDockProps) {
   const categoriesQuery = useQuery(categoriesQueryOptions());
   const tagsQuery = useQuery(tagsQueryOptions());
+  const tripsQuery = useQuery(tripsQueryOptions());
   const actions = useTransactionBulkActions(transactions);
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   if (!summary.selectedCount) return null;
@@ -121,6 +124,7 @@ export function TransactionBulkActionDock({
     actions.availability.categorize,
   );
   const tagHint = describeBulkTransactionAction("tag", actions.availability.tag);
+  const tripHint = describeBulkTransactionAction("trip", actions.availability.trip);
   const unsettleHint = describeBulkTransactionAction("unsettle", actions.availability.unsettle);
 
   return (
@@ -218,6 +222,21 @@ export function TransactionBulkActionDock({
                 pending={actions.activeAction === "tag"}
                 tags={tagsQuery.data ?? []}
                 targetCount={actions.availability.tag.count}
+              />
+            </DockTooltip>
+            <DockTooltip label={tripHint.hint}>
+              <TransactionBulkTripPicker
+                blockedReason={
+                  !tripHint.available
+                    ? tripHint.unavailableReason
+                    : tripsQuery.data?.length
+                      ? null
+                      : "Cadastre uma viagem primeiro"
+                }
+                busy={actions.pending}
+                onSelect={(tripId) => void actions.setTrip(tripId)}
+                pending={actions.activeAction === "trip"}
+                trips={tripsQuery.data ?? []}
               />
             </DockTooltip>
             <DockActionButton

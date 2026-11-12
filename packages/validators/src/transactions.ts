@@ -145,6 +145,7 @@ const TransactionFieldsSchema = z.object({
     .max(50)
     .nullable()
     .optional(),
+  tripId: nullableUuidSchema.optional(),
 });
 
 const CreateTransactionFieldsSchema = TransactionFieldsSchema.extend({
@@ -542,6 +543,12 @@ export const BulkTagTransactionsInputSchema = BulkTransactionsInputSchema.extend
   .strict()
   .openapi("BulkTagTransactionsInput");
 export type BulkTagTransactionsInput = z.infer<typeof BulkTagTransactionsInputSchema>;
+export const BulkTripTransactionsInputSchema = BulkTransactionsInputSchema.extend({
+  tripId: z.uuid().nullable(),
+})
+  .strict()
+  .openapi("BulkTripTransactionsInput");
+export type BulkTripTransactionsInput = z.infer<typeof BulkTripTransactionsInputSchema>;
 export const BulkRenameTransactionsInputSchema = z
   .object({
     items: z
@@ -828,6 +835,7 @@ export const TransactionOutputSchema = z
       }),
     ),
     isDivided: z.boolean(),
+    tripId: z.string().uuid().nullable().optional(),
     refundSourceId: z.string().uuid().nullable(),
     refundedAmount: z.number().nonnegative(),
     refundableAmount: z.number().nonnegative(),

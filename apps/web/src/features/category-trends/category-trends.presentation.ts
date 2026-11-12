@@ -9,6 +9,7 @@ type CategoryTrendsSearch = {
   startPeriod?: string;
   endPeriod?: string;
   categoryIds?: string;
+  trip?: string;
 };
 
 const categoryTrendsPeriodOffset = 6;
@@ -25,11 +26,13 @@ export function validateCategoryTrendsSearch(
     startPeriod: validPeriod(search.startPeriod),
     endPeriod: validPeriod(search.endPeriod),
     categoryIds: categoryIds.length ? categoryIds.join(",") : undefined,
+    trip: validTrip(search.trip),
   };
 }
 
 export function resolveCategoryTrendsSearch(search: CategoryTrendsSearch) {
   const categoryIds = normalizeCategoryIds(search.categoryIds);
+  const trip = validTrip(search.trip);
   const endPeriod = search.endPeriod ?? search.period;
 
   if (search.startPeriod && endPeriod) {
@@ -41,21 +44,22 @@ export function resolveCategoryTrendsSearch(search: CategoryTrendsSearch) {
       start.getUTCMonth() +
       1;
     if (months >= 1 && months <= 24) {
-      return { startPeriod: search.startPeriod, endPeriod, categoryIds };
+      return { startPeriod: search.startPeriod, endPeriod, categoryIds, trip };
     }
   }
 
   if (endPeriod) {
-    return { ...getCategoryTrendsPeriodRange("end", endPeriod), categoryIds };
+    return { ...getCategoryTrendsPeriodRange("end", endPeriod), categoryIds, trip };
   }
 
   if (search.startPeriod) {
-    return { ...getCategoryTrendsPeriodRange("start", search.startPeriod), categoryIds };
+    return { ...getCategoryTrendsPeriodRange("start", search.startPeriod), categoryIds, trip };
   }
 
   return {
     ...getCategoryTrendsPeriodRange("end", getCurrentPeriodInBrazil()),
     categoryIds,
+    trip,
   };
 }
 
@@ -145,6 +149,12 @@ export function downloadCategoryTrendsCsv(report: CategoryTrendsOutput) {
 
 function validPeriod(value: unknown) {
   return typeof value === "string" && periodPattern.test(value) ? value : undefined;
+}
+
+function validTrip(value: unknown) {
+  return typeof value === "string" && (value === "none" || uuidPattern.test(value))
+    ? value
+    : undefined;
 }
 
 function normalizeCategoryIds(value: unknown) {

@@ -39,6 +39,7 @@
     "release:check": "node scripts/validate-release.mjs",
     "test": "node scripts/run-tests.mjs",
     "test:tags:integration": "TAGS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/tags.repository.integration.test.ts",
+    "test:trips:integration": "TRIPS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/trips.repository.integration.test.ts",
     "typecheck": "pnpm -r typecheck && pnpm --filter @openmonetis/web exec tsc -p ../../tsconfig.tests.json",
     "test:categories:integration": "CATEGORIES_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/categories.repository.integration.test.ts",
     "test:recurring:integration": "RECURRING_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/recurring-transactions.repository.integration.test.ts",
@@ -56,6 +57,7 @@
     "test:coverage": "c8 node scripts/run-tests.mjs",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:financial-distribution:integration": "FINANCIAL_DISTRIBUTION_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-distribution.integration.test.ts",
+    "test:establishments-report:integration": "ESTABLISHMENTS_REPORT_INTEGRATION_TEST=1 tsx --test apps/api/src/establishments-report.integration.test.ts",
     "test:financial-integrity:integration": "FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-integrity.integration.test.ts",
     "test:storage:live": "REAL_STORAGE_INTEGRATION_TEST=1 tsx --test apps/api/src/storage-real.integration.test.ts"
   },

@@ -11,8 +11,10 @@ import {
   Landmark,
   NotebookText,
   Paperclip,
+  Plane,
   Repeat2,
   Sparkles,
+  Store,
   Tag,
   Tags,
   Target,
@@ -122,6 +124,12 @@ export const navSections: NavSection[] = [
         preservePeriod: true,
       },
       {
+        href: "/trips",
+        label: "Viagens",
+        description: "Quanto custou cada viagem",
+        icon: <Plane className="size-4" aria-hidden="true" />,
+      },
+      {
         href: "/notes",
         label: "Anotações",
         description: "Notas de texto e listas de tarefas",
@@ -158,6 +166,13 @@ export const navSections: NavSection[] = [
         label: "Evolução por categoria",
         description: "Evolução de categorias por período",
         icon: <FileChartColumn className="size-4" aria-hidden="true" />,
+        preservePeriod: true,
+      },
+      {
+        href: "/reports/establishments",
+        label: "Estabelecimentos",
+        description: "Onde você mais compra",
+        icon: <Store className="size-4" aria-hidden="true" />,
         preservePeriod: true,
       },
       {

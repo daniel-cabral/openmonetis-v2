@@ -4,7 +4,7 @@ import type {
   TransactionActionScope,
   UpdateTransactionInput,
 } from "@openmonetis/validators/transactions";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import { refreshFinancialQueries } from "@/lib/financial-query-invalidation";
 import {
   applyRecurringRuleAction,
@@ -19,6 +19,7 @@ import {
   previewTransactionImport,
   refundTransaction,
   renameTransactions,
+  setTransactionsTrip,
   settleRecurringOccurrence,
   settleTransactions,
   type TransactionImportPreviewOptions,
@@ -32,6 +33,13 @@ import {
   downloadTransactionExport,
   labelTransactionExportFileName,
 } from "./transactions.presentation";
+
+function refreshTransactionQueries(queryClient: QueryClient) {
+  return Promise.all([
+    refreshFinancialQueries(queryClient),
+    queryClient.invalidateQueries({ queryKey: ["trips"] }),
+  ]);
+}
 
 export function useExportTransactionsMutation() {
   return useMutation({
@@ -59,7 +67,7 @@ export function useCreateTransactionMutation() {
 
   return useMutation({
     mutationFn: createTransaction,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 
@@ -68,7 +76,7 @@ export function useRefundTransactionMutation() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateTransactionRefundInput }) =>
       refundTransaction(id, data),
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 
@@ -91,7 +99,7 @@ export function useImportTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: importTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 
@@ -99,7 +107,7 @@ export function useUndoTransactionImportMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: undoTransactionImport,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useUpdateRecurringRuleMutation() {
@@ -116,7 +124,7 @@ export function useUpdateRecurringRuleMutation() {
       scope: TransactionActionScope;
       occurrenceDate: string;
     }) => updateRecurringRule(id, data, scope, occurrenceDate),
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 
@@ -133,7 +141,7 @@ export function useUpdateTransactionMutation() {
       data: UpdateTransactionInput;
       scope?: TransactionActionScope;
     }) => updateTransaction(id, data, scope),
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 
@@ -142,55 +150,62 @@ export function useDeleteTransactionMutation() {
 
   return useMutation({
     mutationFn: deleteTransaction,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useSettleTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: settleTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useCategorizeTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: categorizeTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useRenameTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: renameTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useTagTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: tagTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
+  });
+}
+export function useSetTransactionsTripMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: setTransactionsTrip,
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useDeleteTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteTransactions,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useSettleRecurringOccurrenceMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: settleRecurringOccurrence,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }
 export function useRecurringRuleActionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: applyRecurringRuleAction,
-    onSuccess: () => refreshFinancialQueries(queryClient),
+    onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
-import { categoryTrendsCsv } from "./category-trends.presentation";
+import {
+  categoryTrendsCsv,
+  resolveCategoryTrendsSearch,
+  validateCategoryTrendsSearch,
+} from "./category-trends.presentation";
 
 function report(name: string): CategoryTrendsOutput {
   return {
@@ -38,6 +42,25 @@ test("category trends CSV lists one row per category and month", () => {
   assert.ok(csv.startsWith("﻿"));
   assert.match(csv, /^﻿"Tipo";"Categoria";"Período"/);
   assert.match(csv, /"Despesa";"Mercado";"2026-10";"10,05";"0,00";"10,05";"-49,75"/);
+});
+
+test("category trends search keeps the no-trip and trip id filters and drops malformed ones", () => {
+  const tripId = "10000000-0000-4000-8000-000000000001";
+  const cases = [
+    ["none", "none"],
+    [tripId, tripId],
+    ["lisboa", undefined],
+  ] as const;
+
+  for (const [trip, expected] of cases) {
+    const search = validateCategoryTrendsSearch({
+      startPeriod: "2026-03",
+      endPeriod: "2026-06",
+      trip,
+    });
+    assert.equal(search.trip, expected, trip);
+    assert.equal(resolveCategoryTrendsSearch(search).trip, expected, trip);
+  }
 });
 
 test("category names cannot inject spreadsheet formulas", () => {

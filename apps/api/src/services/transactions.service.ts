@@ -62,12 +62,14 @@ import {
   splitAmountIntoInstallments,
   toDisplayAmount,
 } from "@openmonetis/domain/transactions";
+import { isTripLinkable, planTripLinkChange } from "@openmonetis/domain/trips";
 import { getCurrentDateInBrazil, getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   BulkCategorizeTransactionsInput,
   BulkDeleteTransactionsInput,
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
+  BulkTripTransactionsInput,
   CreateTransactionRefundInput,
   DetectTransactionImportInput,
   ExportTransactionsQuery,
@@ -154,6 +156,7 @@ export type TransactionsServiceDependencies = Pick<
   | "listTransactionSplitsForUser"
   | "listTransactionsByPeriod"
   | "removeTransactionsTagsForUser"
+  | "setTransactionsTripForUser"
   | "renameTransactionsForUser"
   | "listTransactionsByDueDateRange"
   | "listAccountStatementTransactionsForUser"
@@ -170,6 +173,7 @@ export type TransactionsServiceDependencies = Pick<
   dueDateRules?: DueDateRulesReader;
   transitionRecurringRuleForUser: typeof import("../repositories/recurring-transactions.repository").transitionRecurringRuleForUser;
   listTagsByIdsForUser?: (ids: string[], userId: string) => Promise<Array<{ id: string }>>;
+  findTripByIdForUser?: (id: string, userId: string) => Promise<{ id: string } | null>;
   getAccountBalanceSnapshotForUser: (
     accountId: string,
     userId: string,
@@ -345,6 +349,7 @@ export function createTransactionsService(
     listAccountStatementTransactionsForUser,
     listTransactionsByPurchaseDateRange,
     listSettledRecurringBoletoOccurrencesByPaymentDateForUser,
+    setTransactionsTripForUser,
     settleRecurringOccurrenceForUser,
     settleTransactionsForUser,
     updateRecurringRuleWithSplitsForUser,
@@ -447,6 +452,7 @@ export function createTransactionsService(
       invoicePaymentCardName: transaction.invoicePaymentCardName,
       invoicePaymentCardLogo: transaction.invoicePaymentCardLogo,
       tagIds: transaction.tagIds ?? [],
+      tripId: transaction.tripId ?? null,
       categoryId: transaction.categoryId,
       categoryName: transaction.categoryName,
       categoryIcon: transaction.categoryIcon,
@@ -539,6 +545,7 @@ export function createTransactionsService(
       invoicePaymentCardName: null,
       invoicePaymentCardLogo: null,
       tagIds: rule.tagIds ?? [],
+      tripId: rule.occurrenceTripIds?.[purchaseDate] ?? null,
       categoryId: rule.categoryId,
       categoryName: rule.categoryName,
       categoryIcon: rule.categoryIcon,
@@ -571,6 +578,18 @@ export function createTransactionsService(
       createdAt: toIsoString(rule.createdAt),
       updatedAt: toIsoString(rule.updatedAt),
     };
+  }
+
+  async function assertTripLinkable(
+    tripId: string | null | undefined,
+    transaction: Parameters<typeof isTripLinkable>[0],
+    userId: string,
+  ) {
+    if (!tripId) return;
+    const trip = await dependencies.findTripByIdForUser?.(tripId, userId);
+    if (!trip) throw notFound("Trip not found", "TRIP_NOT_FOUND");
+    if (!isTripLinkable(transaction))
+      throw badRequest("Transaction cannot be linked to a trip", "TRIP_NOT_LINKABLE");
   }
 
   async function assertOwnership(
@@ -1114,8 +1133,12 @@ export function createTransactionsService(
     const persistedConfirmation = confirmation
       ? { ...confirmation, userId: data.userId }
       : undefined;
+    await assertTripLinkable(data.tripId, { type: data.type, origin: "regular" }, data.userId);
     const context = await assertOwnership(data, data.userId);
-    const base = buildBaseRecord(data, context);
+    const base = {
+      ...buildBaseRecord(data, context),
+      ...(data.tripId ? { tripId: data.tripId } : {}),
+    };
     if (base.isSettled && data.dueDate) {
       const versions = await dueDateRulesReader.listVersions(data.userId);
       const resolved = resolveDueDate(
@@ -1261,6 +1284,7 @@ export function createTransactionsService(
           cardId: base.cardId,
           categoryId: base.categoryId,
           tagIds: base.tagIds,
+          tripId: base.tripId,
           sourceAccountId: base.sourceAccountId,
           destinationAccountId: base.destinationAccountId,
           dueDate: base.dueDate,
@@ -2228,6 +2252,19 @@ export function createTransactionsService(
       await cleanupOrphanedAttachments(userId);
       return converted;
     }
+    await assertTripLinkable(
+      data.tripId,
+      { type: validatedMerged.type, origin: current.origin },
+      userId,
+    );
+    const tripChange = {
+      ...planTripLinkChange({
+        storedTripId: current.tripId ?? null,
+        requestedTripId: data.tripId,
+        condition: validatedMerged.condition,
+      }),
+      seriesId: current.seriesId,
+    };
     const context = await assertOwnership(validatedMerged, userId);
     // Creation initializes the pair identity; edits must preserve the existing link.
     const { transferId: _transferId, ...base } = buildBaseRecord(
@@ -2330,6 +2367,7 @@ export function createTransactionsService(
               : [];
             return {
               id: target.id,
+              tripChange,
               data: {
                 ...values,
                 amount:
@@ -2412,6 +2450,7 @@ export function createTransactionsService(
               personId: share.personId,
               amount: normalizeTransactionAmount(validatedMerged.type, share.amount).toFixed(2),
             })),
+        tripChange,
       ),
     );
 
@@ -2531,6 +2570,23 @@ export function createTransactionsService(
     if (!targets.every((target) => canAddTransactionTags(target.tagIds, input.tagIds)))
       throw badRequest("Transaction tag limit exceeded", "TAG_LIMIT_EXCEEDED");
     return { ids: await addTransactionsTagsForUser(ids, userId, input.tagIds) };
+  }
+
+  async function setTransactionsTrip(input: BulkTripTransactionsInput, userId: string) {
+    if (input.tripId) {
+      const trip = await dependencies.findTripByIdForUser?.(input.tripId, userId);
+      if (!trip) throw notFound("Trip not found", "TRIP_NOT_FOUND");
+    }
+    const targets = await listBulkTargets(input.ids, userId);
+    if (!targets.every((target) => canApplyBulkTransactionAction(target, "trip")))
+      throw badRequest("Bulk action is not supported", "BULK_ACTION_UNSUPPORTED");
+    return {
+      ids: await setTransactionsTripForUser(
+        targets.map((target) => target.id),
+        userId,
+        input.tripId,
+      ),
+    };
   }
 
   async function deleteTransactions(input: BulkDeleteTransactionsInput, userId: string) {
@@ -2707,6 +2763,7 @@ export function createTransactionsService(
       invoicePeriod: null,
     });
     assertBoletoPaymentDateIsNotFuture(validated);
+    await assertTripLinkable(input.tripId, { type: validated.type, origin: "regular" }, userId);
     const context = await assertOwnership(validated, userId);
     const base = buildBaseRecord({ ...validated, isSettled: current.isSettled, userId }, context);
     const currentAnchorDate = toDateString(current.anchorDate);
@@ -2825,6 +2882,9 @@ export function createTransactionsService(
           nextDate: followingDate ? toDate(followingDate) : null,
           hasPrevious: firstDate !== selectedDate,
           reschedule: scheduleChanged && query.scope === "future",
+          ...(input.tripId === undefined
+            ? {}
+            : { tripChange: { occurrenceDate: selectedDate, tripId: input.tripId } }),
           expectedVersions: versions.map(({ id: versionId, updatedAt }) => ({
             id: versionId,
             updatedAt,
@@ -3044,6 +3104,7 @@ export function createTransactionsService(
     readCsvImportLines,
     renameTransactions,
     settleRecurringOccurrence,
+    setTransactionsTrip,
     settleTransactions,
     tagTransactions,
     undoTransactionImport,

@@ -33,6 +33,7 @@ import { dashboardRepository } from "./repositories/dashboard.repository";
 import { deviceTokensRepository } from "./repositories/device-tokens.repository";
 import { dueDateRulesRepository } from "./repositories/due-date-rules.repository";
 import { establishmentsRepository } from "./repositories/establishments.repository";
+import { establishmentsReportRepository } from "./repositories/establishments-report.repository";
 import { externalExpensesRepository } from "./repositories/external-expenses.repository";
 import { financialDistributionRepository } from "./repositories/financial-distribution.repository";
 import { goalsRepository } from "./repositories/goals.repository";
@@ -66,6 +67,7 @@ import { applicationVersion, releasesRepository } from "./repositories/releases.
 import { settingsRepository } from "./repositories/settings.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
+import { tripsRepository } from "./repositories/trips.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createAiChatsRoute } from "./routes/ai-chats";
 import { createAiDataSharingRoute } from "./routes/ai-data-sharing";
@@ -84,6 +86,7 @@ import { createDashboardRoute } from "./routes/dashboard";
 import { createCompanionDeviceRoute, createDeviceTokensRoute } from "./routes/device-tokens";
 import { createDueDateRulesRoute } from "./routes/due-date-rules";
 import { createEstablishmentsRoute } from "./routes/establishments";
+import { createEstablishmentsReportRoute } from "./routes/establishments-report";
 import { createExternalExpensesRoute } from "./routes/external-expenses";
 import { createFinancialDistributionRoute } from "./routes/financial-distribution";
 import { createGoalsRoute } from "./routes/goals";
@@ -105,6 +108,7 @@ import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createTagsRoute } from "./routes/tags";
 import { createTransactionsRoute } from "./routes/transactions";
+import { createTripsRoute } from "./routes/trips";
 import { createAccountsService } from "./services/accounts.service";
 import { createAiChatsService } from "./services/ai-chats.service";
 import { createAiContextService } from "./services/ai-context.service";
@@ -127,6 +131,7 @@ import {
   type DueDatePreviewCandidate,
 } from "./services/due-date-rules.service";
 import { createEstablishmentsService } from "./services/establishments.service";
+import { createEstablishmentsReportService } from "./services/establishments-report.service";
 import {
   createExternalExpensesService,
   synchronizeRecurringExternalExpenses,
@@ -151,6 +156,7 @@ import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createTagsService } from "./services/tags.service";
 import { createTransactionsService } from "./services/transactions.service";
+import { createTripsService } from "./services/trips.service";
 import type { ApiVariables } from "./types/context";
 import { aiServiceGateway } from "./utils/ai-service";
 import { createEmailAssetReader, readEmailAssetsDirectory } from "./utils/email-assets";
@@ -191,7 +197,9 @@ const billsService = createBillsService(billsRepository, undefined, dueDateRules
 const billsRoute = createBillsRoute(billsService);
 const categoriesRoute = createCategoriesRoute(createCategoriesService(categoriesRepository));
 const categoryTrendsRoute = createCategoryTrendsRoute(
-  createCategoryTrendsService(categoryTrendsRepository),
+  createCategoryTrendsService(categoryTrendsRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+  }),
 );
 const installmentsRoute = createInstallmentsRoute(
   createInstallmentsService(installmentsRepository),
@@ -222,6 +230,7 @@ const transactionsService = createTransactionsService(
     listCategoryFamilyIdsForUser,
     listTagsByIdsForUser,
     listPeopleByIdsForUser,
+    findTripByIdForUser: tripsRepository.findByIdForUser,
   },
   attachmentsService,
   {
@@ -248,6 +257,28 @@ const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {
     const query = ListTransactionsQuerySchema.parse({ period, pageSize: 100 });
     return (await transactionsService.listTransactions(userId, query, false)).items;
+  }),
+);
+const tripsService = createTripsService(tripsRepository, {
+  getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+  listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+    (
+      await transactionsService.listTransactions(
+        userId,
+        ListTransactionsQuerySchema.parse({
+          dateStart: startDate,
+          dateEnd: endDate,
+          pageSize: 100,
+        }),
+        false,
+      )
+    ).items,
+});
+const tripsRoute = createTripsRoute(tripsService);
+const establishmentsReportRoute = createEstablishmentsReportRoute(
+  createEstablishmentsReportService(establishmentsReportRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+    getTripPeriodRange: (userId, tripId) => tripsService.getPeriodRange(userId, tripId),
   }),
 );
 const peopleRoute = createPeopleRoute(
@@ -487,6 +518,10 @@ app.use("/tags", privateCache);
 app.use("/tags/*", privateCache);
 app.use("/tags", requireAuth);
 app.use("/tags/*", requireAuth);
+app.use("/trips", privateCache);
+app.use("/trips/*", privateCache);
+app.use("/trips", requireAuth);
+app.use("/trips/*", requireAuth);
 app.use("/categories", privateCache);
 app.use("/categories/*", privateCache);
 app.use("/categories", requireAuth);
@@ -814,6 +849,7 @@ app.route("/goals", goalsRoute);
 app.route("/bills", billsRoute);
 app.route("/categories", categoriesRoute);
 app.route("/tags", tagsRoute);
+app.route("/trips", tripsRoute);
 app.route("/people", peopleRoute);
 app.route("/person-connections", personConnectionsRoute);
 app.route("/person-reports", personReportsRoute);
@@ -840,6 +876,7 @@ app.route(
   ),
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
+app.route("/reports/establishments", establishmentsReportRoute);
 app.route(
   "/reports/commitments",
   createCommitmentsRoute(createCommitmentsService(commitmentsRepository)),

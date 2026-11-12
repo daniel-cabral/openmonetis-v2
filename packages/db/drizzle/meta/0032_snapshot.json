@@ -1,5 +1,5 @@
 {
-  "id": "fc0c632a-66b6-4c64-a741-16e7321a08bf",
+  "id": "3db10da2-65e1-4269-8a81-0aab7dfc0f37",
   "prevId": "54d9ada5-0f02-4e8e-8065-5cce00f04699",
   "version": "7",
   "dialect": "postgresql",
@@ -2988,66 +2988,6 @@
       "compositePrimaryKeys": {
         "import_category_mappings_user_id_description_key_pk": {
           "name": "import_category_mappings_user_id_description_key_pk",
-          "columns": [
-            "user_id",
-            "description_key"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.import_name_mappings": {
-      "name": "import_name_mappings",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description_key": {
-          "name": "description_key",
-          "type": "varchar(160)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(160)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "import_name_mappings_user_id_user_id_fk": {
-          "name": "import_name_mappings_user_id_user_id_fk",
-          "tableFrom": "import_name_mappings",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "import_name_mappings_user_id_description_key_pk": {
-          "name": "import_name_mappings_user_id_description_key_pk",
           "columns": [
             "user_id",
             "description_key"
@@ -6688,16 +6628,21 @@
       },
       "isRLSEnabled": false
     },
-    "public.reconciliation_batches": {
-      "name": "reconciliation_batches",
+    "public.recurring_occurrence_trips": {
+      "name": "recurring_occurrence_trips",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "recurring_series_id": {
+          "name": "recurring_series_id",
           "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurrence_date": {
+          "name": "occurrence_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
         },
         "user_id": {
           "name": "user_id",
@@ -6705,35 +6650,16 @@
           "primaryKey": false,
           "notNull": true
         },
-        "target_type": {
-          "name": "target_type",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_id": {
-          "name": "target_id",
+        "trip_id": {
+          "name": "trip_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "undo": {
-          "name": "undo",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {
-        "reconciliation_batches_user_created_at_idx": {
-          "name": "reconciliation_batches_user_created_at_idx",
+        "recurring_occurrence_trips_user_trip_idx": {
+          "name": "recurring_occurrence_trips_user_trip_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -6742,7 +6668,7 @@
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "trip_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -6755,85 +6681,43 @@
         }
       },
       "foreignKeys": {
-        "reconciliation_batches_user_id_user_id_fk": {
-          "name": "reconciliation_batches_user_id_user_id_fk",
-          "tableFrom": "reconciliation_batches",
-          "tableTo": "user",
+        "recurring_occurrence_trips_recurring_series_id_user_id_recurring_transaction_series_id_user_id_fk": {
+          "name": "recurring_occurrence_trips_recurring_series_id_user_id_recurring_transaction_series_id_user_id_fk",
+          "tableFrom": "recurring_occurrence_trips",
+          "tableTo": "recurring_transaction_series",
           "columnsFrom": [
+            "recurring_series_id",
             "user_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "user_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.reconciliation_ignores": {
-      "name": "reconciliation_ignores",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
         },
-        "source_fingerprint": {
-          "name": "source_fingerprint",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "external_id": {
-          "name": "external_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "varchar(160)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "reconciliation_ignores_user_id_user_id_fk": {
-          "name": "reconciliation_ignores_user_id_user_id_fk",
-          "tableFrom": "reconciliation_ignores",
-          "tableTo": "user",
+        "recurring_occurrence_trips_trip_id_user_id_trips_id_user_id_fk": {
+          "name": "recurring_occurrence_trips_trip_id_user_id_trips_id_user_id_fk",
+          "tableFrom": "recurring_occurrence_trips",
+          "tableTo": "trips",
           "columnsFrom": [
+            "trip_id",
             "user_id"
           ],
           "columnsTo": [
-            "id"
+            "id",
+            "user_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "reconciliation_ignores_user_id_source_fingerprint_external_id_pk": {
-          "name": "reconciliation_ignores_user_id_source_fingerprint_external_id_pk",
+        "recurring_occurrence_trips_recurring_series_id_occurrence_date_pk": {
+          "name": "recurring_occurrence_trips_recurring_series_id_occurrence_date_pk",
           "columns": [
-            "user_id",
-            "source_fingerprint",
-            "external_id"
+            "recurring_series_id",
+            "occurrence_date"
           ]
         }
       },
@@ -6928,18 +6812,6 @@
         "boleto_payment_date": {
           "name": "boleto_payment_date",
           "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_source_fingerprint": {
-          "name": "import_source_fingerprint",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_external_id": {
-          "name": "import_external_id",
-          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
@@ -7045,34 +6917,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "recurring_transaction_occurrences_import_external_unique": {
-          "name": "recurring_transaction_occurrences_import_external_unique",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "import_source_fingerprint",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "import_external_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"recurring_transaction_occurrences\".\"import_external_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -9047,6 +8891,90 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.transaction_trips": {
+      "name": "transaction_trips",
+      "schema": "",
+      "columns": {
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "transaction_trips_user_trip_idx": {
+          "name": "transaction_trips_user_trip_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "trip_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "transaction_trips_transaction_id_user_id_transactions_id_user_id_fk": {
+          "name": "transaction_trips_transaction_id_user_id_transactions_id_user_id_fk",
+          "tableFrom": "transaction_trips",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "id",
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "transaction_trips_trip_id_user_id_trips_id_user_id_fk": {
+          "name": "transaction_trips_trip_id_user_id_trips_id_user_id_fk",
+          "tableFrom": "transaction_trips",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "id",
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.transactions": {
       "name": "transactions",
       "schema": "",
@@ -9839,6 +9767,136 @@
         "transactions_payment_method_origin_check": {
           "name": "transactions_payment_method_origin_check",
           "value": "(\n        \"transactions\".\"origin\" = 'accountBalanceAdjustment'\n        AND \"transactions\".\"payment_method\" IS NULL\n      ) OR (\n        \"transactions\".\"origin\" <> 'accountBalanceAdjustment'\n        AND \"transactions\".\"payment_method\" IS NOT NULL\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.trips": {
+      "name": "trips",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "trips_id_user_id_unique": {
+          "name": "trips_id_user_id_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "trips_user_start_idx": {
+          "name": "trips_user_start_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "trips_user_id_user_id_fk": {
+          "name": "trips_user_id_user_id_fk",
+          "tableFrom": "trips",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "trips_name_not_blank_check": {
+          "name": "trips_name_not_blank_check",
+          "value": "btrim(\"trips\".\"name\") <> ''"
+        },
+        "trips_date_range_check": {
+          "name": "trips_date_range_check",
+          "value": "\"trips\".\"end_date\" >= \"trips\".\"start_date\""
         }
       },
       "isRLSEnabled": false

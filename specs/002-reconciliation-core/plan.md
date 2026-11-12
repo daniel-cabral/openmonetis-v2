@@ -4,7 +4,7 @@
 
 ## Summary
 
-New `reconciliations` feature on top of the 001 import pipeline: a pure domain matcher (five ordered rules, one-to-one consumption, iterate until stable, suspicions, buckets, amount alignment) and apply planner in `packages/domain`; a server-side preview that re-uses the 001 parsing and row identity; an atomic apply that creates entries, stamps identities, aligns amounts through the effective-amount field, settles pending account entries through the existing settlement repository, records ignores, name pairings and category memory, and stores a server-side undo journal keyed by the batch id; a sibling web route `/transactions/reconciliation` (UI option A). One migration (`0032`).
+New `reconciliations` feature on top of the 001 import pipeline: a pure domain matcher (five ordered rules, one-to-one consumption, iterate until stable, suspicions, buckets, amount alignment) and apply planner in `packages/domain`; a server-side preview that re-uses the 001 parsing and row identity; an atomic apply that creates entries, stamps identities, aligns amounts through the effective-amount field, settles pending account entries through the existing settlement repository, records ignores, name pairings and category memory, and stores a server-side undo journal keyed by the batch id; a sibling web route `/transactions/reconciliation` (UI option A). One migration (`0033`).
 
 ## Technical Context
 
@@ -80,7 +80,7 @@ specs/002-reconciliation-core/
 ### Source Code
 
 ```text
-packages/db/src/schema.ts, packages/db/drizzle/0032_*.sql (+ meta)
+packages/db/src/schema.ts, packages/db/drizzle/0033_*.sql (+ meta)
 packages/domain/src/{reconciliations,reconciliations-plan}.ts (+ .test.ts)
 packages/validators/src/reconciliations.ts
 apps/api/src/{app.ts, routes/reconciliations.ts, services/reconciliations.service.ts, repositories/reconciliations.repository.ts, reconciliations.integration.test.ts}

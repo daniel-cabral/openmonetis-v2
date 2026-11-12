@@ -1,5 +1,7 @@
+import { isTripLinkable } from "@openmonetis/domain/trips";
 import { ChevronDown } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { TripSelectField } from "@/features/trips/components/trip-select-field";
 import type { useTransactionForm } from "../useTransactionForm";
 import { TransactionAttachmentsField } from "./transaction-attachments-field";
 import { FieldShell } from "./transaction-field-shell";
@@ -33,6 +35,8 @@ export function TransactionAdvancedFields({
   values: TransactionFormValues;
   isSubmitting: boolean;
 }) {
+  const origin = transaction?.origin ?? "regular";
+
   return (
     <details
       className="group"
@@ -53,6 +57,15 @@ export function TransactionAdvancedFields({
       </summary>
 
       <div className="mt-4 grid gap-4">
+        {isTripLinkable({ type: values.type, origin }) ? (
+          <TripSelectField
+            disabled={isSubmitting}
+            form={form}
+            mode={mode}
+            origin={origin}
+            values={values}
+          />
+        ) : null}
         <TransactionTagsField form={form} disabled={isSubmitting} />
         <form.Field name="note">
           {(field) => (

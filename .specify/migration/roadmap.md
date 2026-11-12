@@ -11,13 +11,13 @@ protocol. The orchestrator session updates the **Status** column; workers never 
 | 001 | `specs/001-c6-csv-import` | C6 statement + invoice CSV parsers, parser registry/signature detection, row fingerprint for lines without FITID, merchant-aware description key, `.xls` legacy import | A | - | merged |
 | 002 | `specs/002-reconciliation-core` | reconciliation screen and target inference, deterministic matcher + buckets, name mappings, file value wins, pending -> paid on match, batch apply/undo, permanent ignores, suspicious bucket, "Mark all as Create", category memory on reconcile | A | 001 | executing |
 | 003 | `specs/003-reconciliation-closure` | statement/invoice closure proofs, invoice credit lines + new typed credit origin, sticky projection bar, "paid but not reconciled" icon, `auditar-conciliacao` skill | A | 002 | specified |
-| 004 | `specs/004-trips` | trips entity, CRUD + menu, trip field on transactions (propagation rules), trip page with net cost and breakdowns, suggestions, bulk set trip | B | - | executing |
-| 005 | `specs/005-establishments-report` | establishments report (top places) with trip filter; trip filter in category trends | B | 004 | specified |
+| 004 | `specs/004-trips` | trips entity, CRUD + menu, trip field on transactions (propagation rules), trip page with net cost and breakdowns, suggestions, bulk set trip | B | - | merged |
+| 005 | `specs/005-establishments-report` | establishments report (top places) with trip filter; trip filter in category trends | B | 004 | merged |
 | 006 | `specs/006-transactions-bulk` | mass-add dialog, full bulk edit (date, person and the other V1 series-edit fields; no condition change) | A | 003 | specified |
 | 007 | `specs/007-pdf-exports` | branded PDF export for transactions and reports | A | 006 | specified |
 | 008 | `specs/008-card-usage-report` | cross-card usage report | A | 007 | specified |
 | 009 | `specs/009-calendar` | monthly calendar page | B | 010 | specified |
-| 010 | `specs/010-dashboard-gaps` | spending overview widget (top expenses + establishments), attachments widget, category history widget, regression tests for notifications mark-unread/unarchive (already in V2) | B | 005 | specified |
+| 010 | `specs/010-dashboard-gaps` | spending overview widget (top expenses + establishments), attachments widget, category history widget, regression tests for notifications mark-unread/unarchive (already in V2) | B | 005 | executing |
 | 011 | `specs/011-note-attachments` | attachments on notes | B | 009 | specified |
 | 012 | `specs/012-account-preferences` | 6 V1 preferences (column order, group by date, hide anticipated, modal summary, note as column, max attachment size) + email change | A | 008 | specified |
 | 013 | `specs/013-ai-api-key-providers` | API-key AI providers (incl. Ollama) next to V2 CLI providers | B | 011 | specified |
