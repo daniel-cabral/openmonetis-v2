@@ -466,6 +466,57 @@ test("PDF rows show the nine V1 columns with literal text", () => {
   );
   assert.deepEqual(
     toTransactionPdfRow(
+      pdfTransaction({
+        name: "Academia",
+        isRecurring: true,
+        amount: -90,
+        categoryName: "Saúde",
+        accountName: "Conta A",
+        paymentMethod: "pix",
+      }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        "Academia",
+        "Despesa",
+        "Recorrente",
+        "Pix",
+        "-R$ 90,00",
+        "Saúde",
+        "Conta A",
+        "Ana",
+      ],
+      tone: "expense",
+    },
+  );
+  assert.deepEqual(
+    toTransactionPdfRow(
+      pdfTransaction({
+        name: "Ajuste",
+        origin: "accountBalanceAdjustment",
+        paymentMethod: null,
+        amount: -50,
+        categoryName: null,
+      }),
+    ),
+    {
+      cells: [
+        "05/09/2026",
+        "Ajuste",
+        "Despesa",
+        "Única",
+        "Ajuste de saldo",
+        "-R$ 50,00",
+        "-",
+        "Conta A",
+        "Ana",
+      ],
+      tone: "expense",
+    },
+  );
+  assert.deepEqual(
+    toTransactionPdfRow(
       pdfTransaction({ name: '=HYPERLINK("x")', type: "income", amount: 900, categoryName: null }),
     ),
     {
