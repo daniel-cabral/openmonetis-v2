@@ -78,6 +78,7 @@ import { createAttachmentsRoute } from "./routes/attachments";
 import { createAuthConfigRoute } from "./routes/auth-config";
 import { createBillsRoute } from "./routes/bills";
 import { createBudgetsRoute } from "./routes/budgets";
+import { createCalendarRoute } from "./routes/calendar";
 import { createCardsRoute } from "./routes/cards";
 import { createCategoriesRoute } from "./routes/categories";
 import { createCategoryTrendsRoute } from "./routes/category-trends";
@@ -121,6 +122,7 @@ import { createAttachmentsService } from "./services/attachments.service";
 import { createAuthConfigService } from "./services/auth-config.service";
 import { createBillsService } from "./services/bills.service";
 import { createBudgetsService } from "./services/budgets.service";
+import { createCalendarService } from "./services/calendar.service";
 import { createCardsService } from "./services/cards.service";
 import { createCategoriesService } from "./services/categories.service";
 import { createCategoryTrendsService } from "./services/category-trends.service";
@@ -241,6 +243,14 @@ const transactionsService = createTransactionsService(
   },
 );
 const transactionsRoute = createTransactionsRoute(transactionsService);
+const calendarRoute = createCalendarRoute(
+  createCalendarService({
+    listTransactions: async (userId, query) =>
+      (await transactionsService.listTransactions(userId, query, false)).items,
+    listCards: (userId, period) => cardsService.list(userId, period),
+    findAdminPersonId: async (userId) => (await findAdminPersonByUserId(userId))?.id ?? null,
+  }),
+);
 const reconciliationsRoute = createReconciliationsRoute(
   createReconciliationsService({
     repository: reconciliationsRepository,
@@ -691,6 +701,10 @@ app.use("/attachments", privateCache);
 app.use("/attachments/*", privateCache);
 app.use("/attachments", requireAuth);
 app.use("/attachments/*", requireAuth);
+app.use("/calendar", privateCache);
+app.use("/calendar/*", privateCache);
+app.use("/calendar", requireAuth);
+app.use("/calendar/*", requireAuth);
 app.use("/reports/*", privateCache);
 app.use("/reports/*", requireAuth);
 app.use("/settings", privateCache);
@@ -883,6 +897,7 @@ app.route(
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
 app.route("/reports/establishments", establishmentsReportRoute);
+app.route("/calendar", calendarRoute);
 app.route(
   "/reports/commitments",
   createCommitmentsRoute(createCommitmentsService(commitmentsRepository)),
