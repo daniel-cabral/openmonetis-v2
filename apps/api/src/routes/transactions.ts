@@ -2,11 +2,13 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { ok } from "@openmonetis/shared/api";
 import {
   BulkCategorizeTransactionsInputSchema,
+  BulkCreateTransactionsInputSchema,
   BulkDeleteTransactionsInputSchema,
   BulkRenameTransactionsInputSchema,
   BulkTagTransactionsInputSchema,
   BulkTransactionsOutputSchema,
   BulkTripTransactionsInputSchema,
+  BulkUpdateTransactionsInputSchema,
   CreateTransactionRefundInputSchema,
   DetectTransactionImportInputSchema,
   ExportTransactionsQuerySchema,
@@ -114,6 +116,7 @@ export function createTransactionsRoute(service: TransactionsService) {
     copyTransaction,
     createTransaction,
     createTransactionRefund,
+    createTransactions,
     deleteTransaction,
     deleteTransactions,
     detectTransactionImport,
@@ -132,6 +135,7 @@ export function createTransactionsRoute(service: TransactionsService) {
     undoTransactionImport,
     updateRecurringRule,
     updateTransaction,
+    updateTransactions,
   } = service;
   const transactionsRoute = new OpenAPIHono<{ Variables: ApiVariables }>({
     defaultHook: validationHook,
@@ -822,6 +826,50 @@ export function createTransactionsRoute(service: TransactionsService) {
       },
     }),
     async (c) => c.json(ok(await deleteTransactions(c.req.valid("json"), c.get("userId"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "post",
+      path: "/bulk/create",
+      tags: ["Transactions"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: BulkCreateTransactionsInputSchema } },
+        },
+      },
+      responses: {
+        201: {
+          description: "Created transactions",
+          content: { "application/json": { schema: bulkTransactionsResponseSchema } },
+        },
+        ...bulkTransactionsErrorResponses,
+      },
+    }),
+    async (c) => c.json(ok(await createTransactions(c.req.valid("json"), c.get("userId"))), 201),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "patch",
+      path: "/bulk/update",
+      tags: ["Transactions"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: BulkUpdateTransactionsInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Updated transactions",
+          content: { "application/json": { schema: bulkTransactionsResponseSchema } },
+        },
+        ...bulkTransactionsErrorResponses,
+      },
+    }),
+    async (c) => c.json(ok(await updateTransactions(c.req.valid("json"), c.get("userId"))), 200),
   );
 
   transactionsRoute.openapi(
