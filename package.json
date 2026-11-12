@@ -60,6 +60,7 @@
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:financial-distribution:integration": "FINANCIAL_DISTRIBUTION_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-distribution.integration.test.ts",
     "test:establishments-report:integration": "ESTABLISHMENTS_REPORT_INTEGRATION_TEST=1 tsx --test apps/api/src/establishments-report.integration.test.ts",
+    "test:card-usage-report:integration": "CARD_USAGE_REPORT_INTEGRATION_TEST=1 tsx --test apps/api/src/card-usage-report.integration.test.ts",
     "test:calendar:integration": "CALENDAR_INTEGRATION_TEST=1 tsx --test apps/api/src/calendar.integration.test.ts",
     "test:spending-overview:integration": "SPENDING_OVERVIEW_INTEGRATION_TEST=1 tsx --test apps/api/src/spending-overview.integration.test.ts",
     "test:financial-integrity:integration": "FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 tsx --test apps/api/src/financial-integrity.integration.test.ts",

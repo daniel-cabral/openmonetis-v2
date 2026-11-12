@@ -6,6 +6,7 @@
   "exports": {
     "./accounts": "./src/accounts.ts",
     "./calendar": "./src/calendar.ts",
+    "./card-usage-report": "./src/card-usage-report.ts",
     "./cards": "./src/cards.ts",
     "./categories": "./src/categories.ts",
     "./category-trends": "./src/category-trends.ts",
