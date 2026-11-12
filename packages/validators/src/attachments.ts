@@ -48,6 +48,35 @@ export const ListAttachmentsQuerySchema = z
   })
   .openapi("ListAttachmentsQuery");
 
+export const AttachmentsSummaryQuerySchema = z
+  .object({
+    period: periodSchema.openapi({
+      param: { name: "period", in: "query" },
+      example: "2026-11",
+    }),
+  })
+  .openapi("AttachmentsSummaryQuery");
+
+export const AttachmentsSummaryOutputSchema = z
+  .object({
+    period: periodSchema,
+    count: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+    imageCount: z.number().int().nonnegative(),
+    pdfCount: z.number().int().nonnegative(),
+    recent: z.array(
+      z.object({
+        id: z.uuid(),
+        fileName: z.string(),
+        mimeType: z.enum(attachmentMimeTypes),
+        fileSize: z.number().int().positive(),
+        transactionName: z.string(),
+        purchaseDate: z.iso.date(),
+      }),
+    ),
+  })
+  .openapi("AttachmentsSummary");
+
 export const AttachmentParamsSchema = z
   .object({
     id: z.uuid().openapi({ param: { name: "id", in: "path" } }),
@@ -131,6 +160,8 @@ export const AttachmentUrlOutputSchema = z
 export type PrepareAttachmentInput = z.infer<typeof PrepareAttachmentInputSchema>;
 export type ConfirmAttachmentInput = z.infer<typeof ConfirmAttachmentInputSchema>;
 export type ListAttachmentsQuery = z.infer<typeof ListAttachmentsQuerySchema>;
+export type AttachmentsSummaryQuery = z.infer<typeof AttachmentsSummaryQuerySchema>;
+export type AttachmentsSummaryOutput = z.infer<typeof AttachmentsSummaryOutputSchema>;
 export type AttachmentOutput = z.infer<typeof AttachmentOutputSchema>;
 export type AttachmentListItemOutput = z.infer<typeof AttachmentListItemOutputSchema>;
 export type PaginatedAttachmentsOutput = z.infer<typeof PaginatedAttachmentsOutputSchema>;

@@ -4,10 +4,13 @@ import {
   hasAllowedAttachmentSignature,
   isAllowedAttachment,
   normalizeAttachmentFileName,
+  type PeriodAttachmentLink,
+  summarizePeriodAttachments,
 } from "@openmonetis/domain/attachments";
 import type {
   AttachmentListItemOutput,
   AttachmentOutput,
+  AttachmentsSummaryOutput,
   ConfirmAttachmentInput,
   ListAttachmentsQuery,
   PaginatedAttachmentsOutput,
@@ -245,6 +248,20 @@ export function createAttachmentsService(
       };
     },
 
+    async getPeriodSummary(userId: string, period: string): Promise<AttachmentsSummaryOutput> {
+      const summary = summarizePeriodAttachments(
+        (await repository.listLinksForPeriod(userId, period)).map(toPeriodLink),
+      );
+      return {
+        period,
+        ...summary,
+        recent: summary.recent.map((link) => ({
+          ...link,
+          mimeType: link.mimeType as AttachmentsSummaryOutput["recent"][number]["mimeType"],
+        })),
+      };
+    },
+
     async listForTransaction(transactionId: string, userId: string) {
       await assertTransaction(transactionId, userId);
       return (await repository.listForTransaction(transactionId, userId)).map(toOutput);
@@ -327,6 +344,18 @@ function toListItem(group: AttachmentGroup): AttachmentListItemOutput {
     personAvatarUrl: record.personAvatarUrl,
     categoryName: record.categoryName,
     categoryIcon: record.categoryIcon,
+  };
+}
+
+function toPeriodLink(record: AttachmentLinkRecord): PeriodAttachmentLink {
+  return {
+    id: record.id,
+    fileName: record.fileName,
+    mimeType: record.mimeType,
+    fileSize: record.fileSize,
+    createdAt: record.createdAt.toISOString(),
+    transactionName: record.transactionName,
+    purchaseDate: record.purchaseDate.toISOString().slice(0, 10),
   };
 }
 

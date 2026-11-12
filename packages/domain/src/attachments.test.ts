@@ -6,6 +6,7 @@ import {
   isAllowedAttachment,
   maximumAttachmentSize,
   normalizeAttachmentFileName,
+  summarizePeriodAttachments,
 } from "./attachments";
 
 test("attachment whitelist accepts exact size boundaries and rejects unsupported or fractional sizes", () => {
@@ -51,4 +52,97 @@ test("attachment names remove path separators, controls and directional override
   for (const name of ["", " ", ".", "..", "\u0000"])
     assert.equal(normalizeAttachmentFileName(name), "attachment");
   assert.equal(Array.from(normalizeAttachmentFileName("😀".repeat(300))).length, 255);
+});
+
+test("period summary counts distinct attachments, keeps the latest link and orders recent ones", () => {
+  assert.deepEqual(summarizePeriodAttachments([]), {
+    count: 0,
+    totalBytes: 0,
+    imageCount: 0,
+    pdfCount: 0,
+    recent: [],
+  });
+
+  const summary = summarizePeriodAttachments([
+    {
+      id: "img-dup",
+      fileName: "nota.png",
+      mimeType: "image/png",
+      fileSize: 2000,
+      createdAt: "2026-11-02T10:00:00.000Z",
+      transactionName: "Padaria",
+      purchaseDate: "2026-11-03",
+    },
+    {
+      id: "img-dup",
+      fileName: "nota.png",
+      mimeType: "image/png",
+      fileSize: 2000,
+      createdAt: "2026-11-02T10:00:00.000Z",
+      transactionName: "Farmácia",
+      purchaseDate: "2026-11-09",
+    },
+    {
+      id: "img-2",
+      fileName: "foto-2.webp",
+      mimeType: "image/webp",
+      fileSize: 3000,
+      createdAt: "2026-11-03T10:00:00.000Z",
+      transactionName: "Posto",
+      purchaseDate: "2026-11-07",
+    },
+    {
+      id: "img-3",
+      fileName: "foto-3.jpg",
+      mimeType: "image/jpeg",
+      fileSize: 4000,
+      createdAt: "2026-11-04T10:00:00.000Z",
+      transactionName: "Restaurante",
+      purchaseDate: "2026-11-07",
+    },
+    {
+      id: "img-4",
+      fileName: "foto-4.png",
+      mimeType: "image/png",
+      fileSize: 5000,
+      createdAt: "2026-11-05T10:00:00.000Z",
+      transactionName: "Loja",
+      purchaseDate: "2026-11-01",
+    },
+    {
+      id: "pdf-1",
+      fileName: "recibo.pdf",
+      mimeType: "application/pdf",
+      fileSize: 10000,
+      createdAt: "2026-11-06T10:00:00.000Z",
+      transactionName: "Mercado",
+      purchaseDate: "2026-11-08",
+    },
+    {
+      id: "pdf-2",
+      fileName: "fatura.pdf",
+      mimeType: "application/pdf",
+      fileSize: 20000,
+      createdAt: "2026-11-01T10:00:00.000Z",
+      transactionName: "Cartão",
+      purchaseDate: "2026-11-04",
+    },
+  ]);
+
+  assert.equal(summary.count, 6);
+  assert.equal(summary.totalBytes, 44000);
+  assert.equal(summary.imageCount, 4);
+  assert.equal(summary.pdfCount, 2);
+  assert.deepEqual(
+    summary.recent.map((link) => link.id),
+    ["img-dup", "pdf-1", "img-3", "img-2", "pdf-2"],
+  );
+  assert.deepEqual(summary.recent[0], {
+    id: "img-dup",
+    fileName: "nota.png",
+    mimeType: "image/png",
+    fileSize: 2000,
+    transactionName: "Farmácia",
+    purchaseDate: "2026-11-09",
+  });
 });
