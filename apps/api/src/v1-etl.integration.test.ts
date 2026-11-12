@@ -7,17 +7,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import type { LoadReport } from "./scripts/v1-etl/types";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const fixturesFolder = fileURLToPath(new URL("./scripts/v1-etl/__fixtures__/", import.meta.url));
 const cliPath = fileURLToPath(new URL("./scripts/v1-etl/cli.ts", import.meta.url));
 const require = createRequire(new URL("../../../packages/db/package.json", import.meta.url));
 const { Pool } = require("pg") as typeof import("pg");
+const { drizzle } =
+  require("drizzle-orm/node-postgres") as typeof import("drizzle-orm/node-postgres");
+const { migrate } =
+  require("drizzle-orm/node-postgres/migrator") as typeof import("drizzle-orm/node-postgres/migrator");
+const migrationsFolder = fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url));
 
 type CliRun = { code: number; stdout: string; stderr: string };
 type ReportedFinding = { rule: string; severity: string; table: string; v1Id: string };
 
-const createdFixtures: string[] = [];
+const createdDatabases: string[] = [];
 
 async function serverUrl(): Promise<URL> {
   require("dotenv").config({
@@ -38,7 +44,7 @@ async function createV1Fixture(files: string[]): Promise<string> {
   } finally {
     await admin.end();
   }
-  createdFixtures.push(databaseName);
+  createdDatabases.push(databaseName);
   url.pathname = `/${databaseName}`;
   const fixture = new Pool({ connectionString: url.toString(), max: 1 });
   try {
@@ -51,10 +57,32 @@ async function createV1Fixture(files: string[]): Promise<string> {
   return url.toString();
 }
 
-async function dropV1Fixtures(): Promise<void> {
+// A fresh, fully migrated V2 database. withIntegrationDatabase binds the @openmonetis/db singleton
+// once per process, and the load tests need several independent targets.
+async function createV2Target(): Promise<string> {
+  const url = await serverUrl();
+  const databaseName = `openmonetis_v1_etl_target_${randomUUID().replaceAll("-", "")}`;
+  const admin = new Pool({ connectionString: url.toString() });
+  try {
+    await admin.query(`CREATE DATABASE "${databaseName}"`);
+  } finally {
+    await admin.end();
+  }
+  createdDatabases.push(databaseName);
+  url.pathname = `/${databaseName}`;
+  const target = new Pool({ connectionString: url.toString(), max: 1 });
+  try {
+    await migrate(drizzle(target), { migrationsFolder });
+  } finally {
+    await target.end();
+  }
+  return url.toString();
+}
+
+async function dropTestDatabases(): Promise<void> {
   const admin = new Pool({ connectionString: (await serverUrl()).toString() });
   try {
-    for (const databaseName of createdFixtures.splice(0)) {
+    for (const databaseName of createdDatabases.splice(0)) {
       await admin.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
     }
   } finally {
@@ -90,6 +118,67 @@ async function runValidate(v1Url: string) {
     return { ...run, report };
   } finally {
     rmSync(out, { recursive: true, force: true });
+  }
+}
+
+async function runLoad(v1Url: string, targetUrl: string) {
+  const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
+  try {
+    const run = await runCli([
+      "load",
+      "--v1-url",
+      v1Url,
+      "--target-url",
+      targetUrl,
+      "--scratch",
+      "--out",
+      out,
+    ]);
+    const report =
+      run.code === 0 || run.code === 1
+        ? (JSON.parse(readFileSync(join(out, "load.json"), "utf8")) as LoadReport)
+        : null;
+    return { ...run, report };
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
+
+// Checksum of each user's rows as stored in the target, with the column lists of a re-planned dump.
+async function storedChecksums(v1Url: string, targetUrl: string): Promise<Record<string, string>> {
+  const { openV1, withV1Snapshot, listV1Users, extractUser } = await import(
+    "./scripts/v1-etl/v1-source"
+  );
+  const { planUser } = await import("./scripts/v1-etl/load/plan-user");
+  const { computeUserChecksum, openTarget } = await import("./scripts/v1-etl/load/v2-writer");
+  const v1Pool = openV1(v1Url);
+  const target = openTarget(targetUrl);
+  try {
+    return await withV1Snapshot(v1Pool, async (v1) => {
+      const index = await listV1Users(v1);
+      const checksums: Record<string, string> = {};
+      for (const { id } of index.users) {
+        const planned = planUser(await extractUser(v1, id, index), null, {
+          v1RpId: null,
+          targetRpId: "localhost",
+        });
+        assert.ok(planned.ok, `plan of ${id}`);
+        const client = await target.connect();
+        try {
+          checksums[id] = await computeUserChecksum(
+            client,
+            planned.plan.v2UserId,
+            planned.plan.checksumColumns,
+          );
+        } finally {
+          client.release();
+        }
+      }
+      return checksums;
+    });
+  } finally {
+    await target.end();
+    await v1Pool.end();
   }
 }
 
@@ -164,7 +253,302 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
         ]);
       },
     );
+
+    await t.test(
+      "load converts the fixture, re-runs without writes and equals a fresh load",
+      async () => {
+        const v1Url = await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]);
+        const target = await createV2Target();
+        const first = await runLoad(v1Url, target);
+        assert.equal(first.code, 0, first.stderr);
+        assert.deepEqual(
+          first.report?.users.map((user) => [user.v1UserId, user.status]),
+          [
+            ["v1-user-a", "loaded"],
+            ["v1-user-b", "loaded"],
+          ],
+        );
+
+        const db = new Pool({ connectionString: target, max: 1 });
+        // One "a | b | c" line per row keeps the expected tables readable.
+        const select = async (text: string) =>
+          (await db.query({ text, rowMode: "array" })).rows.map((row: unknown[]) =>
+            row.map((value) => (value === null ? "null" : String(value))).join(" | "),
+          );
+        const ana = `(SELECT id FROM "user" WHERE email = 'ana@example.test')`;
+        try {
+          // US4.1, 2, 7 to 10: type, origin and amount signed as V2 stores it (expense negative).
+          assert.deepEqual(
+            await select(`
+              SELECT t.name, t.type, t.origin, t.payment_method, t.amount, t.purchase_date::text,
+                     t.period, coalesce(a.name, k.name), c.name, t.is_settled
+              FROM transactions t
+              LEFT JOIN financial_accounts a ON a.id = t.account_id
+              LEFT JOIN cards k ON k.id = t.card_id
+              LEFT JOIN categories c ON c.id = t.category_id
+              WHERE t.user_id = ${ana} AND t.condition = 'single'
+              ORDER BY t.purchase_date, t.name`),
+            [
+              "Saldo inicial - Conta Principal | income | regular | pix | 1000.00 | 2026-01-02 | 2026-01 | Conta Principal | Saldo inicial | true",
+              "Saldo inicial - Reserva | income | accountBalanceAdjustment | null | 500.00 | 2026-01-02 | 2026-01 | Reserva | Ajuste de saldo | true",
+              "Condominio | expense | regular | boleto | -300.00 | 2026-01-05 | 2026-01 | Conta Principal | Aluguel | true",
+              "Padaria Sol | expense | regular | debit_card | -25.50 | 2026-01-12 | 2026-01 | Conta Principal | Alimentação | true",
+              "Feira Livre | expense | regular | pix | -40.00 | 2026-01-14 | 2026-01 | Conta Principal | Alimentação | true",
+              "Lanche | expense | regular | cash | -12.00 | 2026-01-15 | 2026-01 | Dinheiro Vivo | Alimentação | true",
+              "Restaurante Vale | expense | regular | benefits | -45.00 | 2026-01-16 | 2026-01 | Vale Refeicao | Alimentação | true",
+              "Entrada - Transf. entre contas | transfer | regular | bank_transfer | 100.00 | 2026-01-18 | 2026-01 | Reserva | Transferência interna | true",
+              "Saída - Transf. entre contas | transfer | regular | bank_transfer | -100.00 | 2026-01-18 | 2026-01 | Conta Principal | Transferência interna | true",
+              "Mercado Central | expense | regular | credit_card | -150.00 | 2026-01-20 | 2026-02 | Cartao Azul | Alimentação | false",
+              "Estorno Mercado Central | income | refund | credit_card | 30.00 | 2026-01-22 | 2026-02 | Cartao Azul | Reembolso | false",
+              "Jantar | expense | regular | pix | -100.00 | 2026-01-22 | 2026-01 | Conta Principal | Alimentação | true",
+              "Pousada Serra | expense | regular | bank_transfer | -600.00 | 2026-02-03 | 2026-02 | Conta Principal | Casa | true",
+              "Pagamento fatura - Cartao Azul | expense | invoicePayment | pix | -370.00 | 2026-02-14 | 2026-02 | Conta Principal | Pagamentos | true",
+              "Celular (antecipacao de 2 parcelas) | expense | regular | credit_card | -95.00 | 2026-02-15 | 2026-03 | Cartao Azul | Casa | false",
+              "Credito na fatura | income | invoiceCredit | credit_card | 20.00 | 2026-02-18 | 2026-03 | Cartao Azul | Reembolso | false",
+              // Recurring (h): the second February row, detached as a single.
+              "Internet Casa | expense | regular | pix | -100.00 | 2026-02-20 | 2026-02 | Conta Principal | Casa | false",
+              "Loja do Bairro | expense | regular | credit_card | -80.00 | 2026-02-20 | 2026-03 | Cartao Verde | Alimentação | false",
+              "Pagamento fatura - Cartao Azul | expense | invoicePayment | pix | -100.00 | 2026-03-10 | 2026-03 | Conta Principal | Pagamentos | true",
+            ],
+          );
+
+          // US4.11: the subcategory is a child of its V1 parent.
+          assert.deepEqual(
+            await select(`
+              SELECT c.name, p.name FROM categories c JOIN categories p ON p.id = c.parent_id
+              WHERE c.user_id = ${ana}`),
+            ["Aluguel | Casa"],
+          );
+
+          // US4.2: both transfer rows share one transfer id and name the source and destination.
+          assert.deepEqual(
+            await select(`
+              SELECT count(DISTINCT t.transfer_id), min(s.name), min(d.name), count(*)
+              FROM transactions t
+              JOIN financial_accounts s ON s.id = t.source_account_id
+              JOIN financial_accounts d ON d.id = t.destination_account_id
+              WHERE t.user_id = ${ana} AND t.type = 'transfer' AND t.transfer_id IS NOT NULL`),
+            ["1 | Conta Principal | Reserva | 2"],
+          );
+
+          // US4.3: one transaction per split group; its splits add up to the V1 group sum.
+          assert.deepEqual(
+            await select(`
+              SELECT t.name, t.amount, p.name, s.amount FROM transaction_splits s
+              JOIN transactions t ON t.id = s.transaction_id
+              JOIN people p ON p.id = s.person_id
+              WHERE t.user_id = ${ana} ORDER BY p.name`),
+            [
+              "Jantar | -100.00 | Ana Fixture | -60.00",
+              "Jantar | -100.00 | Carla Fixture | -40.00",
+            ],
+          );
+
+          // US4.4: installment series with their numbers, periods, amounts and settled state.
+          // The gap series (number 2 missing) prices the missing number at the modal amount.
+          assert.deepEqual(
+            await select(`
+              SELECT t.name, s.total_installments, s.tracked_from_installment, s.original_amount,
+                     t.current_installment, t.period, t.amount, t.is_settled
+              FROM installment_series s JOIN transactions t ON t.series_id = s.id
+              WHERE t.user_id = ${ana} ORDER BY t.name, t.current_installment`),
+            [
+              "Celular | 4 | 1 | 200.00 | 1 | 2026-02 | -50.00 | false",
+              "Celular | 4 | 1 | 200.00 | 2 | 2026-03 | -50.00 | false",
+              "Celular | 4 | 1 | 200.00 | 3 | 2026-04 | -50.00 | false",
+              "Celular | 4 | 1 | 200.00 | 4 | 2026-05 | -50.00 | false",
+              "Curso Online | 3 | 1 | 270.00 | 1 | 2026-01 | -90.00 | true",
+              "Curso Online | 3 | 1 | 270.00 | 3 | 2026-03 | -90.00 | false",
+              "Notebook | 3 | 1 | 300.00 | 1 | 2026-02 | -100.00 | false",
+              "Notebook | 3 | 1 | 300.00 | 2 | 2026-03 | -100.00 | false",
+              "Notebook | 3 | 1 | 300.00 | 3 | 2026-04 | -100.00 | false",
+            ],
+          );
+
+          // US4.5: one anticipation item per anticipated installment with its original period.
+          assert.deepEqual(
+            await select(`
+              SELECT a.target_period, a.discount, adj.name, t.current_installment, i.original_period
+              FROM installment_anticipations a
+              JOIN transactions adj ON adj.id = a.adjustment_transaction_id
+              JOIN installment_anticipation_items i ON i.anticipation_id = a.id
+              JOIN transactions t ON t.id = i.transaction_id
+              WHERE adj.user_id = ${ana} ORDER BY t.current_installment`),
+            [
+              "2026-03 | 5.00 | Celular (antecipacao de 2 parcelas) | 3 | 2026-04",
+              "2026-03 | 5.00 | Celular (antecipacao de 2 parcelas) | 4 | 2026-05",
+            ],
+          );
+
+          // US4.6: versions (start, end, anchor, due date, recurrenceEndDate) as the T021 cases
+          // expect them; every version leaves settlement to its occurrence rows (is_settled null).
+          assert.deepEqual(
+            await select(`
+              SELECT name, amount, start_date::text, end_date::text, anchor_date::text,
+                     due_date::text, recurrence_end_date::text, is_settled
+              FROM recurring_transaction_rules WHERE user_id = ${ana}
+              ORDER BY name, start_date`),
+            [
+              "Academia | -100.00 | 2026-01-15 | 2026-01-15 | 2026-01-15 | null | 2026-06-15 | null",
+              "Academia | -150.00 | 2026-02-15 | 2026-02-15 | 2026-02-15 | null | 2026-06-15 | null",
+              "Academia | -100.00 | 2026-03-15 | 2026-03-15 | 2026-03-15 | null | 2026-06-15 | null",
+              "Academia | -100.00 | 2026-04-10 | 2026-04-10 | 2026-04-10 | null | 2026-06-15 | null",
+              "Academia | -100.00 | 2026-05-15 | 2026-06-15 | 2026-05-15 | null | 2026-06-15 | null",
+              "Aluguel Garagem | -100.00 | 2026-01-15 | 2026-03-15 | 2026-01-15 | null | 2026-05-15 | null",
+              "Aluguel Garagem | -120.00 | 2026-04-15 | 2026-05-15 | 2026-04-15 | null | 2026-05-15 | null",
+              "Assinatura Musica | -100.00 | 2026-01-08 | 2026-03-08 | 2026-01-08 | null | 2026-03-08 | null",
+              "Escola Idiomas | -100.00 | 2026-01-10 | 2026-03-10 | 2026-01-10 | 2026-01-15 | 2026-03-15 | null",
+              "Internet Casa | -100.00 | 2026-01-15 | 2026-03-15 | 2026-01-15 | null | 2026-03-15 | null",
+              "Seguro Residencial | -100.00 | 2026-01-15 | 2026-02-15 | 2026-01-15 | null | 2026-04-15 | null",
+              "Seguro Residencial | -100.00 | 2026-04-15 | 2026-04-15 | 2026-04-15 | null | 2026-04-15 | null",
+              "Streaming | -100.00 | 2026-01-15 | 2026-02-15 | 2026-01-15 | null | 2026-06-15 | null",
+              "Streaming | -100.00 | 2026-04-15 | 2026-04-15 | 2026-04-15 | null | 2026-06-15 | null",
+              "Streaming | -100.00 | 2026-06-15 | 2026-06-15 | 2026-06-15 | null | 2026-06-15 | null",
+            ],
+          );
+          assert.deepEqual(
+            await select(`
+              SELECT r.name, o.purchase_date::text, o.is_settled, a.name, o.boleto_payment_date::text
+              FROM recurring_transaction_occurrences o
+              JOIN recurring_transaction_rules r ON r.id = o.recurring_rule_id
+              LEFT JOIN financial_accounts a ON a.id = o.account_id
+              WHERE o.user_id = ${ana} ORDER BY r.name, o.purchase_date`),
+            [
+              "Aluguel Garagem | 2026-01-15 | true | Conta Principal | null",
+              "Aluguel Garagem | 2026-02-15 | true | Conta Principal | null",
+              "Assinatura Musica | 2026-01-08 | true | null | null",
+              "Escola Idiomas | 2026-01-10 | true | Conta Principal | 2026-01-14",
+            ],
+          );
+
+          // US4.7: invoice payments (full and partial), one allocation each to the admin person.
+          assert.deepEqual(
+            await select(`
+              SELECT k.name, ip.period, ip.amount, ip.paid_at::text, a.name, t.origin, p.name,
+                     al.amount
+              FROM invoice_payments ip
+              JOIN cards k ON k.id = ip.card_id
+              JOIN financial_accounts a ON a.id = ip.account_id
+              JOIN transactions t ON t.id = ip.transaction_id
+              JOIN invoice_payment_allocations al ON al.payment_id = ip.id
+              JOIN people p ON p.id = al.person_id
+              WHERE k.user_id = ${ana} ORDER BY ip.period`),
+            [
+              "Cartao Azul | 2026-02 | 370.00 | 2026-02-14 | Conta Principal | invoicePayment | Ana Fixture | 370.00",
+              "Cartao Azul | 2026-03 | 100.00 | 2026-03-10 | Conta Principal | invoicePayment | Ana Fixture | 100.00",
+            ],
+          );
+          // The pending invoice keeps no payment metadata while its partial payment row exists.
+          assert.deepEqual(
+            await select(`
+              SELECT i.period, i.payment_status, i.paid_at::date::text, a.name
+              FROM invoices i
+              JOIN cards k ON k.id = i.card_id
+              LEFT JOIN financial_accounts a ON a.id = i.payment_account_id
+              WHERE k.user_id = ${ana} ORDER BY i.period`),
+            ["2026-02 | paid | 2026-02-14 | Conta Principal", "2026-03 | pending | null | null"],
+          );
+
+          // US4.8: the refund is linked to the transaction it refunds.
+          assert.deepEqual(
+            await select(`
+              SELECT s.name, r.name, x.amount FROM transaction_refunds x
+              JOIN transactions s ON s.id = x.source_transaction_id
+              JOIN transactions r ON r.id = x.refund_transaction_id
+              WHERE s.user_id = ${ana}`),
+            ["Mercado Central | Estorno Mercado Central | 30.00"],
+          );
+
+          // US4.12: trip links on a single and on a recurring occurrence.
+          assert.deepEqual(
+            await select(`
+              SELECT 'single', t.name, NULL FROM transaction_trips tt
+              JOIN transactions t ON t.id = tt.transaction_id WHERE t.user_id = ${ana}
+              UNION ALL
+              SELECT 'occurrence', min(r.name), o.occurrence_date::text
+              FROM recurring_occurrence_trips o
+              JOIN recurring_transaction_rules r ON r.series_id = o.recurring_series_id
+              WHERE r.user_id = ${ana} GROUP BY o.recurring_series_id, o.occurrence_date
+              ORDER BY 1`),
+            ["occurrence | Streaming | 2026-02-15", "single | Pousada Serra | null"],
+          );
+
+          // US4.14: notes (task description as item 0), inbox statuses and link, budget with its
+          // category remapped, unknown card brand fallback.
+          assert.deepEqual(
+            await select(`
+              SELECT n.title, n.kind, n.content, i.position, i.text, i.is_completed
+              FROM notes n LEFT JOIN note_items i ON i.note_id = n.id
+              WHERE n.user_id = ${ana} ORDER BY n.title, i.position`),
+            [
+              "Lista de compras | text | Comprar frutas e pao | null | null | null",
+              "Tarefas da casa | checklist | null | 0 | Organizar a garagem | false",
+              "Tarefas da casa | checklist | null | 1 | Pagar conta de luz | true",
+              "Tarefas da casa | checklist | null | 2 | Trocar lampada | false",
+            ],
+          );
+          assert.deepEqual(
+            await select(`
+              SELECT i.client_id, i.status, t.name, i.processed_at IS NOT NULL,
+                     i.discarded_at IS NOT NULL
+              FROM inbox_items i LEFT JOIN transactions t ON t.id = i.transaction_id
+              WHERE i.user_id = ${ana} ORDER BY i.client_id`),
+            [
+              "v1:90000000-0000-4000-8000-000000000001 | pending | null | false | false",
+              "v1:90000000-0000-4000-8000-000000000002 | processed | Feira Livre | true | false",
+              "v1:90000000-0000-4000-8000-000000000003 | discarded | null | false | true",
+            ],
+          );
+          assert.deepEqual(
+            await select(`
+              SELECT c.name, b.amount, b.period FROM budgets b
+              JOIN categories c ON c.id = b.category_id WHERE c.user_id = ${ana}`),
+            ["Alimentação | 800.00 | 2026-03"],
+          );
+          assert.deepEqual(
+            await select(`SELECT name, brand FROM cards WHERE user_id = ${ana} ORDER BY name`),
+            ["Cartao Azul | mastercard", "Cartao Verde | other"],
+          );
+
+          // US4.15: preferences split into user and dashboard preferences.
+          assert.deepEqual(
+            await select(`
+              SELECT u.transaction_note_as_column, u.attachment_max_size_mb,
+                     u.show_transaction_summary, u.group_transactions_by_date,
+                     u.hide_anticipated_installments, d.hidden_widgets
+              FROM user_preferences u JOIN dashboard_preferences d ON d.user_id = u.user_id
+              WHERE u.user_id = ${ana}`),
+            ["true | 25 | false | true | true | goals"],
+          );
+        } finally {
+          await db.end();
+        }
+
+        // SC-002: a re-run writes nothing and the stored rows keep their checksum.
+        const loaded = await storedChecksums(v1Url, target);
+        const rerun = await runLoad(v1Url, target);
+        assert.equal(rerun.code, 0, rerun.stderr);
+        assert.deepEqual(
+          rerun.report?.users.map((user) => [
+            user.v1UserId,
+            user.status,
+            "written" in user ? user.written : null,
+          ]),
+          [
+            ["v1-user-a", "skipped-already-loaded", 0],
+            ["v1-user-b", "skipped-already-loaded", 0],
+          ],
+        );
+        assert.deepEqual(await storedChecksums(v1Url, target), loaded);
+
+        // US2 independent test: a fresh target stores the same rows.
+        const fresh = await createV2Target();
+        const freshLoad = await runLoad(v1Url, fresh);
+        assert.equal(freshLoad.code, 0, freshLoad.stderr);
+        assert.deepEqual(await storedChecksums(v1Url, fresh), loaded);
+      },
+    );
   } finally {
-    await dropV1Fixtures();
+    await dropTestDatabases();
   }
 });

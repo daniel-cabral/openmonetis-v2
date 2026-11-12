@@ -1,4 +1,5 @@
 import { fromCents } from "@openmonetis/domain/money";
+import { normalizeTransactionAmount } from "@openmonetis/domain/transactions";
 import { v2Id } from "../ids";
 import type {
   Cents,
@@ -165,7 +166,7 @@ function installmentRow(
     condition: "installment",
     paymentMethod: PAYMENT_METHOD_MAP[row.forma_pagamento] ?? null,
     name: row.nome,
-    amount: toAmount(amountCents),
+    amount: normalizeTransactionAmount(type, fromCents(amountCents)).toFixed(2),
     purchaseDate: toDate(row.data_compra),
     period: row.periodo,
     accountId: row.conta_id ? (refs.accountByV1.get(row.conta_id) ?? null) : null,
