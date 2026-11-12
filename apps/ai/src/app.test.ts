@@ -13,6 +13,8 @@ import {
   parseAntigravityStreamLine,
   structuredOutput,
 } from "./providers/antigravity";
+import { createApiKeyAdapters } from "./providers/api-key-adapters";
+import type { ApiKeyProviderAdapter } from "./providers/api-key-provider";
 import {
   claudePrivacyEnvironment,
   formatClaudeModelName,
@@ -768,4 +770,53 @@ test("vendor telemetry, error reports and feedback stay off in every CLI run", (
   assert.ok(subscriptionConfig.includes("feedback.enabled=false"));
   assert.ok(toolsOffConfig.includes("features.shell_tool=false"));
   assert.ok(toolsOffConfig.includes('web_search="disabled"'));
+});
+
+test("API-key provider routes need the shared secret and call the injected vendor adapter", async () => {
+  const openai: ApiKeyProviderAdapter = {
+    provider: "openai",
+    isAvailable: () => true,
+    listModels: async () => ({
+      status: "ok",
+      models: [{ id: "gpt-5.5", name: "GPT-5.5", isDefault: true }],
+    }),
+    run: async () => ({ status: "failed", code: "runFailed" }),
+    chat: async () => ({ status: "failed", code: "runFailed" }),
+  };
+  const app = createAiServiceApp({
+    secret,
+    homesDirectory: os.tmpdir(),
+    providers: [],
+    apiKeyAdapters: { ...createApiKeyAdapters(), openai },
+  });
+  const request = {
+    method: "POST",
+    headers: { ...authorization, "content-type": "application/json" },
+    body: JSON.stringify({ credential: { apiKey: "sk-test-1234" } }),
+  };
+
+  const missing = await app.request("/providers/openai/models", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: request.body,
+  });
+  const models = await app.request("/providers/openai/models", request);
+
+  assert.equal(missing.status, 401);
+  assert.deepEqual((await models.json()).data, {
+    status: "ok",
+    models: [{ id: "gpt-5.5", name: "GPT-5.5", isDefault: true }],
+  });
+});
+
+test("an API-key run without its credential is refused before any call", async () => {
+  await withApp(fakeProvider(), async (app) => {
+    const response = await app.request(`/homes/${homeId}/providers/openai/runs`, {
+      method: "POST",
+      headers: { ...authorization, "content-type": "application/json" },
+      body: runBody,
+    });
+
+    assert.equal(response.status, 400);
+  });
 });
