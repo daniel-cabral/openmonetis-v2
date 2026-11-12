@@ -10,6 +10,7 @@ export const transactionOrigins = [
   "accountBalanceAdjustment",
   "invoiceAdjustment",
   "personSettlement",
+  "invoiceCredit",
 ] as const;
 export const transactionConditions = ["single", "installment", "recurring"] as const;
 export const minimumInstallmentCount = 2;
