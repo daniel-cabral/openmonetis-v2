@@ -1239,9 +1239,7 @@ export const reconciliationIgnores = pgTable(
     reason: varchar("reason", { length: 160 }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.sourceFingerprint, table.externalId] }),
-  ],
+  (table) => [primaryKey({ columns: [table.userId, table.sourceFingerprint, table.externalId] })],
 );
 
 export const importNameMappings = pgTable(
@@ -1272,7 +1270,9 @@ export const reconciliationBatches = pgTable(
     undo: jsonb("undo").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (table) => [index("reconciliation_batches_user_created_at_idx").on(table.userId, table.createdAt)],
+  (table) => [
+    index("reconciliation_batches_user_created_at_idx").on(table.userId, table.createdAt),
+  ],
 );
 
 export const transactionSplits = pgTable(

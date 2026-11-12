@@ -59,9 +59,7 @@ export const ReconciliationFileInputSchema = ReconciliationFileBaseSchema.superR
 
 const ReconciliationAlignmentSchema = z.object({
   kind: z.enum(["none", "align", "kept"]),
-  reason: z
-    .enum(["splits", "transfer", "generated", "paid-invoice", "card-recurring"])
-    .nullable(),
+  reason: z.enum(["splits", "transfer", "generated", "paid-invoice", "card-recurring"]).nullable(),
 });
 
 const ReconciliationSuspicionSchema = z.object({
