@@ -266,7 +266,7 @@ export function convertTransactions(
       }
       const transaction = baseRow(owner, refs, r, total < 0 ? "expense" : "income", total);
       add("transactions", transaction);
-      written += 1;
+      // Same rule as recurrence: every source row counts as collapsed, the group row is not "written".
       collapsedRows += members.length;
       collapsedInto += 1;
       members.forEach((row, index) => {
