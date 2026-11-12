@@ -378,7 +378,25 @@ async function runReconcile(options: CliOptions, env: NodeJS.ProcessEnv): Promis
       }
 
       const index = await listV1Users(v1);
+      if (options.user !== null && !index.users.some((user) => user.id === options.user)) {
+        process.stderr.write(`Unknown V1 user: ${options.user}
+`);
+        return EXIT_CODES.usage;
+      }
       const users: UserReconciliation[] = [];
+      // A V1 user without a load row (failed and rolled back, or still running) fails the gate.
+      const loadedIds = new Set(loads.map((load) => load.v1_user_id));
+      for (const { id } of index.users) {
+        if (options.user !== null && id !== options.user) continue;
+        if (loadedIds.has(id)) continue;
+        users.push({
+          v1UserId: id,
+          pass: false,
+          figures: [],
+          informational: [{ reason: "user-not-loaded", rows: 1 }],
+          expectedDifferences: [],
+        });
+      }
       for (const load of loads) {
         if (options.user !== null && load.v1_user_id !== options.user) continue;
         const x = await extractUser(v1, load.v1_user_id, index);
@@ -431,7 +449,7 @@ async function runReconcile(options: CliOptions, env: NodeJS.ProcessEnv): Promis
         global: {
           users: users.length,
           passed,
-          rehearsalReady: passed === users.length,
+          rehearsalReady: users.length > 0 && passed === users.length,
           totals: {
             figures: figures.length,
             failingFigures: figures.filter((figure) => !figure.pass).length,
