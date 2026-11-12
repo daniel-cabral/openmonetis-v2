@@ -1,9 +1,11 @@
 import {
+  calculateCardUsageDetail,
   calculateCardUsageOverview,
   type CardUsageCard,
   type CardUsageEntry,
   type CardUsageRecurringRule,
   cardUsageHistoryMonths,
+  resolveCardUsageInvoiceState,
 } from "@openmonetis/domain/card-usage-report";
 import type { CardInvoiceStatus } from "@openmonetis/domain/cards";
 import { fromCents } from "@openmonetis/domain/money";
@@ -36,7 +38,7 @@ export type CardUsageInvoicePort = {
 
 export function createCardUsageReportService(
   repository: CardUsageReportRepository,
-  _invoices: CardUsageInvoicePort,
+  invoices: CardUsageInvoicePort,
   getToday: () => string = getCurrentDateInBrazil,
 ) {
   return {
@@ -56,6 +58,21 @@ export function createCardUsageReportService(
         recurringRules,
         requestedCardId: query.cardId,
       });
+      const selectedCard = cards.find((card) => card.id === overview.selectedCardId);
+      const detail = selectedCard
+        ? calculateCardUsageDetail({
+            period,
+            card: selectedCard,
+            countedRows: overview.countedRows,
+          })
+        : null;
+      const invoiceTimeline = detail
+        ? await invoices.listInvoiceTimeline(
+            detail.cardId,
+            userId,
+            detail.history.map((item) => item.period),
+          )
+        : [];
 
       return {
         period,
@@ -81,7 +98,32 @@ export function createCardUsageReportService(
           trend: card.trend,
         })),
         selectedCardId: overview.selectedCardId,
-        detail: null,
+        detail: detail && {
+          cardId: detail.cardId,
+          history: detail.history.map((item) => ({
+            period: item.period,
+            usedAmount: fromCents(item.usedCents),
+            usagePercentage: item.usagePercentage,
+          })),
+          invoices: invoiceTimeline.map((item) => ({
+            period: item.period,
+            state: resolveCardUsageInvoiceState(item),
+            amount: item.amount,
+          })),
+          categories: detail.categories.map((category) => ({
+            categoryId: category.categoryId,
+            name: category.name,
+            icon: category.icon,
+            amount: fromCents(category.amountCents),
+            percentage: category.percentage,
+          })),
+          topExpenses: detail.topExpenses.map((expense) => ({
+            name: expense.name,
+            purchaseDate: expense.purchaseDate,
+            categoryName: expense.categoryName,
+            amount: fromCents(expense.amountCents),
+          })),
+        },
       };
     },
   };
