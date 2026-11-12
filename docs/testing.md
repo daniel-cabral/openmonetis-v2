@@ -35,6 +35,7 @@ pnpm test:financial-integrity:integration
 pnpm test:financial-distribution:integration
 pnpm test:establishments-report:integration
 pnpm test:card-usage-report:integration
+pnpm test:account-preferences:integration
 pnpm test:spending-overview:integration
 pnpm test:connections:integration
 pnpm test:imports:integration
@@ -127,7 +128,7 @@ O S3Mock não valida políticas IAM, privacidade do bucket ou expiração/autent
 A suíte verifica a geração das assinaturas, o prazo configurado e o protocolo de objetos; as
 políticas e o CORS do provedor real precisam da suíte optativa abaixo e de revisão operacional.
 
-Com PostgreSQL e S3Mock disponíveis, `pnpm test:integration` executa todas as vinte e duas suítes em
+Com PostgreSQL e S3Mock disponíveis, `pnpm test:integration` executa todas as vinte e três suítes em
 processos separados e informa falha se qualquer uma não passar.
 
 ## Storage no provedor real
