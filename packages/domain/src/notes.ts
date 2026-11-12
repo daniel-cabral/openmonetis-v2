@@ -82,6 +82,10 @@ export function replaceNoteAggregateDraft(input: ReplaceNoteAggregateInput): Not
   return buildNoteAggregateDraft(input, true);
 }
 
+export function canAttachToNote(kind: NoteKind): boolean {
+  return kind === "text";
+}
+
 export function calculateChecklistProgress(items: Array<{ isCompleted: boolean }>) {
   const totalItemCount = items.length;
   const completedItemCount = items.reduce((total, item) => total + Number(item.isCompleted), 0);
