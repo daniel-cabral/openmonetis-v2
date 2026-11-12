@@ -30,7 +30,7 @@ const ReconciliationFileShape = {
   invoicePeriod: periodSchema.optional(),
 };
 
-const ReconciliationFileBaseSchema = z.object(ReconciliationFileShape);
+export const ReconciliationFileBaseSchema = z.object(ReconciliationFileShape);
 
 function requireInvoicePeriodForCard(
   data: { targetType: "account" | "card"; invoicePeriod?: string | undefined },

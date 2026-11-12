@@ -273,7 +273,7 @@ test("reconciliation detects, previews and isolates owners without writing", {
             targetId: card.id,
           }),
           400,
-          "validation_error",
+          "RECONCILIATION_INVOICE_PERIOD_REQUIRED",
         );
       },
     );

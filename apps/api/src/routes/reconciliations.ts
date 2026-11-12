@@ -3,7 +3,7 @@ import { ok } from "@openmonetis/shared/api";
 import {
   DetectReconciliationInputSchema,
   ReconciliationDetectionSchema,
-  ReconciliationFileInputSchema,
+  ReconciliationFileBaseSchema,
   ReconciliationPreviewSchema,
 } from "@openmonetis/validators/reconciliations";
 import { ErrorResponseSchema as errorSchema, validationHook } from "../utils/openapi";
@@ -60,7 +60,7 @@ export function createReconciliationsRoute(service: ReconciliationsService) {
       request: {
         body: {
           required: true,
-          content: { "application/json": { schema: ReconciliationFileInputSchema } },
+          content: { "application/json": { schema: ReconciliationFileBaseSchema } },
         },
       },
       responses: {
