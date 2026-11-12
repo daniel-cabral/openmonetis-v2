@@ -11,6 +11,8 @@ import {
 const userId = "10000000-0000-4000-8000-000000000001";
 const noteId = "20000000-0000-4000-8000-000000000002";
 const now = new Date("2026-09-10T12:00:00.000Z");
+const attachmentCleaner = { cleanupOrphans: async () => ({ deletedCount: 0 }) };
+const createService = (repo: NotesRepository) => createNotesService(repo, attachmentCleaner);
 
 function taskAggregate(overrides: Partial<NoteAggregateRecord["note"]> = {}): NoteAggregateRecord {
   return {
@@ -28,6 +30,7 @@ function taskAggregate(overrides: Partial<NoteAggregateRecord["note"]> = {}): No
       updatedAt: now,
       ...overrides,
     },
+    attachmentCount: 0,
     items: [],
   };
 }
@@ -66,7 +69,7 @@ test("note lists keep pending checklist items before completed items", () => {
 test("task notes persist an owned due date and can be completed", async () => {
   let receivedUserId = "";
   let receivedDueDate = "";
-  const service = createNotesService(
+  const service = createService(
     repository({
       insertAggregate: async (draft) => {
         receivedUserId = draft.note.userId;
@@ -125,7 +128,7 @@ test("pending tasks due soon appear in the attention center", () => {
 for (const status of ["not_found", "version_conflict", "invalid_item_ids"] as const)
   test(`replacing a note translates ${status} and forwards ownership and expected version`, async () => {
     const calls: unknown[][] = [];
-    const service = createNotesService(
+    const service = createService(
       repository({
         replaceForUser: async (...args) => {
           calls.push(args);
@@ -165,7 +168,7 @@ for (const operation of ["replace", "setTaskCompletion", "setItemCompletion"] as
       writes++;
       throw new Error("Should not write");
     };
-    const service = createNotesService(
+    const service = createService(
       repository({
         findByIdForUser: async () => taskAggregate({ isArchived: true }),
         replaceForUser: fail,
@@ -196,7 +199,7 @@ for (const operation of ["replace", "setTaskCompletion", "setItemCompletion"] as
 
 for (const status of ["not_found", "version_conflict"] as const)
   test(`note archive and deletion translate ${status}`, async () => {
-    const service = createNotesService(
+    const service = createService(
       repository({
         setArchivedForUser: async () => ({ status }),
         deleteForUser: async () => ({ status }),
@@ -208,7 +211,7 @@ for (const status of ["not_found", "version_conflict"] as const)
   });
 
 test("note get/list/reminders hide ownership fields and preserve pagination", async () => {
-  const service = createNotesService(
+  const service = createService(
     repository({
       listByUser: async (owner, filters) => {
         assert.equal(owner, userId);
@@ -233,7 +236,7 @@ test("note get/list/reminders hide ownership fields and preserve pagination", as
 
 test("note archive is idempotent and task completion cannot change a text note", async () => {
   let writes = 0;
-  const service = createNotesService(
+  const service = createService(
     repository({
       findByIdForUser: async () => taskAggregate({ kind: "text" }),
       setArchivedForUser: async () => {
@@ -264,7 +267,7 @@ for (const status of ["updated", "version_conflict", "item_not_found", "note_not
         updatedAt: now,
       },
     ];
-    const service = createNotesService(
+    const service = createService(
       repository({
         findByIdForUser: async () => aggregate,
         setItemCompletionForUser: async (...args) => {
@@ -299,10 +302,10 @@ for (const status of ["updated", "version_conflict", "item_not_found", "note_not
   });
 
 test("missing notes and failed reads never become empty successful results", async () => {
-  const service = createNotesService(repository({ findByIdForUser: async () => null }));
+  const service = createService(repository({ findByIdForUser: async () => null }));
   await assert.rejects(service.get(noteId, userId), { code: "note_not_found" });
   const error = new Error("Database unavailable");
-  const failed = createNotesService(
+  const failed = createService(
     repository({
       listByUser: async () => {
         throw error;
