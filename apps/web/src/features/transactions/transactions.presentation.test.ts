@@ -10,8 +10,11 @@ import {
   formatPaymentMethodTable,
   formatTransactionConditionSummary,
   formatTransactionSettlementSummary,
+  getBulkUpdateErrorMessage,
+  getMassAddErrorMessage,
   getTransactionDateLabel,
   getTransactionImportErrorMessage,
+  getTransactionMutationErrorMessage,
   getTransactionSettlementAction,
   getTransactionSettlementLabel,
   groupTransactionRows,
@@ -283,4 +286,39 @@ test("import error codes map to actionable copy, and unknown codes keep the unre
   );
   assert.equal(getTransactionImportErrorMessage({ code: "IMPORT_FILE_INVALID" }), null);
   assert.equal(getTransactionImportErrorMessage(new Error("network")), null);
+});
+
+test("mass-add and bulk-edit errors use their own copy while other screens keep the generic text", () => {
+  assert.equal(
+    getMassAddErrorMessage({ code: "CATEGORY_NOT_FOUND" }),
+    "Categoria não encontrada em uma das transações.",
+  );
+  assert.equal(
+    getMassAddErrorMessage({ code: "PERSON_NOT_FOUND" }),
+    "Pessoa não encontrada em uma das transações.",
+  );
+  assert.equal(
+    getBulkUpdateErrorMessage({ code: "BULK_ACTION_UNSUPPORTED" }),
+    "Lançamentos protegidos não podem ser atualizados em massa.",
+  );
+  assert.equal(
+    getBulkUpdateErrorMessage({ code: "INVOICE_ALREADY_PAID" }),
+    "Uma das faturas de destino já está paga. Desfaça o pagamento antes de mover estes lançamentos.",
+  );
+  assert.equal(
+    getBulkUpdateErrorMessage({ code: "SETTLEMENT_REQUIRES_UNDO" }),
+    "Desfaça a baixa dos lançamentos pagos antes de alterar valores, datas, pessoa, conta ou cartão.",
+  );
+  assert.equal(
+    getBulkUpdateErrorMessage({ code: "BULK_UPDATE_RECURRING" }),
+    "Lançamentos recorrentes devem ser editados individualmente.",
+  );
+  assert.equal(
+    getBulkUpdateErrorMessage({ code: "BULK_UPDATE_SPLIT_PERSON" }),
+    "Lançamentos divididos não podem trocar de pessoa em massa.",
+  );
+  assert.equal(
+    getTransactionMutationErrorMessage({ code: "INVOICE_ALREADY_PAID" }),
+    "A fatura selecionada já foi paga. Escolha outra fatura.",
+  );
 });

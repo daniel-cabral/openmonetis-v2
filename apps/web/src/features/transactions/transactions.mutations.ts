@@ -10,6 +10,7 @@ import {
   applyRecurringRuleAction,
   categorizeTransactions,
   createTransaction,
+  createTransactionsBulk,
   deleteTransaction,
   deleteTransactions,
   detectTransactionImport,
@@ -28,6 +29,7 @@ import {
   undoTransactionImport,
   updateRecurringRule,
   updateTransaction,
+  updateTransactionsBulk,
 } from "./transactions.api";
 import {
   downloadTransactionExport,
@@ -192,6 +194,20 @@ export function useDeleteTransactionsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteTransactions,
+    onSuccess: () => refreshTransactionQueries(queryClient),
+  });
+}
+export function useCreateTransactionsBulkMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createTransactionsBulk,
+    onSuccess: () => refreshTransactionQueries(queryClient),
+  });
+}
+export function useUpdateTransactionsBulkMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTransactionsBulk,
     onSuccess: () => refreshTransactionQueries(queryClient),
   });
 }

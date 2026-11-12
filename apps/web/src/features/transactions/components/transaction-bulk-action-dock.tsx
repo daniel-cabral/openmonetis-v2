@@ -10,6 +10,7 @@ import {
   Loader2,
   type LucideIcon,
   Pencil,
+  PencilLine,
   Trash2,
   X,
 } from "lucide-react";
@@ -33,7 +34,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { accountsQueryOptions } from "@/features/accounts/accounts.queries";
+import { cardsQueryOptions } from "@/features/cards/cards.queries";
 import { categoriesQueryOptions } from "@/features/categories/categories.queries";
+import { peopleQueryOptions } from "@/features/people/people.queries";
 import { tagsQueryOptions } from "@/features/tags/tags.queries";
 import { tripsQueryOptions } from "@/features/trips/trips.queries";
 import { cn } from "@/lib/utils";
@@ -43,6 +47,7 @@ import {
 } from "../transactions.presentation";
 import { useTransactionBulkActions } from "../useTransactionBulkActions";
 import { TransactionBulkCategoryPicker } from "./transaction-bulk-category-picker";
+import { TransactionBulkEditDialog } from "./transaction-bulk-edit-dialog";
 import { TransactionBulkRenameDialog } from "./transaction-bulk-rename-dialog";
 import { TransactionBulkTagPicker } from "./transaction-bulk-tag-picker";
 import { TransactionBulkTripPicker } from "./transaction-bulk-trip-picker";
@@ -108,11 +113,14 @@ export function TransactionBulkActionDock({
   transactions,
   onClear,
 }: TransactionBulkActionDockProps) {
+  const accountsQuery = useQuery(accountsQueryOptions());
+  const cardsQuery = useQuery(cardsQueryOptions());
   const categoriesQuery = useQuery(categoriesQueryOptions());
+  const peopleQuery = useQuery(peopleQueryOptions());
   const tagsQuery = useQuery(tagsQueryOptions());
   const tripsQuery = useQuery(tripsQueryOptions());
   const actions = useTransactionBulkActions(transactions);
-  const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
+  const [dialog, setDialog] = useState<"rename" | "delete" | "update" | null>(null);
   if (!summary.selectedCount) return null;
 
   const categories = (categoriesQuery.data ?? []).filter((category) =>
@@ -247,6 +255,13 @@ export function TransactionBulkActionDock({
               onClick={() => setDialog("rename")}
             />
             <DockActionButton
+              action="update"
+              activeAction={actions.activeAction}
+              availability={actions.availability.update}
+              icon={PencilLine}
+              onClick={() => setDialog("update")}
+            />
+            <DockActionButton
               action="delete"
               activeAction={actions.activeAction}
               availability={actions.availability.delete}
@@ -300,6 +315,21 @@ export function TransactionBulkActionDock({
           open={dialog === "rename"}
           transactions={actions.renameTargets}
         />
+        {dialog === "update" ? (
+          <TransactionBulkEditDialog
+            accounts={accountsQuery.data ?? []}
+            cards={cardsQuery.data ?? []}
+            categories={categoriesQuery.data ?? []}
+            items={transactions}
+            onOpenChange={(open) => {
+              if (!open) setDialog(null);
+            }}
+            onSubmit={actions.update}
+            open
+            pending={actions.pending}
+            people={peopleQuery.data ?? []}
+          />
+        ) : null}
         <AlertDialog
           onOpenChange={(open) => {
             if (!actions.pending) setDialog(open ? "delete" : null);

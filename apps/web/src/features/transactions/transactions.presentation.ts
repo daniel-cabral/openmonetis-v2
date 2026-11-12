@@ -355,6 +355,10 @@ const transactionMutationErrorMessages: Record<string, string> = {
   SETTLEMENT_UNSUPPORTED: "Use o fluxo de pagamento correspondente a este lançamento.",
   BULK_CATEGORY_INCOMPATIBLE: "A categoria não combina com todos os lançamentos. Atualize a lista.",
   BULK_ACTION_UNSUPPORTED: "Alguns lançamentos não aceitam esta ação. Atualize a lista.",
+  BULK_UPDATE_RECURRING: "Lançamentos recorrentes devem ser editados individualmente.",
+  BULK_UPDATE_SPLIT_PERSON: "Lançamentos divididos não podem trocar de pessoa em massa.",
+  BULK_UPDATE_FIELD_NOT_APPLICABLE:
+    "Algum campo não se aplica ao meio de pagamento de um dos lançamentos.",
   TAG_LIMIT_EXCEEDED: "Algum lançamento já atingiu o limite de etiquetas.",
   tag_not_found: "Etiqueta não encontrada. Atualize a lista.",
   SETTLEMENT_ACCOUNT_NOT_FOUND: "Escolha uma conta ativa para registrar a baixa.",
@@ -396,6 +400,32 @@ export function getTransactionMutationErrorMessage(error: unknown) {
   return typeof code === "string" && transactionMutationErrorMessages[code]
     ? transactionMutationErrorMessages[code]
     : "Não foi possível concluir. Tente novamente em instantes.";
+}
+
+function readErrorCode(error: unknown) {
+  return error && typeof error === "object" && "code" in error ? error.code : undefined;
+}
+
+export function getMassAddErrorMessage(error: unknown) {
+  const code = readErrorCode(error);
+  if (code === "CATEGORY_NOT_FOUND") return "Categoria não encontrada em uma das transações.";
+  if (code === "PERSON_NOT_FOUND") return "Pessoa não encontrada em uma das transações.";
+  return getTransactionMutationErrorMessage(error);
+}
+
+const bulkUpdateErrorMessages: Record<string, string> = {
+  BULK_ACTION_UNSUPPORTED: "Lançamentos protegidos não podem ser atualizados em massa.",
+  INVOICE_ALREADY_PAID:
+    "Uma das faturas de destino já está paga. Desfaça o pagamento antes de mover estes lançamentos.",
+  SETTLEMENT_REQUIRES_UNDO:
+    "Desfaça a baixa dos lançamentos pagos antes de alterar valores, datas, pessoa, conta ou cartão.",
+};
+
+export function getBulkUpdateErrorMessage(error: unknown) {
+  const code = readErrorCode(error);
+  return typeof code === "string" && bulkUpdateErrorMessages[code]
+    ? bulkUpdateErrorMessages[code]
+    : getTransactionMutationErrorMessage(error);
 }
 
 const transactionImportErrorMessages: Record<string, string> = {
@@ -621,6 +651,16 @@ export function formatBulkTransactionResult(
   };
 }
 
+export function formatMassAddSuccess(count: number) {
+  return count === 1
+    ? "1 lançamento criado com sucesso."
+    : `${count} lançamentos criados com sucesso.`;
+}
+
+export function formatBulkUpdateSuccess(count: number) {
+  return count === 1 ? "1 lançamento atualizado." : `${count} lançamentos atualizados.`;
+}
+
 export type BulkTransactionActionKey =
   | "settle"
   | "unsettle"
@@ -628,7 +668,8 @@ export type BulkTransactionActionKey =
   | "tag"
   | "trip"
   | "rename"
-  | "delete";
+  | "delete"
+  | "update";
 
 const bulkTransactionActionCopy: Record<
   BulkTransactionActionKey,
@@ -644,6 +685,7 @@ const bulkTransactionActionCopy: Record<
   trip: { label: "Definir viagem", unavailable: "Nenhum selecionado aceita viagem" },
   rename: { label: "Descrição", unavailable: "Nenhum selecionado aceita outra descrição" },
   delete: { label: "Excluir", unavailable: "Nenhum selecionado pode ser excluído" },
+  update: { label: "Editar", unavailable: "Nenhum selecionado pode ser editado em massa" },
 };
 
 /** Explains how far a bulk action reaches before the user commits to it. */

@@ -53,6 +53,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   conciliado no extrato da conta. Detalhes em `docs/reconciliations.md`.
 - Calendário mensal com lançamentos, parcelas, boletos e faturas por dia, detalhe do dia e criação
   rápida.
+- **Adicionar em massa** e **Editar** em lote: cria vários lançamentos avulsos de uma vez, com
+  configurações comuns de tipo, forma de pagamento, conta ou cartão e fatura; e altera data, fatura,
+  vencimento, pessoa, conta, cartão, categoria, observação e valor de uma seleção, com escopo para
+  parcelas. Novos endpoints `POST /transactions/bulk/create` e `PATCH /transactions/bulk/update`.
+  Detalhes em `docs/transaction-bulk-actions.md`. Edição com escopo de uma série agora é cancelada
+  por inteiro se uma parcela da série sumir antes da gravação, em vez de gravar parcialmente.
 
 ## [0.16.0] - 2026-11-07
 

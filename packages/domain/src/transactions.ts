@@ -204,6 +204,80 @@ export function canAssignBulkCategory(
   return isUserEditableBulkTarget(target) && !category.isSystem && category.type === target.type;
 }
 
+export const bulkTransactionUpdateFields = [
+  "purchaseDate",
+  "invoicePeriod",
+  "dueDate",
+  "personId",
+  "accountId",
+  "cardId",
+  "categoryId",
+  "note",
+  "amount",
+] as const;
+export type BulkTransactionUpdateField = (typeof bulkTransactionUpdateFields)[number];
+
+// Financial fields a settled movement keeps locked until its settlement is undone.
+export const settlementLockedTransactionFields: readonly string[] = [
+  "amount",
+  "type",
+  "paymentMethod",
+  "purchaseDate",
+  "personId",
+  "accountId",
+  "cardId",
+  "splitShares",
+  "settledDate",
+  "boletoPaymentDate",
+  "dueDate",
+  "condition",
+  "invoicePeriod",
+];
+
+export type BulkTransactionUpdateTarget = BulkTransactionTarget & {
+  condition: TransactionCondition;
+  isRecurring: boolean;
+  isSplit: boolean;
+  isSettledLocked: boolean;
+};
+
+export function listInapplicableBulkUpdateFields(
+  target: Pick<BulkTransactionTarget, "type" | "paymentMethod">,
+  fields: readonly BulkTransactionUpdateField[],
+) {
+  const isCard = target.paymentMethod === "credit_card";
+  return fields.filter((field) => {
+    switch (field) {
+      case "accountId":
+        return isCard;
+      case "cardId":
+      case "invoicePeriod":
+        return !isCard;
+      case "dueDate":
+        return isCard || target.type !== "expense";
+      default:
+        return false;
+    }
+  });
+}
+
+// Precedence: protected, recurring, not applicable, split person, settled.
+export function getBulkTransactionUpdateRejection(
+  target: BulkTransactionUpdateTarget,
+  fields: readonly BulkTransactionUpdateField[],
+) {
+  if (!isUserEditableBulkTarget(target)) return "protected";
+  if (target.condition === "recurring" || target.isRecurring) return "recurring";
+  if (listInapplicableBulkUpdateFields(target, fields).length > 0) return "notApplicable";
+  if (target.isSplit && fields.includes("personId")) return "splitPersonChange";
+  if (
+    target.isSettledLocked &&
+    fields.some((field) => settlementLockedTransactionFields.includes(field))
+  )
+    return "settled";
+  return null;
+}
+
 export function isExpenseReduction(input: {
   amount: number | string;
   origin: TransactionOrigin;
@@ -563,6 +637,51 @@ export function getPeriodEndDate(period: string) {
 
 export function addMonthsToDate(value: string, months: number) {
   return toDateString(addMonths(parseDate(value), months));
+}
+
+export type BulkSeriesItem = {
+  id: string;
+  seriesId: string | null;
+  currentInstallment: number | null;
+};
+
+// Each series is edited from its lowest selected installment; later selections are covered by it.
+export function selectBulkSeriesAnchors<T extends BulkSeriesItem>(items: readonly T[]) {
+  const anchors = new Map<string, T>();
+  for (const item of items) {
+    if (item.seriesId === null) continue;
+    const anchor = anchors.get(item.seriesId);
+    if (
+      !anchor ||
+      (item.currentInstallment ?? Number.POSITIVE_INFINITY) <
+        (anchor.currentInstallment ?? Number.POSITIVE_INFINITY)
+    )
+      anchors.set(item.seriesId, item);
+  }
+  return items.filter((item) => item.seriesId === null || anchors.get(item.seriesId) === item);
+}
+
+export type InstallmentSeriesValues = {
+  purchaseDate?: string;
+  dueDate?: string | null;
+  boletoPaymentDate?: string | null;
+  period?: string;
+};
+
+export function shiftInstallmentSeriesValues(
+  values: InstallmentSeriesValues,
+  offset: number,
+): InstallmentSeriesValues {
+  const shiftDate = (value: string | null) =>
+    value === null ? null : addMonthsToDate(value, offset);
+  const shifted: InstallmentSeriesValues = {};
+  if (values.purchaseDate !== undefined)
+    shifted.purchaseDate = addMonthsToDate(values.purchaseDate, offset);
+  if (values.dueDate !== undefined) shifted.dueDate = shiftDate(values.dueDate);
+  if (values.boletoPaymentDate !== undefined)
+    shifted.boletoPaymentDate = shiftDate(values.boletoPaymentDate);
+  if (values.period !== undefined) shifted.period = addMonthsToPeriod(values.period, offset);
+  return shifted;
 }
 
 export function calculateInstallmentEndPeriod(input: {

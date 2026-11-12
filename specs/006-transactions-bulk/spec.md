@@ -8,6 +8,18 @@
 
 **Input**: User description: "Port the V1 mass-add dialog and the full V1 bulk edit (date, condition, person and the other V1 editable fields) to V2, expressed on top of V2 recurrence rules, installment series, transaction splits and people."
 
+## Clarifications
+
+### Session 2026-11-11
+
+- Q: How does bulk edit change the paid state, and the boleto payment date? → A: Through the existing bulk settlement action of the selection dock (settle / undo), not the bulk-edit form. V2 forbids changing `isSettled` by edit and only accepts a boleto payment date together with settlement, so boleto payment date is not a bulk-edit field.
+- Q: How is the edit scope chosen when the selection holds items of installment series? → A: One scope per bulk request (this item, this and following, whole series), applied to every installment item in the selection; single items ignore it. The dialog asks for it only when the selection contains installment items.
+- Q: Are recurring occurrences editable in bulk? → A: No. V2 recurrence edits are versioned rule changes addressed by occurrence date; a selection containing a recurring item is rejected whole with "Lançamentos recorrentes devem ser editados individualmente." The existing single scoped recurring edit already provides V2 recurrence scopes (V1 parity for recurring series is kept there).
+- Q: How do split transactions behave under bulk edit? → A: V2 models a split as shares of one transaction, so an edit always applies to the whole transaction (all shares); there is no "this person's share only" scope. A changed amount is reallocated proportionally across shares; changing the person of a split transaction is rejected with "Lançamentos divididos não podem trocar de pessoa em massa."
+- Q: Does the paid-invoice rejection list the affected months? → A: No. It reuses the existing V2 code `INVOICE_ALREADY_PAID` with the PT-BR message "Uma das faturas de destino já está paga. Desfaça o pagamento antes de mover estes lançamentos." (keeps the API error contract unchanged).
+- Plan-time decisions (orchestrator, 2026-11-11): (1) the API error envelope stays `{ error, message, code }`, with no row number; the mass-add dialog validates required fields and amount per row and names the row, while server ownership errors for rows show "Categoria não encontrada em uma das transações." / "Pessoa não encontrada em uma das transações."; (2) the paid-invoice rejection lists no months; (3) the settlement lock follows the full V2 list of financial fields; (4) bulk edit also blocks moving out of a paid invoice: when card, invoice period, date or amount changes on a card item, both the source and the destination invoices must be unpaid, so a paid invoice's total never changes; (5) the bulk write aborts the whole database transaction if any planned row is not updated (reported as not found).
+- Analyze-time decisions (2026-11-12): (1) the installment offset is the installment number difference (FR-017), also for Story 3 #2; (2) SC-004 measures installment series only, since recurring items are rejected from bulk edit.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Mass-add several transactions in one dialog (Priority: P1)
@@ -28,13 +40,13 @@ A user registering a month of receipts or a card statement by hand wants to crea
 6. **Given** the user adds a new row, **When** the row appears, **Then** its date is pre-filled with the previous row's date and its person with the default person.
 7. **Given** type "Receita", **When** the user opens a row's category list, **Then** only income categories are offered (and only expense categories for "Despesa").
 8. **Given** the user typed data, **When** the user closes the dialog, **Then** a confirmation ("Descartar" / "Continuar editando") appears before discarding.
-9. **Given** any row references a category or person that does not belong to the user, **When** submitted, **Then** nothing is created and the error names the row ("Categoria não encontrada na transação N").
+9. **Given** any row references a category or person that does not belong to the user or is no longer available, **When** submitted, **Then** nothing is created and "Categoria não encontrada em uma das transações." (or "Pessoa não encontrada em uma das transações.") is shown.
 
 ---
 
 ### User Story 2 - Edit extra fields on many selected transactions at once (Priority: P1)
 
-A user who selected several transactions in the table wants to change purchase date, invoice period, due date, boleto payment date, person, account or card, category, note, amount or paid state in one action. V2 today only offers category, name and tag bulk actions.
+A user who selected several transactions in the table wants to change purchase date, invoice period, due date, person, account or card, category, note or amount in one action. V2 today offers category, name, tag, trip, delete and settlement bulk actions.
 
 **Why this priority**: Closes the V2 gap listed in the inventory (date, condition, payer and other fields). Independent of mass-add.
 
@@ -44,18 +56,18 @@ A user who selected several transactions in the table wants to change purchase d
 
 1. **Given** several selected single transactions, **When** the user changes only the person, **Then** every selected transaction is reassigned to that person and untouched fields keep their values.
 2. **Given** selected transactions, **When** the user sets a new purchase date, **Then** every selected transaction takes that date and recomputes its competence period and invoice the same way a single edit does.
-3. **Given** selected transactions of mixed payment methods, **When** the user sets account, card, due date or boleto payment date, **Then** the dialog states which fields do not apply to which payment method, and the action is rejected if the combination is invalid for any item.
+3. **Given** selected transactions of mixed payment methods, **When** the user sets account, card or due date, **Then** the dialog states which fields do not apply to which payment method, and the action is rejected if the combination is invalid for any item.
 4. **Given** selected expense and income transactions, **When** the user sets an amount, **Then** the sign convention is preserved per type (the value entered is positive, the type decides direction) and zero or negative is rejected.
 5. **Given** a selection where at least one item is system-managed (invoice payment, initial balance, refund, transfer leg), **When** the user confirms any bulk edit, **Then** the whole action is rejected with "Lançamentos protegidos não podem ser atualizados em massa." and nothing changes (all-or-nothing, as in the other V2 bulk actions).
-6. **Given** a selected credit card transaction whose destination card and invoice period would land in an already paid invoice, **When** the user submits a change of card, purchase date or period, **Then** the action is rejected with "As faturas dos meses <lista> já estão pagas. Desfaça o pagamento antes de mover este lançamento."
-7. **Given** a selected item already settled (paid or received), **When** the change touches amount, date or account, **Then** the action is rejected asking to undo the settlement first, consistent with V2 settlement rules.
-8. **Given** the user marks the selection paid or pending, **When** confirmed, **Then** each item follows V2 settlement rules (credit card items stay "pela fatura").
+6. **Given** a selected credit card transaction that sits in, or would land in, an already paid invoice, **When** the user submits a change of card, purchase date, period or amount, **Then** the action is rejected with "Uma das faturas de destino já está paga. Desfaça o pagamento antes de mover estes lançamentos." (the same message covers a paid source invoice).
+7. **Given** a selected item already settled (paid or received), **When** the change touches any financial field (V2 settlement rules: amount, dates, invoice period, person, account or card), **Then** the action is rejected asking to undo the settlement first.
+8. **Given** the user marks the selection paid or pending, **When** confirmed through the existing bulk settlement action, **Then** each item follows V2 settlement rules (credit card items stay "pela fatura"); the bulk-edit form has no paid-state field.
 
 ---
 
 ### User Story 3 - Apply an edit to a whole series with an explicit scope (Priority: P2)
 
-In V1, editing a transaction of a series asked "apenas este / este e os próximos / todos" and applied the changed fields to those items. The user expects the same when bulk-editing installment or recurring items in V2, expressed on V2 recurrence rules and installment series.
+In V1, editing a transaction of a series asked "apenas este / este e os próximos / todos" and applied the changed fields to those items. The user expects the same when bulk-editing installment items in V2. Recurring items keep using the existing single scoped recurring edit (see Clarifications).
 
 **Why this priority**: Required for V1 parity on series; secondary to the plain multi-select flow.
 
@@ -63,29 +75,23 @@ In V1, editing a transaction of a series asked "apenas este / este e os próximo
 
 **Acceptance Scenarios**:
 
-1. **Given** a selected item that belongs to an installment series or a recurring rule, **When** the user submits a bulk edit, **Then** the user must pick a scope (this item only, this and following, whole series) before anything is applied.
-2. **Given** scope "este e os próximos" on an installment series, **When** the user changes the due date, **Then** each affected installment's due date moves by the number of months between its own purchase date and the edited installment's purchase date, preserving the monthly rhythm.
+1. **Given** a selection containing an item of an installment series, **When** the user submits a bulk edit, **Then** the user must pick one scope (this item only, this and following, whole series) applied to every installment item before anything is applied.
+2. **Given** scope "este e os próximos" on an installment series, **When** the user changes the due date, **Then** each affected installment's due date moves by its installment number difference from the selected installment (in months, clamped to month end), preserving the monthly rhythm.
 3. **Given** scope "este e os próximos" or "toda a série", **When** the user changes purchase date or invoice period, **Then** every affected item shifts by its own month offset from the edited item (V1 rule), not to the same absolute value.
-4. **Given** a recurring rule, **When** the user chooses a scope, **Then** V2 recurrence scopes apply (occurrence, this and following, series), past and confirmed occurrences keep their data, and financial changes on a confirmed occurrence require undoing its settlement first.
-5. **Given** a transaction split among several people, **When** the user chooses a scope, **Then** a person choice is offered: this person's share only, or all people sharing the transaction. Changing the owner person of a split transaction is rejected with a clear message; other fields propagate to every share in scope.
+4. **Given** a selection containing a recurring item, **When** the user submits a bulk edit, **Then** the whole action is rejected with "Lançamentos recorrentes devem ser editados individualmente." and nothing changes.
+5. **Given** a transaction split among several people, **When** the user bulk-edits it, **Then** the change applies to the whole transaction (all shares), a new amount is reallocated proportionally across shares, and a change of person is rejected with "Lançamentos divididos não podem trocar de pessoa em massa."
 6. **Given** the chosen scope would move any affected item into a paid invoice, **When** submitted, **Then** the whole action is rejected with the paid-invoice message and nothing changes.
-7. **Given** a selection spanning several series, **When** the user submits, **Then** each series is processed with the scope chosen for its items and the action is atomic across the whole selection.
+7. **Given** a selection spanning several installment series, **When** the user submits, **Then** each series is processed with the single chosen scope anchored on its selected item, and the action is atomic across the whole selection.
 
 ---
 
-### User Story 4 - Change condition in bulk (Priority: P3)
+### User Story 4 - Change condition in bulk (dropped)
 
-The roadmap lists "condition" among the V1 fields to port. The user wants to change how selected transactions are paid or repeated (single, installment, recurring) in one action.
-
-**Why this priority**: Rarely used, structurally risky (creates series), and absent from V1 bulk code; delivered last and only for safe transitions.
-
-**Independent Test**: Select single-condition pending transactions, convert them to recurring monthly, and verify each becomes a recurring rule starting at its own date.
+Resolved (orchestrator, 2026-11-11): option (a). V1 never bulk-changed the condition; the roadmap wording was imprecise. Bulk edit does not change condition; mass-add keeps creating single ("à vista") entries.
 
 **Acceptance Scenarios**:
 
-1. **Given** selected single-condition, pending transactions, **When** the user picks condition "recorrente" with a frequency, **Then** each becomes a recurring rule starting at its own date.
-2. **Given** selected items that already belong to an installment series or recurring rule, **When** the user picks a different condition, **Then** the action is rejected with a message explaining the series must be edited individually.
-3. **Given** Resolved (orchestrator, 2026-11-11): option (a). V1 never bulk-changed the condition; the roadmap wording was imprecise. Bulk edit does not change condition; mass-add keeps creating single ("à vista") entries., **When** the user opens the condition control, **Then** only the supported transitions are offered.
+1. **Given** the bulk-edit dialog, **When** the user opens it, **Then** there is no condition control, and a request carrying a condition is rejected by the API contract.
 
 ---
 
@@ -96,10 +102,18 @@ The roadmap lists "condition" among the V1 fields to port. The user wants to cha
 - A mass-add row with a purchase date outside the chosen invoice period is allowed (the chosen period wins, as in V1) and the date stays as typed.
 - Without a fixed invoice period (non-card methods), the competence period derives from each row's date.
 - Month-end due dates when shifting by month offsets clamp to the last valid day of the month.
-- A person removed between opening the dialog and submit produces a row-specific error and no partial creation.
+- A person removed between opening the dialog and submit produces "Pessoa não encontrada em uma das transações." and no partial creation.
 - Bulk delete, category, rename and tag actions already exist and keep working with the same selection UI.
 - Mass-added transactions appear immediately in lists, invoices and dashboard totals.
 - V2 accepts child categories as ordinary categories, so the dialog has no separate subcategory field.
+
+## UI decisions
+
+Previews (real app CSS compiled with Tailwind from `apps/web/src/styles/app.css`): scratchpad `previews/mass-add.html` and `previews/bulk-edit.html` of the 006 worker session (not committed). Chosen autonomously (goal run), closest to V1 behaviour within V2 patterns.
+
+- **Mass-add: option A.** Wide dialog (same width class as the transaction dialog): a "Configurações comuns" block on top (tipo, forma de pagamento, conta or cartão, fatura only for cartão) and a compact editable table of rows (data, estabelecimento, valor, categoria, pessoa, remover) with "Adicionar linha" below; row errors shown inline under the row; footer "Cancelar" / "Criar N lançamentos". Opened from `TransactionsCreateActions` ("Adicionar em massa"); on the card page the cartão is locked.
+- **Bulk edit: option A.** Opened from a new "Editar" action of `TransactionBulkActionDock`; fixed list of fields, each with an "Alterar" checkbox enabling its input (data da compra, fatura, vencimento, pessoa, conta, cartão, categoria, observação, valor); an "Escopo das parcelas" radio group (Apenas este / Este e os próximos / Toda a série) appears only when the selection has installment items; an inline notice lists fields that do not apply to some selected payment methods.
+- Discarded: mass-add B (side column + row cards: new layout, slower entry for 20 rows); bulk-edit B ("Adicionar campo" picker: extra popover state and a new component for no gain).
 
 ## Requirements *(mandatory)*
 
@@ -111,7 +125,7 @@ The roadmap lists "condition" among the V1 fields to port. The user wants to cha
 - **FR-002**: The system MUST require a card for credit card payment and an account for any other method, and reject submit with the messages in Story 1.
 - **FR-003**: The system MUST create every mass-added transaction as single condition, without installments, recurrence, note or split.
 - **FR-004**: The system MUST apply the sign convention by type (positive typed amount; expenses stored as outflows, income as inflows) and reject zero or negative amounts.
-- **FR-005**: The system MUST create all rows atomically (all or none), and a row-level validation or ownership error MUST name the row number.
+- **FR-005**: The system MUST create all rows atomically (all or none). The dialog MUST name the row for missing required fields or an invalid amount; a server ownership error for a row's category or person MUST show a generic PT-BR message ("... em uma das transações") without a row number.
 - **FR-006**: The system MUST filter selectable categories by the chosen type and MUST require a category per row, in line with the V2 rule that income and expense transactions have a category.
 - **FR-007**: The system MUST default each row's person to the user's default person and pre-fill a new row's date from the previous row.
 - **FR-008**: The system MUST create non-card rows as pending and credit card rows as billed through the invoice; the invoice period is the one chosen in the dialog or, when none, derived from each row's date.
@@ -120,17 +134,17 @@ The roadmap lists "condition" among the V1 fields to port. The user wants to cha
 
 **Bulk edit**
 
-- **FR-011**: The system MUST let the user bulk-edit, over a multi-selection, purchase date, invoice period, due date, boleto payment date, person, account, card, category, note, amount and paid state, in addition to the existing category, name and tag bulk actions.
+- **FR-011**: The system MUST let the user bulk-edit, over a multi-selection, purchase date, invoice period, due date, person, account, card, category, note and amount, in addition to the existing category, name, tag, trip, delete and settlement bulk actions (paid state is changed by the existing settlement action).
 - **FR-012**: The system MUST apply only the fields the user explicitly changed and leave every other field untouched.
 - **FR-013**: The system MUST reject the whole bulk action, changing nothing, when any selected item is system-managed (invoice payment, initial balance, refund, transfer leg) or incompatible with a requested field.
-- **FR-014**: The system MUST reject moves into an already paid invoice, listing the affected months, and MUST require undoing settlement before changing amount, date or account of a settled item.
+- **FR-014**: The system MUST reject, with the paid-invoice message and without listing months, any bulk edit that changes card, invoice period, date or amount of a card item whose source or destination invoice is paid, and MUST require undoing settlement before changing any financial field of a settled item (V2 settlement rules).
 - **FR-015**: The system MUST preserve the amount sign convention and validate ownership of every referenced person, category, account and card.
-- **FR-016**: The system MUST ask for an edit scope when any selected item belongs to an installment series, recurring rule or split (this item, this and following, whole series; for splits also this person's share or all people).
-- **FR-017**: For scopes wider than one item, the system MUST shift purchase date and invoice period by each item's own month offset from the edited item, and shift due date and boleto payment date by the month difference between each item's purchase date and the edited item's purchase date, clamping to month end.
-- **FR-018**: For recurring rules, the system MUST use V2 recurrence scopes, leave past and confirmed occurrences untouched, and never materialize occurrences.
-- **FR-019**: The system MUST reject a change of the owner person of a split transaction and propagate every other changed field to all shares in the chosen scope.
-- **FR-020**: The system MUST apply the edit atomically across the whole selection and scopes, and return the number of updated transactions.
-- **FR-021**: Condition changes MUST be limited to the transitions confirmed in Story 4 and rejected for items already in a series.
+- **FR-016**: The system MUST ask for one edit scope (this item, this and following, whole series) when any selected item belongs to an installment series, and apply it to every installment item of the selection.
+- **FR-017**: For scopes wider than one item, the system MUST shift purchase date, invoice period and due date by each installment's month offset from the selected installment (installment number difference), clamping to month end.
+- **FR-018**: The system MUST reject a bulk edit whose selection contains a recurring item, changing nothing; recurring series keep the existing single scoped edit, and bulk edit never materializes occurrences.
+- **FR-019**: The system MUST reject a change of person on a split transaction and apply every other changed field to the whole transaction, reallocating a new amount proportionally across its shares.
+- **FR-020**: The system MUST apply the edit atomically across the whole selection and scopes (if any planned row cannot be updated, nothing is written), and return the number of updated transactions.
+- **FR-021**: Bulk edit MUST NOT change condition (Story 4 resolution); mass-add creates only single-condition transactions.
 
 **Cross-cutting**
 
@@ -154,14 +168,14 @@ The roadmap lists "condition" among the V1 fields to port. The user wants to cha
 - **SC-001**: A user can register 20 transactions through mass-add in under 3 minutes with a single submit.
 - **SC-002**: 100% of mass-add submissions with any invalid row create zero transactions.
 - **SC-003**: A bulk edit of up to 500 selected transactions completes with one confirmation and shows its result within 5 seconds.
-- **SC-004**: For installment and recurring series, 100% of affected items end with the V1-defined month-offset dates in acceptance tests and 0 past or confirmed occurrences change.
+- **SC-004**: For installment series, 100% of affected items end with the V1-defined month-offset dates in acceptance tests and 0 installments outside the chosen scope change; 100% of bulk edits containing a recurring item change nothing.
 - **SC-005**: Zero bulk edits succeed on a selection containing a protected item, a paid-invoice target, or a settled item with financial changes; the user always sees the reason in PT-BR.
 - **SC-006**: Dashboard and invoice totals after mass-add or bulk edit equal the sum of the underlying transactions in 100% of verification cases.
 
 ## Assumptions
 
 - V1 "bulk edit" was a scoped series edit of one record (scopes current, period, future, all); V2 generalizes it to a multi-selection plus an explicit scope for series items, keeping the V1 field list and offset rules.
-- V1 scope "period" (all people of the same month) maps to V2 "all people sharing this transaction", since V2 models shared transactions as splits.
+- V1 scope "period" (all people of the same month) has no V2 counterpart: V2 shared transactions are splits of one record, always edited whole.
 - V1 allowed a null category and amount 0 in mass-add; V2 invariants (category required, amount above zero) win.
 - V1 attachment propagation on scoped edit is already covered by V2 attachments on transactions and is out of scope.
 - Bulk set trip belongs to feature 004; trips are not edited here.
