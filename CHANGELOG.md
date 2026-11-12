@@ -23,6 +23,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Sugestões de categoria usam chave por comerciante: variantes da mesma loja (praça, prefixo do
   adquirente, número da loja) compartilham a memória. Sugestões salvas com a chave antiga continuam
   válidas.
+- Conciliação de extrato e fatura do C6 com lançamentos: regras determinísticas de casamento,
+  casamentos suspeitos pedem decisão, o valor do arquivo prevalece, lançamento pendente casado vira
+  pago, lote com desfazer, linhas ignoradas com motivo e memória de nome e categoria por comerciante.
 
 ## [0.16.0] - 2026-11-07
 
