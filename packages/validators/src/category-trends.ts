@@ -47,6 +47,7 @@ export const ListCategoryTrendsQuerySchema = z
     }),
     categoryIds: categoryIdsSchema,
     personScope: z.union([z.enum(["admin", "all"]), z.uuid()]).optional(),
+    trip: z.union([z.literal("none"), z.uuid()]).optional(),
   })
   .superRefine((query, context) => {
     const startIndex = toPeriodIndex(query.startPeriod);

@@ -140,6 +140,12 @@ export const TripSuggestionsPageOutputSchema = z
 export const TripLinkIdsOutputSchema = z
   .object({ ids: z.array(z.string()) })
   .openapi("TripLinkIdsOutput");
+export const TripPeriodRangeOutputSchema = z
+  .object({
+    startPeriod: z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/),
+    endPeriod: z.string().regex(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/),
+  })
+  .openapi("TripPeriodRange");
 
 export type CreateTripInput = z.infer<typeof CreateTripInputSchema>;
 export type UpdateTripInput = z.infer<typeof UpdateTripInputSchema>;
