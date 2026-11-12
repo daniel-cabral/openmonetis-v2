@@ -1,6 +1,12 @@
+import type { InvoiceClosure } from "@openmonetis/domain/reconciliations-closure";
+import type {
+  PaidAfterEnd,
+  ProjectionComparison,
+} from "@openmonetis/domain/reconciliations-projection";
 import { dateOnlyToSafeInstant, formatDateInBrazil } from "@openmonetis/shared/date-time";
 import type { ReconciliationPreview } from "@openmonetis/validators/reconciliations";
 import { formatCurrency } from "../../lib/money-presentation";
+import type { ClosureView, ProjectionView } from "./components/reconciliation-review";
 
 type PreviewLine = ReconciliationPreview["lines"][number];
 type Suspicion = PreviewLine["suspicions"][number];
@@ -92,4 +98,83 @@ export function formatSkippedWarning(skipped: number) {
 
 export function formatReconciliationError(code: string | null | undefined) {
   return (code && reconciliationErrorMessages[code]) || genericReconciliationError;
+}
+
+export const invoiceCreditLineLabel = "Crédito da fatura";
+
+export function formatCents(cents: number) {
+  return formatCurrency(cents / 100);
+}
+
+export function formatProjectionBadge(comparison: ProjectionComparison) {
+  return comparison.matches
+    ? { tone: "success" as const, label: "Bate" }
+    : {
+        tone: "warning" as const,
+        label: `Diferença de ${formatCents(comparison.differenceCents)}`,
+      };
+}
+
+export function formatProjectionLine(view: ProjectionView) {
+  if (view.kind === "card") {
+    const projected = `Total da fatura no app após aplicar: ${formatCents(view.projectedCents)}`;
+    return view.targetCents === null
+      ? `${projected} · Informe o total da fatura para comparar`
+      : `${projected} · Total informado: ${formatCents(view.targetCents)}`;
+  }
+  const projected = `Saldo do app após aplicar: ${formatCents(view.projectedCents)}`;
+  return view.target === null
+    ? `${projected} · Saldo final do extrato indisponível`
+    : `${projected} · Saldo final do extrato (${formatShortDate(view.target.date)}): ${formatCents(view.target.cents)}`;
+}
+
+export function formatPaidAfterEndSummary(count: number) {
+  return `${count} lançamento(s) pago(s) depois do fim do arquivo`;
+}
+
+export function formatPaidAfterEndItem(item: PaidAfterEnd) {
+  return {
+    label: `${item.name} (${formatShortDate(item.date)})`,
+    amount: formatCents(item.signedCents),
+  };
+}
+
+export function formatStatementClosureSummary(
+  view: Extract<ClosureView, { kind: "statement" }>,
+) {
+  const { closure } = view;
+  const unverified =
+    closure.unverifiedDays.length > 0
+      ? `${closure.unverifiedDays.length} dia(s) não verificável(is): ${closure.unverifiedDays.map(formatShortDate).join(", ")}`
+      : null;
+  if (closure.closes) {
+    return {
+      tone: "success" as const,
+      badge: "Fecha",
+      text: "Todos os dias contábeis batem com o saldo do extrato.",
+      divergences: [],
+      unverified,
+    };
+  }
+  return {
+    tone: "destructive" as const,
+    badge: "Não fecha",
+    text: `${closure.divergences.length} dia(s) com divergência.`,
+    divergences: closure.divergences.map(
+      (day) =>
+        `${formatShortDate(day.day)}: movimento ${formatCents(day.movementCents)} · soma das linhas ${formatCents(day.sumCents)} · diferença de ${formatCents(Math.abs(day.differenceCents))}`,
+    ),
+    unverified,
+  };
+}
+
+export function formatInvoiceClosureSummary(closure: InvoiceClosure) {
+  const totals = `Soma do arquivo: ${formatCents(closure.netCents)} · Total informado: ${formatCents(closure.expectedCents)}`;
+  return closure.closes
+    ? { tone: "success" as const, badge: "Fecha", text: totals }
+    : {
+        tone: "destructive" as const,
+        badge: "Não fecha",
+        text: `${totals} · diferença de ${formatCents(Math.abs(closure.differenceCents))}`,
+      };
 }

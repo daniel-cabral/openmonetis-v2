@@ -1,3 +1,16 @@
+import {
+  checkInvoiceClosure,
+  type FinalBalance,
+  type InvoiceClosure,
+} from "@openmonetis/domain/reconciliations-closure";
+import {
+  compareProjection,
+  type PaidAfterEnd,
+  type ProjectionComparison,
+  type ProjectionEffect,
+  projectAccountBalance,
+  projectInvoiceTotal,
+} from "@openmonetis/domain/reconciliations-projection";
 import type {
   ReconciliationLineDecision,
   ReconciliationPreview,
@@ -181,6 +194,106 @@ function toWireDecision(decision: UiLineDecision, line: PreviewLine): Reconcilia
 
 export function hasApplicableDecision(decisions: UiDecisions, preview: Preview): boolean {
   return toApplyDecisions(decisions, preview).length > 0;
+}
+
+type PreviewClosure = NonNullable<Preview["closure"]>;
+
+export type ClosureView =
+  | { kind: "statement"; closure: Extract<PreviewClosure, { kind: "statement" }> }
+  | { kind: "invoice"; closure: InvoiceClosure };
+
+// The invoice closes only against a total typed by the user; the statement closes on its own.
+export function buildClosureView(
+  preview: Preview,
+  invoiceTotalCents: number | null,
+): ClosureView | null {
+  const closure = preview.closure;
+  if (!closure) return null;
+  if (closure.kind === "statement") return { kind: "statement", closure };
+  if (invoiceTotalCents === null) return null;
+  return { kind: "invoice", closure: checkInvoiceClosure(closure.netCents, invoiceTotalCents) };
+}
+
+// Each decision becomes the effect it has on the app balance or invoice total.
+export function projectionEffects(
+  decisions: UiDecisions,
+  preview: Preview,
+  adminPersonId: string | null,
+): ProjectionEffect[] {
+  const effects: ProjectionEffect[] = [];
+  for (const line of preview.lines) {
+    const decision = decisions[line.index];
+    if (!decision) continue;
+    if (decision.action === "keep") {
+      const entryKey = keptEntryKey(line, decision);
+      if (entryKey !== null) effects.push({ kind: "entry", entryKey, lineCents: line.signedCents });
+    } else if (decision.action === "link" && decision.entryKey) {
+      effects.push({ kind: "entry", entryKey: decision.entryKey, lineCents: line.signedCents });
+    } else if (decision.action === "create") {
+      effects.push({
+        kind: "create",
+        lineCents: line.signedCents,
+        forAdmin: adminPersonId !== null && decision.personId === adminPersonId,
+      });
+    }
+  }
+  return effects;
+}
+
+export type ProjectionView =
+  | {
+      kind: "account";
+      projectedCents: number;
+      target: FinalBalance | null;
+      comparison: ProjectionComparison | null;
+      paidAfterEnd: PaidAfterEnd[];
+    }
+  | {
+      kind: "card";
+      projectedCents: number;
+      targetCents: number | null;
+      comparison: ProjectionComparison | null;
+    };
+
+export function buildProjectionView(input: {
+  preview: Preview;
+  decisions: UiDecisions;
+  adminPersonId: string | null;
+  invoiceTotalCents: number | null;
+}): ProjectionView | null {
+  const { preview } = input;
+  const projection = preview.projection;
+  if (!projection) return null;
+  const effects = projectionEffects(input.decisions, preview, input.adminPersonId);
+
+  if (projection.kind === "account") {
+    const { projectedCents, paidAfterEnd } = projectAccountBalance({
+      baselineCents: projection.baselineCents,
+      entries: projection.entries,
+      effects,
+    });
+    const target = preview.closure?.kind === "statement" ? preview.closure.finalBalance : null;
+    return {
+      kind: "account",
+      projectedCents,
+      target,
+      comparison: target ? compareProjection(projectedCents, target.cents) : null,
+      paidAfterEnd,
+    };
+  }
+
+  const projectedCents = projectInvoiceTotal({
+    invoicePeriod: projection.invoicePeriod,
+    entries: projection.entries,
+    effects,
+  });
+  const targetCents = input.invoiceTotalCents;
+  return {
+    kind: "card",
+    projectedCents,
+    targetCents,
+    comparison: targetCents === null ? null : compareProjection(projectedCents, targetCents),
+  };
 }
 
 export function defaultProfileId(detection: {

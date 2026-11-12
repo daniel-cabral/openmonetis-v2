@@ -6,6 +6,7 @@ import { EstablishmentLogo } from "@/features/establishments/components/establis
 import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { formatCompactDate } from "../transactions.presentation";
 import { TransactionCategory } from "./transaction-category";
+import { TransactionUnreconciledBadge } from "./transaction-unreconciled-badge";
 import { TransactionDueDate } from "./transaction-due-date";
 import { TransactionPeople } from "./transaction-people";
 
@@ -93,6 +94,9 @@ export function TransactionRowDescription({
                 </TooltipTrigger>
                 <TooltipContent>Última parcela!</TooltipContent>
               </Tooltip>
+            ) : null}
+            {accountStatement && transaction.isPaidUnreconciled ? (
+              <TransactionUnreconciledBadge />
             ) : null}
             {transaction.hasAttachments ? (
               <Paperclip className="size-3.5" aria-label="Possui anexos" />

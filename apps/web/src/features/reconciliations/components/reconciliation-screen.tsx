@@ -11,6 +11,10 @@ import { TransactionImportUpload } from "@/features/transactions/components/tran
 import { useReconciliationReview } from "../useReconciliationReview";
 import { ReconciliationApplyBar } from "./reconciliation-apply-bar";
 import { ReconciliationBuckets } from "./reconciliation-buckets";
+import {
+  buildClosureView,
+  buildProjectionView,
+} from "./reconciliation-review";
 import { ReconciliationOriginStep } from "./reconciliation-origin-step";
 import { ReconciliationSummary } from "./reconciliation-summary";
 
@@ -24,9 +28,17 @@ export function ReconciliationScreen() {
     ],
   });
   const activePeople = people.data?.filter((person) => person.status === "active") ?? [];
-  const review = useReconciliationReview({
-    adminPersonId: people.data?.find((person) => person.role === "admin")?.id ?? null,
-  });
+  const adminPersonId = people.data?.find((person) => person.role === "admin")?.id ?? null;
+  const review = useReconciliationReview({ adminPersonId });
+  const closure = review.preview ? buildClosureView(review.preview, review.invoiceTotalCents) : null;
+  const projection = review.preview
+    ? buildProjectionView({
+        preview: review.preview,
+        decisions: review.decisions,
+        adminPersonId,
+        invoiceTotalCents: review.invoiceTotalCents,
+      })
+    : null;
 
   return (
     <section className="app-page project-container">
@@ -56,6 +68,8 @@ export function ReconciliationScreen() {
           onOriginChange={review.resetReview}
           onRead={(origin) => void review.readFile(origin)}
           onReset={review.resetUpload}
+          invoiceTotalText={review.invoiceTotalText}
+          onInvoiceTotalChange={review.setInvoiceTotalText}
         />
       ) : (
         <TransactionImportUpload
@@ -72,7 +86,7 @@ export function ReconciliationScreen() {
 
       {review.preview ? (
         <div className="grid gap-6">
-          <ReconciliationSummary counts={review.preview.counts} />
+          <ReconciliationSummary closure={closure} counts={review.preview.counts} />
           <ReconciliationBuckets
             categories={categories.data ?? []}
             decisions={review.decisions}
@@ -86,6 +100,7 @@ export function ReconciliationScreen() {
             isApplying={review.isApplying}
             onApply={() => void review.applyReview()}
             preview={review.preview}
+            projection={projection}
           />
         </div>
       ) : null}
