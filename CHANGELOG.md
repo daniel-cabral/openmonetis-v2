@@ -38,6 +38,11 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Conciliação de extrato e fatura do C6 com lançamentos: regras determinísticas de casamento,
   casamentos suspeitos pedem decisão, o valor do arquivo prevalece, lançamento pendente casado vira
   pago, lote com desfazer, linhas ignoradas com motivo e memória de nome e categoria por comerciante.
+- Conciliação com fechamento aritmético: o extrato fecha dia a dia contra o saldo do arquivo e a
+  fatura contra o total informado. Saldo previsto antes de aplicar, com os lançamentos pagos depois
+  do fim do arquivo listados. Créditos da fatura viram lançamentos com a nova origem `invoiceCredit`
+  (fora de receitas, despesas, orçamentos e relatórios; migration `0034`). Ícone de pago não
+  conciliado no extrato da conta. Detalhes em `docs/reconciliations.md`.
 
 ## [0.16.0] - 2026-11-07
 
