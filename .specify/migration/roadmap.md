@@ -16,8 +16,8 @@ protocol. The orchestrator session updates the **Status** column; workers never 
 | 006 | `specs/006-transactions-bulk` | mass-add dialog, full bulk edit (date, person and the other V1 series-edit fields; no condition change) | A | 003 | specified |
 | 007 | `specs/007-pdf-exports` | branded PDF export for transactions and reports | A | 006 | specified |
 | 008 | `specs/008-card-usage-report` | cross-card usage report | A | 007 | specified |
-| 009 | `specs/009-calendar` | monthly calendar page | B | 010 | specified |
-| 010 | `specs/010-dashboard-gaps` | spending overview widget (top expenses + establishments), attachments widget, category history widget, regression tests for notifications mark-unread/unarchive (already in V2) | B | 005 | executing |
+| 009 | `specs/009-calendar` | monthly calendar page | B | 010 | executing |
+| 010 | `specs/010-dashboard-gaps` | spending overview widget (top expenses + establishments), attachments widget, category history widget, regression tests for notifications mark-unread/unarchive (already in V2) | B | 005 | merged |
 | 011 | `specs/011-note-attachments` | attachments on notes | B | 009 | specified |
 | 012 | `specs/012-account-preferences` | 6 V1 preferences (column order, group by date, hide anticipated, modal summary, note as column, max attachment size) + email change | A | 008 | specified |
 | 013 | `specs/013-ai-api-key-providers` | API-key AI providers (incl. Ollama) next to V2 CLI providers | B | 011 | specified |

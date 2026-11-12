@@ -3,6 +3,7 @@ import {
   BellRing,
   BookOpenText,
   CalendarClock,
+  ChartLine,
   ChartNoAxesCombined,
   CircleDollarSign,
   CreditCard,
@@ -13,18 +14,22 @@ import {
   HandCoins,
   Landmark,
   type LucideIcon,
+  Paperclip,
   PieChart,
   ReceiptText,
   RefreshCcw,
   Tags,
   Target,
   Users,
+  Wallet,
   WalletCards,
   Waypoints,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { AttachmentsWidget } from "@/features/attachments/components/attachments-widget";
 import { BillsWidget } from "@/features/bills/components/bills-widget";
 import { BudgetsWidget } from "@/features/budgets/components/budgets-widget";
+import { CategoryHistoryWidget } from "@/features/category-trends/components/category-history-widget";
 import { CategoryTrendsWidget } from "@/features/category-trends/components/category-trends-widget";
 import { CommitmentsWidget } from "@/features/commitments/components/commitments-widget";
 import { GoalsWidget } from "@/features/goals/components/goals-widget";
@@ -34,6 +39,7 @@ import { InvoicesWidget } from "@/features/invoices/components/invoices-widget";
 import { NotesWidget } from "@/features/notes/components/notes-widget";
 import { PersonSettlementsWidget } from "@/features/person-settlements/components/person-settlements-widget";
 import { RecurringExpensesWidget } from "@/features/recurring-expenses/components/recurring-expenses-widget";
+import { SpendingOverviewWidget } from "@/features/spending-overview/components/spending-overview-widget";
 import { CategoryBreakdownWidget } from "./category-breakdown-widget";
 import { CategoryTransactionsWidget } from "./category-transactions-widget";
 import { DashboardAttentionWidget } from "./dashboard-attention-widget";
@@ -158,12 +164,29 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     render: (period) => <CommitmentsWidget period={period} />,
   },
   {
+    id: "spending-overview",
+    section: "analysis",
+    title: "Panorama de gastos",
+    description: "Maiores gastos e lugares onde você mais compra no mês",
+    icon: Wallet,
+    render: (period) => <SpendingOverviewWidget period={period} />,
+  },
+  {
     id: "category-trends",
     section: "analysis",
     title: "Tendências de categorias",
     description: "Maiores variações contra o mês anterior",
     icon: Target,
     render: (period) => <CategoryTrendsWidget period={period} />,
+  },
+  {
+    id: "category-history",
+    section: "analysis",
+    title: "Histórico de categorias",
+    description: "Compare até 5 categorias mês a mês",
+    icon: ChartLine,
+    render: (period) => <CategoryHistoryWidget period={period} />,
+    wide: true,
   },
   {
     id: "expense-categories",
@@ -236,6 +259,14 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     description: "Anotações ativas mais recentes",
     icon: BookOpenText,
     render: () => <NotesWidget />,
+  },
+  {
+    id: "attachments",
+    section: "planning",
+    title: "Anexos",
+    description: "Comprovantes do período",
+    icon: Paperclip,
+    render: (period) => <AttachmentsWidget period={period} />,
   },
 ] as const;
 

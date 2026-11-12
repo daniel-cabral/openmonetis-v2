@@ -106,6 +106,7 @@ import { createRecurringExpensesRoute } from "./routes/recurring-expenses";
 import { createRecurringTransactionsRoute } from "./routes/recurring-transactions";
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
+import { createSpendingOverviewRoute } from "./routes/spending-overview";
 import { createTagsRoute } from "./routes/tags";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createTripsRoute } from "./routes/trips";
@@ -154,6 +155,7 @@ import { createRecurringExpensesService } from "./services/recurring-expenses.se
 import { createRecurringTransactionsService } from "./services/recurring-transactions.service";
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
+import { createSpendingOverviewService } from "./services/spending-overview.service";
 import { createTagsService } from "./services/tags.service";
 import { createTransactionsService } from "./services/transactions.service";
 import { createTripsService } from "./services/trips.service";
@@ -282,6 +284,9 @@ const establishmentsReportRoute = createEstablishmentsReportRoute(
     findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
     getTripPeriodRange: (userId, tripId) => tripsService.getPeriodRange(userId, tripId),
   }),
+);
+const spendingOverviewRoute = createSpendingOverviewRoute(
+  createSpendingOverviewService(establishmentsReportRepository),
 );
 const peopleRoute = createPeopleRoute(
   createPeopleService(peopleRepository, { list: transactionsService.listTransactions }),
@@ -862,6 +867,7 @@ app.route("/recurring-transactions", recurringTransactionsRoute);
 app.route("/recurring-expenses", recurringExpensesRoute);
 app.route("/transactions", transactionsRoute);
 app.route("/reconciliations", reconciliationsRoute);
+app.route("/dashboard/spending-overview", spendingOverviewRoute);
 app.route("/dashboard", dashboardRoute);
 app.route("/ai-providers", aiProvidersRoute);
 app.route("/ai-tools", aiToolsRoute);

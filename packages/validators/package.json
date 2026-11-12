@@ -33,6 +33,7 @@
     "./establishments": "./src/establishments.ts",
     "./establishments-report": "./src/establishments-report.ts",
     "./settings": "./src/settings.ts",
+    "./spending-overview": "./src/spending-overview.ts",
     "./external-expenses": "./src/external-expenses.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-rules": "./src/inbox-rules.ts",

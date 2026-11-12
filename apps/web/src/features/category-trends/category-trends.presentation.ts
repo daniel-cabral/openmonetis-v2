@@ -69,6 +69,59 @@ export function getCategoryTrendsPeriodRange(anchor: "start" | "end", period: st
     : { startPeriod: addMonthsToPeriod(period, -categoryTrendsPeriodOffset), endPeriod: period };
 }
 
+export const categoryHistoryMaxSelection = 5;
+
+export function categoryHistoryWindow(period: string) {
+  return {
+    startPeriod: addMonthsToPeriod(period, -8),
+    endPeriod: addMonthsToPeriod(period, 1),
+  };
+}
+
+export type CategoryHistoryRow = Record<string, number | string> & { period: string };
+
+/** One row per response period; a selected category missing a month counts as 0. */
+export function buildCategoryHistorySeries(
+  trends: CategoryTrendsOutput,
+  selectedIds: readonly string[],
+): CategoryHistoryRow[] {
+  const nodes = trends.categories.flatMap((category) => [
+    category,
+    ...(category.subcategories ?? []),
+  ]);
+
+  return trends.periods.map(({ period }) => {
+    const row: CategoryHistoryRow = { period };
+    for (const categoryId of selectedIds) {
+      const node = nodes.find((candidate) => candidate.categoryId === categoryId);
+      row[categoryId] = node?.values.find((value) => value.period === period)?.totalAmount ?? 0;
+    }
+    return row;
+  });
+}
+
+/** Keeps the stored selection to valid string ids, capped at the widget limit. */
+export function parseCategoryHistorySelection(stored: unknown): string[] {
+  return Array.isArray(stored)
+    ? stored
+        .filter((id): id is string => typeof id === "string")
+        .slice(0, categoryHistoryMaxSelection)
+    : [];
+}
+
+/** Appends a category unless it is already selected or the selection is full. */
+export function addCategoryToHistory(selectedIds: string[], categoryId: string): string[] {
+  return selectedIds.includes(categoryId) || selectedIds.length >= categoryHistoryMaxSelection
+    ? selectedIds
+    : [...selectedIds, categoryId];
+}
+
+/** Drops ids that are no longer in the catalog; returns the same array when nothing changes. */
+export function pruneCategoryHistory(selectedIds: string[], availableIds: readonly string[]) {
+  const next = selectedIds.filter((id) => availableIds.includes(id));
+  return next.length === selectedIds.length ? selectedIds : next;
+}
+
 export function formatTrendPercentage(value: number | null, kind: string) {
   if (kind === "started") return "Novo";
   if (value === null) return "Sem base";

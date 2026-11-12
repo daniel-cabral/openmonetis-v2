@@ -1,0 +1,3 @@
+/* Preview-only entry: the real app stylesheet plus the preview HTML as a Tailwind source. */
+@import "../../../apps/web/src/styles/app.css";
+@source "./";

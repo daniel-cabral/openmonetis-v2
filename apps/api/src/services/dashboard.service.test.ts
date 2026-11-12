@@ -436,7 +436,7 @@ test("dashboard upgrades only the old default order without hiding widgets", () 
   expectedCustom.splice(expectedCustom.indexOf("budgets") + 1, 0, "goals");
   expectedCustom.unshift("attention");
   // Widgets added after the layout was saved go to the end of a custom order.
-  expectedCustom.push("commitments");
+  expectedCustom.push("commitments", "spending-overview", "category-history", "attachments");
   assert.deepEqual(
     normalizeDashboardWidgetPreferences({ order: custom, hidden: ["external-expenses"] }),
     {
@@ -528,7 +528,22 @@ test("dashboard migrates the recent default order and retains hidden widgets", (
     "payment-status",
     "invoices",
     "bills",
-    ...dashboardWidgetIds.slice(5),
+    "recurring-expenses",
+    "installments",
+    "inbox",
+    "person-settlements",
+    "budgets",
+    "goals",
+    "commitments",
+    "income-expense-balance",
+    "expense-categories",
+    "category-trends",
+    "income-categories",
+    "category-transactions",
+    "people",
+    "payment-conditions",
+    "payment-methods",
+    "notes",
   ];
   assert.deepEqual(normalizeDashboardWidgetPreferences({ order: recent, hidden: ["notes"] }), {
     order: defaults.order,
@@ -537,8 +552,49 @@ test("dashboard migrates the recent default order and retains hidden widgets", (
 });
 
 test("dashboard restores the initial accounts, invoices and bills order without changing custom orders", () => {
+  const widgetIdsBeforeAddedWidgets = [
+    "attention",
+    "accounts",
+    "invoices",
+    "bills",
+    "payment-status",
+    "recurring-expenses",
+    "installments",
+    "inbox",
+    "person-settlements",
+    "budgets",
+    "goals",
+    "commitments",
+    "income-expense-balance",
+    "expense-categories",
+    "category-trends",
+    "income-categories",
+    "category-transactions",
+    "people",
+    "payment-conditions",
+    "payment-methods",
+    "notes",
+  ];
+  assert.deepEqual(
+    normalizeDashboardWidgetPreferences({ order: widgetIdsBeforeAddedWidgets, hidden: [] }).order,
+    [...dashboardWidgetIds],
+  );
+  const customWithoutAddedWidgets = [...widgetIdsBeforeAddedWidgets].reverse();
+  assert.deepEqual(
+    normalizeDashboardWidgetPreferences({ order: customWithoutAddedWidgets, hidden: ["notes"] }),
+    {
+      order: [
+        "attention",
+        ...customWithoutAddedWidgets.filter((id) => id !== "attention"),
+        "spending-overview",
+        "category-history",
+        "attachments",
+      ],
+      hidden: ["notes"],
+    },
+  );
   const first = ["payment-status", "inbox", "bills", "invoices"];
-  const uxOrder = [...first, ...dashboardWidgetIds.filter((id) => !first.includes(id))];
+  const uxOrder = [...first, ...widgetIdsBeforeAddedWidgets.filter((id) => !first.includes(id))];
   assert.deepEqual(normalizeDashboardWidgetPreferences({ order: uxOrder, hidden: ["notes"] }), {
     order: [...dashboardWidgetIds],
     hidden: ["notes"],
