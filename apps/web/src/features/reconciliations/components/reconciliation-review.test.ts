@@ -3,6 +3,7 @@ import test from "node:test";
 import type { ReconciliationPreview } from "@openmonetis/validators/reconciliations";
 import {
   applyBlockReason,
+  candidateOptions,
   consumedEntryKeys,
   defaultProfileId,
   hasApplicableDecision,
@@ -214,7 +215,7 @@ const applyBlockCases = [
 ];
 
 for (const { blankNames, expected } of applyBlockCases) {
-  test(`apply is blocked only by creations without a name: ${blankNames} blank`, () => {
+  test(`apply block counts creations without a name: ${blankNames} blank`, () => {
     const lines = [0, 1, 2].map((index) => line({ index, bucket: "bank-only" }));
     const preview = review(lines);
     const decisions = markAllBankOnlyAsCreate(initialDecisions(preview, ADMIN_PERSON_ID), preview);
@@ -225,6 +226,56 @@ for (const { blankNames, expected } of applyBlockCases) {
     assert.equal(applyBlockReason(decisions), expected);
   });
 }
+
+const unfinishedDecisionCases: {
+  label: string;
+  patch: Partial<UiDecisions[number]>;
+  expected: string;
+}[] = [
+  {
+    label: "an ignore without a reason",
+    patch: { action: "ignore", ignoreReason: "  " },
+    expected: "1 ignorada(s) sem motivo",
+  },
+  {
+    label: "a link without an entry",
+    patch: { action: "link", entryKey: null },
+    expected: "1 vínculo(s) sem lançamento",
+  },
+];
+
+for (const { label, patch, expected } of unfinishedDecisionCases) {
+  test(`apply is blocked by ${label}`, () => {
+    const preview = review([line({ index: 0, bucket: "bank-only" })]);
+    const decisions = initialDecisions(preview, ADMIN_PERSON_ID);
+    decisions[0] = { ...decisions[0], ...patch };
+
+    assert.equal(applyBlockReason(decisions), expected);
+  });
+}
+
+test("link options for an ambiguous line come from its candidates, not from the line's period", () => {
+  const preview = review(
+    [
+      line({
+        index: 0,
+        bucket: "ambiguous",
+        purchaseDate: "2026-10-31",
+        candidateKeys: ["entry-nov", "entry-nov-2"],
+      }),
+    ],
+    [
+      entry({ entryKey: "entry-nov", name: "Mercado", date: "2026-11-01", period: "2026-11" }),
+      entry({ entryKey: "entry-nov-2", name: "Padaria", date: "2026-11-02", period: "2026-11" }),
+      entry({ entryKey: "entry-oct", name: "Farmácia", date: "2026-10-30", period: "2026-10" }),
+    ],
+  );
+
+  assert.deepEqual(
+    candidateOptions(preview.lines[0], preview, new Map()).map((option) => option.entryKey),
+    ["entry-nov", "entry-nov-2"],
+  );
+});
 
 test("mark all as create turns only skipped bank-only lines into creations", () => {
   const lines = Array.from({ length: 22 }, (_, index) => line({ index, bucket: "bank-only" }));

@@ -17,6 +17,7 @@ import {
 } from "@openmonetis/domain/reconciliations-plan";
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { listRecurringRulesForReport } from "./recurring-transactions.repository";
+import type { RecurringRuleWithRelations } from "./transactions.repository";
 import {
   effectiveTransactionAmountSql,
   settlePersistedTransactions,
@@ -43,9 +44,7 @@ export type ReconciliationTransactionRow = {
   inPaidInvoice: boolean;
 };
 
-export type ReconciliationRecurringRuleRow = Awaited<
-  ReturnType<typeof listRecurringRulesForReport>
->[number];
+export type ReconciliationRecurringRuleRow = RecurringRuleWithRelations & { hasSplits: boolean };
 
 export type ReconciliationOccurrenceRow = {
   seriesId: string;
@@ -143,11 +142,20 @@ export async function listReconciliationRecurringRules(input: {
     listRecurringRulesForReport(input.userId, { type: "income", includeHistory: true }),
   ]);
 
-  return [...expenseRules, ...incomeRules].filter((rule) =>
-    input.targetType === "card"
-      ? rule.cardId === input.targetId
-      : rule.accountId === input.targetId,
-  );
+  // Rules bound to the target are never transfers, so the transfer account labels stay empty.
+  return [...expenseRules, ...incomeRules]
+    .filter((rule) =>
+      input.targetType === "card"
+        ? rule.cardId === input.targetId
+        : rule.accountId === input.targetId,
+    )
+    .map((rule) => ({
+      ...rule,
+      sourceAccountName: null,
+      sourceAccountLogo: null,
+      destinationAccountName: null,
+      destinationAccountLogo: null,
+    }));
 }
 
 export async function listReconciliationOccurrences(input: {

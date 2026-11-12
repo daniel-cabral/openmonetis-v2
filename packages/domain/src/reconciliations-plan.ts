@@ -100,7 +100,6 @@ export function parseEntryKey(entryKey: string): EntryRef | null {
  */
 export function buildReconciliationPlan(input: ReconciliationPlanInput): ReconciliationPlan {
   const { lines, targetType, invoicePeriod, defaultPersonId } = input;
-  const linesByIndex = new Map(lines.map((line) => [line.index, line]));
   const classificationByIndex = new Map(
     input.classification.map((classified) => [classified.lineIndex, classified]),
   );

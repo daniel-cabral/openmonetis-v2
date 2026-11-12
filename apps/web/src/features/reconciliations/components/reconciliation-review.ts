@@ -81,6 +81,23 @@ export function consumedEntryKeys(decisions: UiDecisions, preview: Preview): Map
   return consumed;
 }
 
+type PreviewEntry = Preview["entries"][number];
+
+function toLinkOption(
+  entry: PreviewEntry,
+  line: PreviewLine,
+  consumed: Map<string, number>,
+): LinkOption {
+  const consumedByLine = consumed.get(entry.entryKey);
+  return {
+    entryKey: entry.entryKey,
+    name: entry.name,
+    date: entry.date,
+    amount: entry.amount.toFixed(2),
+    unavailable: consumedByLine !== undefined && consumedByLine !== line.index,
+  };
+}
+
 // The link period follows the target: the invoice period on a card, the purchase month on an account.
 export function linkOptions(
   line: PreviewLine,
@@ -90,23 +107,38 @@ export function linkOptions(
   const period = preview.invoicePeriod ?? line.purchaseDate.slice(0, 7);
   return preview.entries
     .filter((entry) => entry.period === period)
-    .map((entry) => {
-      const consumedByLine = consumed.get(entry.entryKey);
-      return {
-        entryKey: entry.entryKey,
-        name: entry.name,
-        date: entry.date,
-        amount: entry.amount.toFixed(2),
-        unavailable: consumedByLine !== undefined && consumedByLine !== line.index,
-      };
-    });
+    .map((entry) => toLinkOption(entry, line, consumed));
 }
 
+// An ambiguous line picks among its own candidates, which can sit in a neighbouring period.
+export function candidateOptions(
+  line: PreviewLine,
+  preview: Preview,
+  consumed: Map<string, number>,
+): LinkOption[] {
+  return preview.entries
+    .filter((entry) => line.candidateKeys.includes(entry.entryKey))
+    .map((entry) => toLinkOption(entry, line, consumed));
+}
+
+// Each count is reported separately so the user knows which rows to fix before applying.
 export function applyBlockReason(decisions: UiDecisions): string | null {
-  const unnamed = Object.values(decisions).filter(
+  const values = Object.values(decisions);
+  const unnamed = values.filter(
     (decision) => decision.action === "create" && decision.name.trim() === "",
   ).length;
-  return unnamed === 0 ? null : `${unnamed} criação(ões) sem nome`;
+  const ignoredWithoutReason = values.filter(
+    (decision) => decision.action === "ignore" && decision.ignoreReason.trim() === "",
+  ).length;
+  const linkedWithoutEntry = values.filter(
+    (decision) => decision.action === "link" && !decision.entryKey,
+  ).length;
+  const reasons = [
+    unnamed > 0 ? `${unnamed} criação(ões) sem nome` : null,
+    ignoredWithoutReason > 0 ? `${ignoredWithoutReason} ignorada(s) sem motivo` : null,
+    linkedWithoutEntry > 0 ? `${linkedWithoutEntry} vínculo(s) sem lançamento` : null,
+  ].filter((reason): reason is string => reason !== null);
+  return reasons.length === 0 ? null : reasons.join(", ");
 }
 
 // Sparse payload: only the lines that depart from the server default are sent.

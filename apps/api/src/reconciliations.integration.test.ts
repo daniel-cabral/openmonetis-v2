@@ -383,6 +383,7 @@ async function loadPersistence() {
     importNameMappings,
     importCategoryMappings,
     recurringTransactionOccurrences,
+    recurringTransactionRules,
   } = await import("@openmonetis/db");
   const { and, asc, eq } = await import("drizzle-orm");
   return {
@@ -392,6 +393,7 @@ async function loadPersistence() {
     importNameMappings,
     importCategoryMappings,
     recurringTransactionOccurrences,
+    recurringTransactionRules,
     and,
     asc,
     eq,
@@ -1208,19 +1210,33 @@ async function recurringAccountWorkflow(api: TestApi) {
   assert.ok(september);
   assert.equal(line.entryKey, september.entryKey);
 
+  const { db, recurringTransactionOccurrences, recurringTransactionRules, eq } =
+    await loadPersistence();
+  const occurrencesOf = () =>
+    db
+      .select()
+      .from(recurringTransactionOccurrences)
+      .where(eq(recurringTransactionOccurrences.userId, owner.id));
+  const ruleStateOf = () =>
+    db
+      .select({
+        id: recurringTransactionRules.id,
+        amount: recurringTransactionRules.amount,
+        status: recurringTransactionRules.status,
+        isSettled: recurringTransactionRules.isSettled,
+      })
+      .from(recurringTransactionRules)
+      .where(eq(recurringTransactionRules.userId, owner.id));
+
   const before = await transactionSnapshot(owner.id);
+  const occurrencesBefore = await occurrencesOf();
+  const rulesBefore = await ruleStateOf();
   const applied = await api.data<ReconciliationApplyResult>(
     await applyOf(api, owner, target, preview),
     201,
   );
   assert.equal(applied.reconciled, 1);
 
-  const { db, recurringTransactionOccurrences, eq } = await loadPersistence();
-  const occurrencesOf = () =>
-    db
-      .select()
-      .from(recurringTransactionOccurrences)
-      .where(eq(recurringTransactionOccurrences.userId, owner.id));
   const identified = (await occurrencesOf()).filter((row) => row.importExternalId !== null);
   assert.equal(identified.length, 1);
   assert.equal(identified[0].isSettled, true);
@@ -1228,6 +1244,9 @@ async function recurringAccountWorkflow(api: TestApi) {
 
   await api.data(await api.request(`/reconciliations/${applied.batchId}`, owner, "DELETE"));
   assert.equal((await occurrencesOf()).filter((row) => row.importExternalId !== null).length, 0);
+  // The stamped occurrence was created by the apply and is settled, so undo deletes it.
+  assert.equal((await occurrencesOf()).length, occurrencesBefore.length);
+  assert.deepEqual(await ruleStateOf(), rulesBefore);
   assert.deepEqual(await transactionSnapshot(owner.id), before);
 }
 
@@ -1289,7 +1308,7 @@ async function recurringCardWorkflow(api: TestApi) {
   );
   assert.ok(creation);
 
-  await api.data(
+  const applied = await api.data<ReconciliationApplyResult>(
     await api.request("/reconciliations", owner, "POST", {
       ...target,
       classificationDigest: preview.classificationDigest,
@@ -1324,6 +1343,17 @@ async function recurringCardWorkflow(api: TestApi) {
     [occurrence.name],
   );
   assert.deepEqual(await nameMappingsFor(owner.id, getImportedDescriptionKey(creation.name)), []);
+
+  // The link stamped the occurrence without settling it; undo deletes that stamp-only row.
+  const { db, recurringTransactionOccurrences, eq } = await loadPersistence();
+  const occurrencesOf = () =>
+    db
+      .select()
+      .from(recurringTransactionOccurrences)
+      .where(eq(recurringTransactionOccurrences.userId, owner.id));
+  assert.equal((await occurrencesOf()).filter((row) => row.importExternalId !== null).length, 1);
+  await api.data(await api.request(`/reconciliations/${applied.batchId}`, owner, "DELETE"));
+  assert.equal((await occurrencesOf()).length, 0);
 }
 
 async function transferWorkflow(api: TestApi) {
@@ -1360,7 +1390,7 @@ async function transferWorkflow(api: TestApi) {
     source.id,
   );
   const outPreview = await previewOf(api, owner, outFile);
-  await api.data(
+  const outbound = await api.data<ReconciliationApplyResult>(
     await applyOf(api, owner, outFile, outPreview, [
       {
         lineIndex: lineNamed(outPreview, "Transferencia Teste").index,
@@ -1394,7 +1424,18 @@ async function transferWorkflow(api: TestApi) {
   assert.equal(sourceAfter.amount, "-200.00");
   assert.equal(destinationAfter.amount, "200.00");
 
+  // The outbound match settles both sides of the pair; undoing that batch returns both to pending.
+  assert.equal(sourceAfter.isSettled, true);
+  assert.equal(destinationAfter.isSettled, true);
+
   const recheck = await previewOf(api, owner, outFile);
   const outLine = lineNamed(recheck, "Transferencia Teste");
   assert.deepEqual(outLine.alignment, { kind: "kept", reason: "transfer" });
+
+  await api.data(await api.request(`/reconciliations/${outbound.batchId}`, owner, "DELETE"));
+  const sourceUndone = await transactionRow(sourceRow.id);
+  const destinationUndone = await transactionRow(destinationRow.id);
+  assert.equal(sourceUndone.isSettled, false);
+  assert.equal(destinationUndone.isSettled, false);
+  assert.equal(sourceUndone.importExternalId, null);
 }

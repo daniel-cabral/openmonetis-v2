@@ -43,7 +43,8 @@ test("kept amount reasons explain why the app value stays", () => {
     },
     {
       reason: "generated" as const,
-      expected: "Lançamento de recorrência: o valor do app é mantido.",
+      expected:
+        "Lançamento gerado automaticamente (ex.: pagamento de fatura): o valor do app é mantido.",
     },
     {
       reason: "paid-invoice" as const,

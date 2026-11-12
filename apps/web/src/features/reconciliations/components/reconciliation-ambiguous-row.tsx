@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RowCategorySelect } from "@/features/transactions/components/transaction-import-category-select";
 import { TextOption } from "@/features/transactions/components/transaction-import-options";
-import { type UiLineDecision, linkOptions } from "./reconciliation-review";
+import { type UiLineDecision, candidateOptions } from "./reconciliation-review";
 import {
   ReconciliationEntryItem,
   type ReconciliationRowProps,
@@ -40,9 +40,7 @@ export function ReconciliationAmbiguousRow({
   categories,
   onChange,
 }: ReconciliationRowProps) {
-  const candidates = linkOptions(line, preview, consumed).filter((option) =>
-    line.candidateKeys.includes(option.entryKey),
-  );
+  const candidates = candidateOptions(line, preview, consumed);
   const chosen =
     decision.action === "keep"
       ? candidates.find((option) => option.entryKey === decision.entryKey)

@@ -28,7 +28,8 @@ const matchRuleLabels: Record<MatchRule, string> = {
 const keptAmountReasonLabels: Record<KeptAmountReason, string> = {
   splits: "Lançamento dividido entre pessoas: o valor do app é mantido.",
   transfer: "Transferência entre contas: o valor do app é mantido.",
-  generated: "Lançamento de recorrência: o valor do app é mantido.",
+  generated:
+    "Lançamento gerado automaticamente (ex.: pagamento de fatura): o valor do app é mantido.",
   "paid-invoice": "Fatura já paga: o valor do app é mantido.",
   "card-recurring": "Recorrência de cartão: o valor do app é mantido.",
 };
