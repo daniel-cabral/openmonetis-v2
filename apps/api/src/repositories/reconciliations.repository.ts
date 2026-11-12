@@ -92,11 +92,17 @@ export async function listReconciliationTransactionCandidates(input: {
       importExternalId: transactions.importExternalId,
       categoryId: transactions.categoryId,
       isSettled: transactions.isSettled,
-      hasSplits: sql<boolean>`exists (
-          select 1 from ${transactionSplits}
-          where ${transactionSplits.userId} = ${userId}
-            and ${transactionSplits.transactionId} = ${transactions.id}
-        )`,
+      // Built with the query builder: a raw correlated subquery in a select list renders
+      // transactions.id unqualified, so it binds to the subquery's own id column.
+      hasSplits: sql<boolean>`exists (${db
+        .select({ one: sql`1` })
+        .from(transactionSplits)
+        .where(
+          and(
+            eq(transactionSplits.userId, userId),
+            eq(transactionSplits.transactionId, transactions.id),
+          ),
+        )})`,
       transferId: transactions.transferId,
       transferSide: sql<"source" | "destination" | null>`case
           when ${transactions.transferId} is null then null
@@ -104,13 +110,17 @@ export async function listReconciliationTransactionCandidates(input: {
           else 'destination'
         end`,
       isGenerated: sql<boolean>`${transactions.origin} in ('invoicePayment', 'invoiceAdjustment', 'personSettlement')`,
-      inPaidInvoice: sql<boolean>`exists (
-          select 1 from ${invoices}
-          where ${invoices.userId} = ${userId}
-            and ${invoices.cardId} = ${transactions.cardId}
-            and ${invoices.period} = ${transactions.period}
-            and ${invoices.paymentStatus} = 'paid'
-        )`,
+      inPaidInvoice: sql<boolean>`exists (${db
+        .select({ one: sql`1` })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.userId, userId),
+            eq(invoices.cardId, transactions.cardId),
+            eq(invoices.period, transactions.period),
+            eq(invoices.paymentStatus, "paid"),
+          ),
+        )})`,
     })
     .from(transactions)
     .where(
