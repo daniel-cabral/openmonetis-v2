@@ -85,7 +85,6 @@ function modalCents(amounts: Cents[]): Cents {
 // Blocker findings of one series; an empty list means the series can be written.
 function seriesBlockers(seriesId: string, members: V1Transaction[]): Finding[] {
   const v1UserId = (members[0] as V1Transaction).user_id;
-  const dropRows = members.map((row) => `drop-row:${row.id}`);
   const total = (members[0] as V1Transaction).qtde_parcela;
   const blockers: Finding[] = [];
 
@@ -100,7 +99,7 @@ function seriesBlockers(seriesId: string, members: V1Transaction[]): Finding[] {
         v1UserId,
         "Installment members disagree on name, card or account, category or count",
         { rows: members.map((row) => row.id) },
-        dropRows,
+        [],
       ),
     );
     return blockers;
@@ -143,7 +142,7 @@ function seriesBlockers(seriesId: string, members: V1Transaction[]): Finding[] {
         v1UserId,
         "Installment number appears more than once",
         { rows: duplicated.flatMap(([, ids]) => ids) },
-        duplicated.flatMap(([, ids]) => ids.map((id) => `drop-row:${id}`)),
+        [],
       ),
     );
   }

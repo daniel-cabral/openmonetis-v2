@@ -24,8 +24,8 @@ pnpm etl:v1 <command> [options]
 | `--target-url <url>` | load, reconcile, rehearse | yes | V2 scratch database; never read from `.env` implicitly |
 | `--scratch` | load, rehearse | yes | operator states the target is a scratch database |
 | `--confirm-production=<db name>` | load, rehearse | no | only way past the production guard; must equal the target database name (cutover is out of scope) |
-| `--resolutions <file>` | load, rehearse | when blockers exist | operator resolution file ([data-model.md](../data-model.md)) |
-| `--v1-rp-id <host>` | load, rehearse | no | V1 passkey relying-party host; passkeys load only when it equals the target `WEB_URL` host (otherwise informational, listed as not loaded) |
+| `--resolutions <file>` | load, reconcile, rehearse | when blockers exist | operator resolution file ([data-model.md](../data-model.md)); `reconcile` needs the same file as the load it checks |
+| `--v1-rp-id <host>` | load, reconcile, rehearse | no | V1 passkey relying-party host; passkeys load only when it equals the target `WEB_URL` host (otherwise informational, listed as not loaded); `reconcile` needs the same value as the load it checks |
 | `--out <dir>` | all | no | report directory; default `.v1-etl/<fingerprint 12 chars>/` |
 | `--user <v1 user id>` | validate, reconcile | no | restrict to one user (diagnosis) |
 | `--check-bucket` | validate | no | HEAD each attachment key in the configured S3 bucket; report missing files |

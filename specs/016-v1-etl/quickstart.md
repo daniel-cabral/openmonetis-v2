@@ -47,7 +47,7 @@ EXTERNAL_DATABASE_URL=$TARGET_URL pnpm db:migrate
 pnpm etl:v1 validate                                  # exit 1 while blockers are unresolved
 # fill the printed template (the real dump has 1 blocker) into .v1-etl/resolutions.json
 pnpm etl:v1 load --target-url $TARGET_URL --scratch --resolutions .v1-etl/resolutions.json
-pnpm etl:v1 reconcile --target-url $TARGET_URL
+pnpm etl:v1 reconcile --target-url $TARGET_URL --resolutions .v1-etl/resolutions.json  # same --resolutions and --v1-rp-id as the load
 # or all three, timed (SC-005: under 60 minutes)
 time pnpm etl:v1 rehearse --target-url $TARGET_URL --scratch --resolutions .v1-etl/resolutions.json
 ```

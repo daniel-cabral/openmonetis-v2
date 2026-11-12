@@ -32,19 +32,19 @@ places, dates `YYYY-MM-DD`, periods `YYYY-MM`, one `generatedAt` timestamp. Comm
 | Rule id | Severity | Resolutions |
 |---|---|---|
 | `schema.unmapped` (unknown V1 table or column) | blocker | none (update the manifest) |
-| `user.email-case-duplicate` | blocker | `merge-into:<v1 user id>`, `skip-user` |
-| `passkey.duplicate-credential` | blocker | `keep:<v1 passkey id>` |
+| `user.email-case-duplicate` | blocker | none (the load cannot merge or skip a user) |
+| `passkey.duplicate-credential` | blocker | none (the load cannot choose a passkey) |
 | `credential.incompatible-hash` | fixable | user flagged for password reset |
 | `people.admin-cardinality` (not exactly one admin payer) | blocker | `admin:<v1 payer id>` |
 | `people.blank-name` | blocker | `rename:<text>` |
 | `amount.zero` (not a recurrence occurrence) | blocker | `drop` |
 | `amount.zero-recurrence` | fixable | loaded as skip |
 | `amount.precision` (more than 2 decimals) | blocker | none |
-| `reference.dangling` (missing id, or id owned by another user: account, card, category, payer, trip, series, anticipated installment, marker target, mapping category) | blocker | `drop`, `null-reference` (category/trip only) |
-| `text.too-long` (value longer than the V2 `varchar(n)` of its target column, limit read from the Drizzle schema) | blocker | `truncate`, `drop` |
+| `reference.dangling` (missing id, or id owned by another user: account, card, category, payer, trip, series, anticipated installment, marker target, mapping category) | blocker | `drop` for subcategories and import category mappings (skipped by the load); none for the other tables |
+| `text.too-long` (value longer than the V2 `varchar(n)` of its target column, limit read from the Drizzle schema) | blocker | `truncate`, `drop` for side data (notes, attachments, inbox, notification states, logos, import mappings); none for transactions, payers, categories, accounts and cards |
 | `transaction.period-date-mismatch` (non-card row, purchase month differs from `periodo`; boletos excluded) | blocker | `use-date`, `use-period` |
 | `invoice.without-card` | blocker | `drop` |
-| `invoice.paid-without-date` (paid, no payment row) | blocker | `paid-at:<YYYY-MM-DD>` |
+| `invoice.paid-without-date` (paid, no payment row) | blocker | none |
 | `budget.without-category` | blocker | `drop` |
 | `budget.non-positive-amount` | blocker | `drop` |
 | `note.missing-title` | blocker | `title-from-content`, `drop` |
@@ -58,11 +58,11 @@ places, dates `YYYY-MM-DD`, periods `YYYY-MM`, one `generatedAt` timestamp. Comm
 | `category.system-parent` (V1 parent merges onto a V2 system category) | blocker | `separate-root` |
 | `category.name-collision` | fixable | merged onto the existing category (listed) |
 | `installment.count-out-of-range` | blocker | none |
-| `installment.duplicate-number`, `installment.inconsistent-members` | blocker | `drop-row:<v1 id>` |
+| `installment.duplicate-number`, `installment.inconsistent-members` | blocker | none |
 | `installment.gap` (number missing between `trackedFromInstallment` and `totalInstallments`) | fixable | loaded with existing numbers, total derived |
 | `recurrence.duplicate-occurrence` | fixable | default `detach` (extra row loads as a single); override `drop` |
 | `recurrence.not-reproducible` (round-trip mismatch) | blocker | `as-singles` |
-| `marker.missing-target` (payment card/period, refund source) | blocker | `as-regular` |
+| `marker.missing-target` (payment card/period, refund source) | blocker | none |
 | `trip.length` | blocker | none |
 | `table.skipped-by-decision` (sessions, tokens, shares, ...) | informational | none |
 | `stamp.dropped` (reconciliation fingerprints, batch ids) | informational | none (counted) |

@@ -111,7 +111,14 @@ function transactionRow(
 }
 
 function idMapRow(row: V1Transaction, role: string, v2Table: string, id: string): IdMapRow {
-  return { v1Table: TRANSACTIONS_TABLE, v1Id: row.id, role, v2Table, v2Id: id, v1UserId: row.user_id };
+  return {
+    v1Table: TRANSACTIONS_TABLE,
+    v1Id: row.id,
+    role,
+    v2Table,
+    v2Id: id,
+    v1UserId: row.user_id,
+  };
 }
 
 // Mirrors invoices.repository insertPayment: payment transaction + invoice_payments + allocation.
@@ -277,7 +284,7 @@ export function convertInvoices(
         v1UserId: invoice.user_id,
         reason: "paid invoice without a payment row",
         context: { period: invoice.periodo },
-        resolutions: ["paid-at:<YYYY-MM-DD>"],
+        resolutions: [],
         resolutionKey: `invoice.paid-without-date:faturas:${invoice.id}`,
       });
       continue;
@@ -291,7 +298,9 @@ export function convertInvoices(
       paymentStatus: isPaid ? "paid" : "pending",
       paidAt: payment === null ? null : toDate(payment.data_compra),
       paymentAccountId:
-        payment?.conta_id == null ? null : required(refs.accountByV1.get(payment.conta_id), "account"),
+        payment?.conta_id == null
+          ? null
+          : required(refs.accountByV1.get(payment.conta_id), "account"),
       createdAt: invoice.created_at,
     });
     idMap.push({

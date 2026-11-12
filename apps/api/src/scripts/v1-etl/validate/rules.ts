@@ -25,23 +25,16 @@ type RuleSpec = { id: string; severity: Severity; resolutions: string[] };
 
 export const RULES: RuleSpec[] = [
   { id: "schema.unmapped", severity: "blocker", resolutions: [] },
-  {
-    id: "user.email-case-duplicate",
-    severity: "blocker",
-    resolutions: ["merge-into:<v1 user id>", "skip-user"],
-  },
-  {
-    id: "passkey.duplicate-credential",
-    severity: "blocker",
-    resolutions: ["keep:<v1 passkey id>"],
-  },
+  // Resolutions list only what the load applies; a blocker the load cannot resolve offers none.
+  { id: "user.email-case-duplicate", severity: "blocker", resolutions: [] },
+  { id: "passkey.duplicate-credential", severity: "blocker", resolutions: [] },
   { id: "credential.incompatible-hash", severity: "fixable", resolutions: [] },
   { id: "people.admin-cardinality", severity: "blocker", resolutions: ["admin:<v1 payer id>"] },
   { id: "people.blank-name", severity: "blocker", resolutions: ["rename:<text>"] },
   { id: "amount.zero", severity: "blocker", resolutions: ["drop"] },
   { id: "amount.zero-recurrence", severity: "fixable", resolutions: [] },
   { id: "amount.precision", severity: "blocker", resolutions: [] },
-  { id: "reference.dangling", severity: "blocker", resolutions: ["drop", "null-reference"] },
+  { id: "reference.dangling", severity: "blocker", resolutions: ["drop"] },
   { id: "text.too-long", severity: "blocker", resolutions: ["truncate", "drop"] },
   {
     id: "transaction.period-date-mismatch",
@@ -49,7 +42,7 @@ export const RULES: RuleSpec[] = [
     resolutions: ["use-date", "use-period"],
   },
   { id: "invoice.without-card", severity: "blocker", resolutions: ["drop"] },
-  { id: "invoice.paid-without-date", severity: "blocker", resolutions: ["paid-at:<YYYY-MM-DD>"] },
+  { id: "invoice.paid-without-date", severity: "blocker", resolutions: [] },
   { id: "budget.without-category", severity: "blocker", resolutions: ["drop"] },
   { id: "budget.non-positive-amount", severity: "blocker", resolutions: ["drop"] },
   { id: "note.missing-title", severity: "blocker", resolutions: ["title-from-content", "drop"] },
@@ -64,16 +57,12 @@ export const RULES: RuleSpec[] = [
   { id: "category.system-parent", severity: "blocker", resolutions: ["separate-root"] },
   { id: "category.name-collision", severity: "fixable", resolutions: [] },
   { id: "installment.count-out-of-range", severity: "blocker", resolutions: [] },
-  { id: "installment.duplicate-number", severity: "blocker", resolutions: ["drop-row:<v1 id>"] },
-  {
-    id: "installment.inconsistent-members",
-    severity: "blocker",
-    resolutions: ["drop-row:<v1 id>"],
-  },
+  { id: "installment.duplicate-number", severity: "blocker", resolutions: [] },
+  { id: "installment.inconsistent-members", severity: "blocker", resolutions: [] },
   { id: "installment.gap", severity: "fixable", resolutions: [] },
   { id: "recurrence.duplicate-occurrence", severity: "fixable", resolutions: ["detach", "drop"] },
   { id: "recurrence.not-reproducible", severity: "blocker", resolutions: ["as-singles"] },
-  { id: "marker.missing-target", severity: "blocker", resolutions: ["as-regular"] },
+  { id: "marker.missing-target", severity: "blocker", resolutions: [] },
   { id: "trip.length", severity: "blocker", resolutions: [] },
   { id: "table.skipped-by-decision", severity: "informational", resolutions: [] },
   { id: "stamp.dropped", severity: "informational", resolutions: [] },
@@ -104,8 +93,8 @@ const T = {
 const SCRYPT_HASH = /^[0-9a-f]{32}:[0-9a-f]{128}$/;
 const CREDENTIAL_PROVIDER = "credential";
 const SERIES_OWNER_PREFIX = "series";
-const NULLABLE_REFERENCE_COLUMNS = new Set(["categoria_id", "subcategoria_id", "viagem_id"]);
 const DROPPED_STAMPS = ["ofx_import_fingerprint", "import_batch_id"] as const;
+const SIDE_DATA_TEXT_TABLES = new Set<string>([T.categoryMappings, T.nameMappings]);
 
 export function finding(
   rule: string,
@@ -177,7 +166,6 @@ export function duplicateCredentialFindings(passkeys: V1Passkey[]): Finding[] {
           passkey.userId,
           "passkey credential id shared by more than one passkey",
           { passkeys: group.map((item) => item.id).sort() },
-          group.map((item) => `keep:${item.id}`).sort(),
         ),
       ),
     );
@@ -197,7 +185,6 @@ function emailCaseDuplicate(x: ExtractedUser): Finding[] {
       x.user.id,
       "email differs from another user's only by case",
       { users: others },
-      [...others.map((id) => `merge-into:${id}`), "skip-user"],
     ),
   ];
 }
@@ -292,10 +279,6 @@ function danglingReferences(x: ExtractedUser): Finding[] {
       { columns },
       resolutions,
     );
-  const dropOrNull = (columns: string[]) =>
-    columns.every((column) => NULLABLE_REFERENCE_COLUMNS.has(column))
-      ? ["drop", "null-reference"]
-      : ["drop"];
 
   const findings: Finding[] = [];
   for (const row of x.transactions) {
@@ -309,12 +292,11 @@ function danglingReferences(x: ExtractedUser): Finding[] {
       isDangling(T.anticipations, row.antecipacao_id) && "antecipacao_id",
       isForeignSeries(row.series_id) && "series_id",
     ].filter((column): column is string => column !== false);
-    if (columns.length > 0)
-      findings.push(report(T.transactions, row.id, columns, dropOrNull(columns)));
+    if (columns.length > 0) findings.push(report(T.transactions, row.id, columns, []));
   }
   for (const card of x.cards) {
     if (isDangling(T.accounts, card.conta_id)) {
-      findings.push(report(T.cards, card.id, ["conta_id"], ["drop"]));
+      findings.push(report(T.cards, card.id, ["conta_id"], []));
     }
   }
   for (const sub of x.subcategories) {
@@ -324,7 +306,7 @@ function danglingReferences(x: ExtractedUser): Finding[] {
   }
   for (const invoice of x.invoices) {
     if (isDangling(T.cards, invoice.cartao_id)) {
-      findings.push(report(T.invoices, invoice.id, ["cartao_id"], ["drop"]));
+      findings.push(report(T.invoices, invoice.id, ["cartao_id"], []));
     }
   }
   for (const anticipation of x.anticipations) {
@@ -335,12 +317,11 @@ function danglingReferences(x: ExtractedUser): Finding[] {
       anticipation.parcelas_antecipadas.some((id) => isDangling(T.transactions, id)) &&
         "parcelas_antecipadas",
     ].filter((column): column is string => column !== false);
-    if (columns.length > 0)
-      findings.push(report(T.anticipations, anticipation.id, columns, ["drop"]));
+    if (columns.length > 0) findings.push(report(T.anticipations, anticipation.id, columns, []));
   }
   for (const item of x.inboxItems) {
     if (isDangling(T.transactions, item.lancamento_id)) {
-      findings.push(report(T.inbox, item.id, ["lancamento_id"], ["drop"]));
+      findings.push(report(T.inbox, item.id, ["lancamento_id"], []));
     }
   }
   for (const mapping of x.categoryMappings) {
@@ -433,11 +414,16 @@ function textTooLong(x: ExtractedUser): Finding[] {
     rows
       .filter((row) => [...row.value].length > limit)
       .map((row) =>
-        finding("text.too-long", table, row.id, x.user.id, "value longer than the V2 column", {
-          column,
-          length: [...row.value].length,
-          limit,
-        }),
+        finding(
+          "text.too-long",
+          table,
+          row.id,
+          x.user.id,
+          "value longer than the V2 column",
+          { column, length: [...row.value].length, limit },
+          // Only the side-data conversion truncates or drops; other tables offer no resolution.
+          SIDE_DATA_TEXT_TABLES.has(table) ? undefined : [],
+        ),
       ),
   );
 }

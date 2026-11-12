@@ -5,6 +5,7 @@ import type { Pool, PoolClient } from "pg";
 import type {
   ExtractedUser,
   LoadReport,
+  PlanResult,
   ReconciliationReport,
   RepairList,
   Resolutions,
@@ -30,8 +31,9 @@ Options:
   --target-url <url>           V2 scratch database (load, reconcile, rehearse)
   --scratch                    declare the target a scratch database (load, rehearse)
   --confirm-production=<name>  production override, must equal the target database name
-  --resolutions <file>         operator resolution file (load, rehearse)
-  --v1-rp-id <host>            V1 passkey relying-party host (load, rehearse)
+  --resolutions <file>         operator resolution file (load, reconcile, rehearse)
+  --v1-rp-id <host>            V1 passkey relying-party host (load, reconcile, rehearse)
+                               reconcile needs the same --resolutions and --v1-rp-id as the load
   --out <dir>                  report directory
   --user <v1 user id>          restrict to one user (validate, reconcile)
   --check-bucket               HEAD attachment keys in S3 (validate)`;
@@ -263,10 +265,25 @@ async function runLoad(options: CliOptions, env: NodeJS.ProcessEnv): Promise<num
           users.push({ status: "skipped-already-loaded", v1UserId, ...loaded, written: 0 });
           continue;
         }
-        const planned = planUser(await extractUser(v1, v1UserId, index), resolutions, {
-          v1RpId: options.v1RpId,
-          targetRpId,
-        });
+        const x = await extractUser(v1, v1UserId, index);
+        let planned: PlanResult;
+        try {
+          planned = planUser(x, resolutions, { v1RpId: options.v1RpId, targetRpId });
+        } catch (error) {
+          // A conversion that cannot map a row fails this user only; the run goes on.
+          process.stderr.write(
+            `User ${v1UserId} not planned: ${error instanceof Error ? error.message : String(error)}
+`,
+          );
+          users.push({
+            status: "failed",
+            v1UserId,
+            v2UserId: v2Id("user", v1UserId),
+            table: "plan",
+            cause: "conversion-error",
+          });
+          continue;
+        }
         if (!planned.ok) {
           // A conversion found a blocker the validator did not: the user is not written.
           users.push({

@@ -475,7 +475,7 @@ function convertTripLinks(
         tx.id,
         "trip missing or owned by another user",
         { column: "viagem_id" },
-        ["drop", "null-reference"],
+        [],
       );
       continue;
     }

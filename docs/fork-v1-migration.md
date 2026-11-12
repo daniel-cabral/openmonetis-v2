@@ -103,10 +103,8 @@ Allowed resolutions per rule (complete list in the output-formats contract):
 | `transaction.period-date-mismatch` (non-card row, purchase month differs from its period) | blocker | `use-date` (keep the date, period follows it), `use-period` (move the date into the period month, same day clamped) |
 | `recurrence.duplicate-occurrence` (two occurrences in one period) | fixable | `detach` (extra row loads as a single), `drop` |
 | `recurrence.not-reproducible` | blocker | `as-singles` |
-| `installment.duplicate-number`, `installment.inconsistent-members` | blocker | `drop-row:<v1 id>` |
 | `installment.gap` | fixable | loads with existing numbers, total derived |
-| `marker.missing-target` (card payment, refund source) | blocker | `as-regular` |
-| `installment.count-out-of-range`, `trip.length` | blocker | none: fix the source data or stop |
+| `installment.count-out-of-range`, `trip.length`, `installment.duplicate-number`, `installment.inconsistent-members`, `marker.missing-target`, `invoice.paid-without-date`, `user.email-case-duplicate`, `passkey.duplicate-credential` | blocker | none: fix the source data or stop |
 | zero-amount recurrence occurrence | fixable | loads as a `skip` exception, balance effect zero |
 
 Informational rules (`table.skipped-by-decision`, `stamp.dropped`, `mapping.key-not-normalized`,
@@ -138,8 +136,12 @@ Guards (exit 2, nothing written):
 ## 5. Reconcile
 
 ```bash
-pnpm etl:v1 reconcile --target-url $TARGET_URL
+pnpm etl:v1 reconcile --target-url $TARGET_URL --resolutions .v1-etl/resolutions.json
 ```
+
+Pass the same `--resolutions` and `--v1-rp-id` as the load: reconcile re-plans each user with them.
+Without the load's resolutions a resolved blocker fails the user (`plan-unresolved-blocker`); a
+different `--v1-rp-id` changes the checksummed tables (`checksum-mismatch`).
 
 Compares V1 and V2 figures per user and writes `reconcile.json` and `reconcile.txt`. It writes
 nothing to V1 or to the target. Exit 1 on any `pass: false`.
