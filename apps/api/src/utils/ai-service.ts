@@ -7,7 +7,11 @@ import type { AiToolJobOutput, AiToolOutput } from "@openmonetis/validators/ai-t
 import { z } from "zod";
 import type { AiChatRunEvent, AiChatRunner } from "../services/ai-chats.service";
 import type { AiDiagnosisRunner } from "../services/ai-diagnoses.service";
-import type { AiProviderLogin, AiProvidersGateway } from "../services/ai-providers.service";
+import type {
+  AiProviderLogin,
+  AiProvidersGateway,
+  ApiKeyModelsResult,
+} from "../services/ai-providers.service";
 import type { AiToolsGateway } from "../services/ai-tools.service";
 import { createAiKeyCipher } from "./ai-key-cipher";
 import { assertProductionSecret, getRequiredProductionEnv, parseBooleanEnv } from "./env";
@@ -213,6 +217,27 @@ export function createAiServiceGateway(options: {
         return { failureCode: parsed.success ? parsed.data : "installFailed" };
       }
       return { tool: result };
+    },
+
+    async listApiKeyModels(provider, credential) {
+      const result = await call<ApiKeyModelsResult>(`/providers/${provider}/models`, {
+        method: "POST",
+        body: { credential },
+        timeoutMs: statusTimeoutMs,
+      });
+      if (!result) throw new AiServiceUnavailableError();
+      return result;
+    },
+
+    async isOllamaAvailable() {
+      try {
+        const result = await call<{ available: boolean }>("/providers/ollama", {
+          timeoutMs: statusTimeoutMs,
+        });
+        return result?.available === true;
+      } catch {
+        return false;
+      }
     },
 
     async cancel(userId, provider) {

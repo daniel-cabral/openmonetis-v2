@@ -30,6 +30,7 @@ import {
   aiPeriodInstructions,
   type FinancialSnapshot,
 } from "./ai-context.service";
+import type { AiProviderCredential } from "./ai-providers.service";
 
 const dailyWindowMs = 24 * 60 * 60_000;
 
@@ -88,7 +89,9 @@ export type AiDiagnosisProviderChecker = {
     userId: string,
     provider: AiProvider,
     requestedModel?: string | null,
-  ): Promise<{ model: string | null }>;
+  ): Promise<{ model: string | null; credential?: AiProviderCredential }>;
+  /** Flags an API key the vendor refused; a no-op for CLI providers. */
+  markKeyRefused(userId: string, provider: AiProvider): Promise<void>;
 };
 
 export type AiDiagnosisRunResult =
@@ -99,6 +102,7 @@ export type AiDiagnosisRunResult =
         AiDiagnosisFailureCode,
         | "providerDisconnected"
         | "providerLimitReached"
+        | "providerUnavailable"
         | "providerBusy"
         | "invalidOutput"
         | "runFailed"
@@ -111,7 +115,13 @@ export type AiDiagnosisRunner = {
   run(
     userId: string,
     provider: AiProvider,
-    input: { instructions: string; prompt: string; schema: unknown; model: string | null },
+    input: {
+      instructions: string;
+      prompt: string;
+      schema: unknown;
+      model: string | null;
+      credential?: AiProviderCredential;
+    },
   ): Promise<AiDiagnosisRunResult>;
   /** Stops the run in progress for this person and provider, if any. */
   cancel(userId: string, provider: AiProvider): Promise<void>;
@@ -187,7 +197,11 @@ export function createAiDiagnosesService(dependencies: {
     }
   }
 
-  async function execute(record: AiDiagnosisRecord, loaded: FinancialSnapshot) {
+  async function execute(
+    record: AiDiagnosisRecord,
+    loaded: FinancialSnapshot,
+    credential: AiProviderCredential | undefined,
+  ) {
     let described: Awaited<ReturnType<AiFinancialContextReader["describe"]>>;
     try {
       described = await context.describe({
@@ -209,6 +223,7 @@ export function createAiDiagnosesService(dependencies: {
         prompt: `Financial data (JSON):\n${JSON.stringify(described.data)}`,
         schema: createAiDiagnosisModelOutputJsonSchema(),
         model: record.requestedModel,
+        credential,
       });
     } catch (error) {
       console.error("AI service run failed", error);
@@ -217,6 +232,9 @@ export function createAiDiagnosesService(dependencies: {
     }
 
     if (outcome.status === "failed") {
+      if (outcome.code === "providerDisconnected") {
+        await providers.markKeyRefused(record.userId, record.provider);
+      }
       await repository.failPending(record.id, record.userId, outcome.code, now());
       return;
     }
@@ -255,7 +273,7 @@ export function createAiDiagnosesService(dependencies: {
   return {
     async create(userId: string, input: CreateAiDiagnosisInput): Promise<AiDiagnosisOutput> {
       const sharedScopes = await dataSharing.scopesFor(userId);
-      const { model: requestedModel } = await providers.prepareRun(
+      const { model: requestedModel, credential } = await providers.prepareRun(
         userId,
         input.provider,
         input.model,
@@ -286,7 +304,7 @@ export function createAiDiagnosesService(dependencies: {
         voice: input.voice ?? defaultAiDiagnosisVoice,
         health,
       });
-      schedule(() => execute(record, loaded));
+      schedule(() => execute(record, loaded, credential));
       return toAiDiagnosisOutput(record);
     },
 

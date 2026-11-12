@@ -107,21 +107,29 @@ function createService(
   const store = createRepository();
   const prompts: string[] = [];
   const instructions: string[] = [];
+  const credentials: unknown[] = [];
   const service = createAiChatsService({
     repository: store.repository,
     context,
-    providers: { prepareRun: async (_owner, _provider, model) => ({ model: model ?? null }) },
+    providers: {
+      prepareRun: async (_owner, _provider, model) => ({
+        model: model ?? null,
+        credential: { apiKey: "sk-live-9876" },
+      }),
+      markKeyRefused: async () => undefined,
+    },
     dataSharing: { scopesFor: async () => [] },
     runner: {
       chat: (_owner, _provider, input, signal) => {
         prompts.push(input.prompt);
         instructions.push(input.instructions);
+        credentials.push(input.credential);
         return run(input.prompt, signal);
       },
     },
     now: () => now,
   });
-  return { ...store, prompts, instructions, service };
+  return { ...store, prompts, instructions, credentials, service };
 }
 
 async function collect(events: AsyncIterable<AiChatStreamEvent>) {
@@ -323,4 +331,18 @@ test("a reply follows the chosen voice in the whole answer", async () => {
   assert.match(instructions[1] ?? "", /dry, good-humored irony/);
   assert.match(instructions[1] ?? "", /Keep the voice in the whole text/);
   for (const text of instructions) assert.match(text, /Never mock, insult or judge the person/);
+});
+
+test("a sent message hands the key to the runner, and no saved message or reply carries it", async () => {
+  const { service, credentials, chats, messages } = createService(() =>
+    answer({ type: "completed", text: "Ok", model: null }),
+  );
+  const chat = await service.create(userId, { period: "2026-06", provider: "openai" });
+
+  const events = await collect(
+    await service.send(userId, chat.id, { content: "Oi", provider: "openai" }, signal()),
+  );
+
+  assert.deepEqual(credentials, [{ apiKey: "sk-live-9876" }]);
+  assert.equal(JSON.stringify([chats, messages, events]).includes("sk-live-9876"), false);
 });
