@@ -117,7 +117,7 @@ function readImportFileContent(contentBase64: string) {
 }
 
 // Merchant-aware key first, legacy key second, so mappings stored before FR-015 still match (FR-016).
-function importMemoryKeys(name: string) {
+export function importMemoryKeys(name: string) {
   return [getImportedDescriptionKey(name), normalizeImportedDescriptionKey(name)];
 }
 
@@ -759,27 +759,12 @@ export function createTransactionsService(
     return detectImportProfile(decodeImportText(readImportFileContent(input.contentBase64)));
   }
 
-  async function previewTransactionImport(input: PreviewTransactionImportInput, userId: string) {
+  async function readCsvImportLines(input: PreviewTransactionImportInput, userId: string) {
     const content = readImportFileContent(input.contentBase64);
-    const extension = input.fileName.split(".").at(-1)?.toLowerCase();
-    const csvImport = extension === "csv" ? await resolveCsvImport(input, userId) : null;
+    const csvImport = await resolveCsvImport(input, userId);
     let statement: ImportedStatement;
     try {
-      if (csvImport) {
-        statement = csvImport.profile.parse(decodeImportText(content));
-      } else if (extension === "ofx" || extension === "qfx") {
-        statement = parseOfxStatement(new TextDecoder("windows-1252").decode(content));
-      } else if (extension === "xlsx" || extension === "xls") {
-        if (extension === "xls" && content.subarray(0, 4).equals(legacyExcelSignature)) {
-          throw badRequest(
-            "Legacy Excel 97-2003 files are not supported",
-            "IMPORT_XLS_BINARY_NOT_SUPPORTED",
-          );
-        }
-        statement = await parseSpreadsheetStatement(content);
-      } else {
-        throw badRequest("Statement format is not supported", "IMPORT_FORMAT_NOT_SUPPORTED");
-      }
+      statement = csvImport.profile.parse(decodeImportText(content));
     } catch (error) {
       if (error instanceof Error && "status" in error) throw error;
       throw badRequest("Statement file could not be read", "IMPORT_FILE_INVALID");
@@ -789,25 +774,61 @@ export function createTransactionsService(
     }
 
     // CSV lines have no issuer identifier: their identity is a hash of the row payload (FR-010, FR-012).
-    const rowIdentities = csvImport
-      ? buildImportRowIdentityPayloads({
-          kind: csvImport.profile.kind,
-          source: statement.sourceName,
-          accountIdentification: statement.accountIdentification,
-          destination: csvImport.destination,
-          rows: statement.transactions,
-        }).map(sha256Hex)
-      : statement.transactions.map((transaction) => transaction.externalId);
-    const transactions = statement.transactions.map((transaction, index) => ({
+    const rowIdentities = buildImportRowIdentityPayloads({
+      kind: csvImport.profile.kind,
+      source: statement.sourceName,
+      accountIdentification: statement.accountIdentification,
+      destination: csvImport.destination,
+      rows: statement.transactions,
+    }).map(sha256Hex);
+    const rows = statement.transactions.map((transaction, index) => ({
       ...transaction,
       externalId: rowIdentities[index] ?? null,
     }));
-    const sourceFingerprint = csvImport
-      ? sha256Hex(`csv:${csvImport.profile.id}:${statement.accountIdentification ?? ""}`)
-      : sha256Hex(statement.sourceReference);
-    const externalIds = transactions.flatMap((transaction) =>
-      transaction.externalId ? [transaction.externalId] : [],
+    const sourceFingerprint = sha256Hex(
+      `csv:${csvImport.profile.id}:${statement.accountIdentification ?? ""}`,
     );
+    const externalIds = rows.flatMap((row) => (row.externalId ? [row.externalId] : []));
+    return { profile: csvImport.profile, statement, rows, externalIds, sourceFingerprint };
+  }
+
+  async function previewTransactionImport(input: PreviewTransactionImportInput, userId: string) {
+    const extension = input.fileName.split(".").at(-1)?.toLowerCase();
+    const csvLines = extension === "csv" ? await readCsvImportLines(input, userId) : null;
+    let statement: ImportedStatement;
+    if (csvLines) {
+      statement = csvLines.statement;
+    } else {
+      const content = readImportFileContent(input.contentBase64);
+      try {
+        if (extension === "ofx" || extension === "qfx") {
+          statement = parseOfxStatement(new TextDecoder("windows-1252").decode(content));
+        } else if (extension === "xlsx" || extension === "xls") {
+          if (extension === "xls" && content.subarray(0, 4).equals(legacyExcelSignature)) {
+            throw badRequest(
+              "Legacy Excel 97-2003 files are not supported",
+              "IMPORT_XLS_BINARY_NOT_SUPPORTED",
+            );
+          }
+          statement = await parseSpreadsheetStatement(content);
+        } else {
+          throw badRequest("Statement format is not supported", "IMPORT_FORMAT_NOT_SUPPORTED");
+        }
+      } catch (error) {
+        if (error instanceof Error && "status" in error) throw error;
+        throw badRequest("Statement file could not be read", "IMPORT_FILE_INVALID");
+      }
+      if (statement.transactions.length > 1000) {
+        throw badRequest("Statement has too many transactions", "IMPORT_TOO_MANY_ROWS");
+      }
+    }
+    const transactions = csvLines?.rows ?? statement.transactions;
+    const sourceFingerprint = csvLines?.sourceFingerprint ?? sha256Hex(statement.sourceReference);
+    const externalIds =
+      csvLines?.externalIds ??
+      transactions.flatMap((transaction) =>
+        transaction.externalId ? [transaction.externalId] : [],
+      );
     const memoryKeys = [
       ...new Set(transactions.flatMap((transaction) => importMemoryKeys(transaction.name))),
     ];
@@ -1409,6 +1430,60 @@ export function createTransactionsService(
     );
   }
 
+  // Expands each rule into its occurrences in the given periods; the caller decides which ones are listed.
+  function expandScheduledRecurringRules(
+    rules: RecurringRuleWithRelations[],
+    occurrencePeriods: string[],
+    isIncluded: (occurrence: { purchaseDate: string; occurrencePeriod: string }) => boolean,
+  ): TransactionOutput[] {
+    return rules.flatMap((rule) => {
+      const occurrenceDates = occurrencePeriods.flatMap((occurrencePeriod) =>
+        listRecurrenceDatesInPeriod({
+          anchorDate: toDateString(rule.anchorDate),
+          startDate: toDateString(rule.startDate),
+          endDate: rule.endDate ? toDateString(rule.endDate) : null,
+          frequency: rule.frequency,
+          recurrenceEndDate: rule.recurrenceEndDate ? toDateString(rule.recurrenceEndDate) : null,
+          dueDate: rule.dueDate ? toDateString(rule.dueDate) : null,
+          period: occurrencePeriod,
+        }),
+      );
+
+      return occurrenceDates
+        .map((purchaseDate) => {
+          const dueDate = getRecurringDueDate(
+            rule.dueDate ? toDateString(rule.dueDate) : null,
+            purchaseDate,
+          );
+          const occurrencePeriod = deriveTransactionPeriod({
+            paymentMethod: rule.paymentMethod,
+            purchaseDate,
+            dueDate,
+            card:
+              rule.cardClosingRuleType && rule.cardDueDay
+                ? {
+                    closingDay: rule.cardClosingDay,
+                    closingRule: resolveCardClosingRule({
+                      closingRuleType: rule.cardClosingRuleType,
+                      closingDay: rule.cardClosingDay,
+                      closingOffsetDays: rule.cardClosingOffsetDays,
+                      closingOffsetMode: rule.cardClosingOffsetMode,
+                      closingDayPurchasesNextInvoice:
+                        rule.cardClosingDayPurchasesNextInvoice ?? false,
+                    }),
+                    dueDay: Number(rule.cardDueDay),
+                  }
+                : null,
+          });
+
+          return isIncluded({ purchaseDate, occurrencePeriod })
+            ? toRecurringOccurrenceOutput(rule, purchaseDate, occurrencePeriod, dueDate)
+            : null;
+        })
+        .filter((transaction): transaction is TransactionOutput => Boolean(transaction));
+    });
+  }
+
   async function listTransactions(userId: string, query: ListTransactionsQuery, paginate = true) {
     if (query.categoryIds.length)
       query = {
@@ -1493,59 +1568,18 @@ export function createTransactionsService(
               period,
               addMonthsToPeriod(period, 1),
             ];
-    const scheduledOccurrences = scheduledRecurringRules.flatMap((rule) => {
-      const occurrenceDates = occurrencePeriods.flatMap((occurrencePeriod) =>
-        listRecurrenceDatesInPeriod({
-          anchorDate: toDateString(rule.anchorDate),
-          startDate: toDateString(rule.startDate),
-          endDate: rule.endDate ? toDateString(rule.endDate) : null,
-          frequency: rule.frequency,
-          recurrenceEndDate: rule.recurrenceEndDate ? toDateString(rule.recurrenceEndDate) : null,
-          dueDate: rule.dueDate ? toDateString(rule.dueDate) : null,
-          period: occurrencePeriod,
-        }),
-      );
+    const scheduledOccurrences = expandScheduledRecurringRules(
+      scheduledRecurringRules,
+      occurrencePeriods,
+      ({ purchaseDate, occurrencePeriod }) => {
+        const isInDateRange =
+          purchaseDate >= toDateString(periodStart) && purchaseDate <= toDateString(periodEnd);
 
-      return occurrenceDates
-        .map((purchaseDate) => {
-          const dueDate = getRecurringDueDate(
-            rule.dueDate ? toDateString(rule.dueDate) : null,
-            purchaseDate,
-          );
-          const occurrencePeriod = deriveTransactionPeriod({
-            paymentMethod: rule.paymentMethod,
-            purchaseDate,
-            dueDate,
-            card:
-              rule.cardClosingRuleType && rule.cardDueDay
-                ? {
-                    closingDay: rule.cardClosingDay,
-                    closingRule: resolveCardClosingRule({
-                      closingRuleType: rule.cardClosingRuleType,
-                      closingDay: rule.cardClosingDay,
-                      closingOffsetDays: rule.cardClosingOffsetDays,
-                      closingOffsetMode: rule.cardClosingOffsetMode,
-                      closingDayPurchasesNextInvoice:
-                        rule.cardClosingDayPurchasesNextInvoice ?? false,
-                    }),
-                    dueDay: Number(rule.cardDueDay),
-                  }
-                : null,
-          });
-
-          const isInDateRange =
-            purchaseDate >= toDateString(periodStart) && purchaseDate <= toDateString(periodEnd);
-
-          return (
-            query.dateStart || query.dateEnd
-              ? accountStatement || isInDateRange
-              : query.payables || occurrencePeriod === period
-          )
-            ? toRecurringOccurrenceOutput(rule, purchaseDate, occurrencePeriod, dueDate)
-            : null;
-        })
-        .filter((transaction): transaction is TransactionOutput => Boolean(transaction));
-    });
+        return query.dateStart || query.dateEnd
+          ? accountStatement || isInDateRange
+          : query.payables || occurrencePeriod === period;
+      },
+    );
     const paidBoletoOutputs = paidBoletoOccurrences.flatMap((occurrence) => {
       const rule = rulesById.get(occurrence.recurringRuleId);
       if (rule?.status !== "active") return [];
@@ -3059,6 +3093,7 @@ export function createTransactionsService(
     deleteTransactions,
     exportTransactions,
     detectTransactionImport,
+    expandScheduledRecurringRules,
     generateTransactionImportTemplate,
     getTransactionById,
     getRecurringRuleOccurrence,
@@ -3066,6 +3101,7 @@ export function createTransactionsService(
     listRecentEstablishments,
     listTransactions,
     previewTransactionImport,
+    readCsvImportLines,
     renameTransactions,
     settleRecurringOccurrence,
     setTransactionsTrip,

@@ -31,6 +31,8 @@ export const recurringOccurrenceOverridesSql = sql<
   "occurrence_overrides",
 );
 
+type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export async function settlePersistedTransactions(input: {
   ids: string[];
   userId: string;
@@ -38,8 +40,9 @@ export async function settlePersistedTransactions(input: {
   date: Date;
   amount?: number;
   accountId?: string;
+  executor?: DatabaseTransaction;
 }) {
-  return db.transaction(async (tx) => {
+  const run = async (tx: DatabaseTransaction) => {
     const dueDateVersions = await tx
       .select()
       .from(dueDateRuleVersions)
@@ -191,7 +194,8 @@ export async function settlePersistedTransactions(input: {
       new Set(),
     );
     return rows.map(({ id }) => ({ id }));
-  });
+  };
+  return input.executor ? run(input.executor) : db.transaction(run);
 }
 
 export async function settleRecurringTransaction(input: {
@@ -202,8 +206,9 @@ export async function settleRecurringTransaction(input: {
   date: Date;
   amount?: number;
   accountId?: string;
+  executor?: DatabaseTransaction;
 }) {
-  return db.transaction(async (tx) => {
+  const run = async (tx: DatabaseTransaction) => {
     const versions = await lockRecurringVersionsForUser(tx, input.id, input.userId);
     const rule = versions.find((row) => row.id === input.id);
     if (
@@ -345,7 +350,8 @@ export async function settleRecurringTransaction(input: {
       })
       .returning({ recurringRuleId: occurrences.recurringRuleId });
     return result;
-  });
+  };
+  return input.executor ? run(input.executor) : db.transaction(run);
 }
 function date(value: Date) {
   return value.toISOString().slice(0, 10);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 // Import application modules only inside run: their database clients read the environment once.
 export async function withIntegrationDatabase(
@@ -10,7 +11,7 @@ export async function withIntegrationDatabase(
   assert.notEqual(process.env.NODE_ENV, "production");
   const require = createRequire(new URL("../../../../packages/db/package.json", import.meta.url));
   require("dotenv").config({
-    path: new URL("../../../../.env", import.meta.url).pathname,
+    path: fileURLToPath(new URL("../../../../.env", import.meta.url)),
     quiet: true,
   });
   assert.notEqual(process.env.NODE_ENV, "production");
@@ -57,7 +58,7 @@ export async function withIntegrationDatabase(
     await migrate(db, {
       migrationsFolder:
         options.migrationsFolder ??
-        new URL("../../../../packages/db/drizzle", import.meta.url).pathname,
+        fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
     });
     await run();
   } finally {

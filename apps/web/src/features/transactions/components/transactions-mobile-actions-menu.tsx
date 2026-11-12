@@ -1,5 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Ellipsis, FileSpreadsheet, FileText, FileUp, ListChecks, Loader2 } from "lucide-react";
+import {
+  Ellipsis,
+  FileSpreadsheet,
+  FileText,
+  FileUp,
+  GitCompareArrows,
+  ListChecks,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -51,6 +59,12 @@ export function TransactionsMobileActionsMenu({
             <DropdownMenuItem onClick={() => void navigate({ to: "/transactions/import" })}>
               <FileUp aria-hidden="true" />
               Importar extrato
+            </DropdownMenuItem>
+          ) : null}
+          {allowImport ? (
+            <DropdownMenuItem onClick={() => void navigate({ to: "/transactions/reconciliation" })}>
+              <GitCompareArrows aria-hidden="true" />
+              Conciliar extrato
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuGroup>

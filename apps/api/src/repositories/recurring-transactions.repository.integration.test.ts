@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { ListCategoryTrendsQuerySchema } from "@openmonetis/validators/category-trends";
 import {
   ListTransactionsQuerySchema,
@@ -13,7 +14,7 @@ test("recurring income actions preserve history, deadlines and projections", {
 }, async () => {
   const require = createRequire(new URL("../../../../packages/db/package.json", import.meta.url));
   require("dotenv").config({
-    path: new URL("../../../../.env", import.meta.url).pathname,
+    path: fileURLToPath(new URL("../../../../.env", import.meta.url)),
     quiet: true,
   });
   const { Pool } = require("pg");
@@ -34,7 +35,7 @@ test("recurring income actions preserve history, deadlines and projections", {
     const { db, pool, ...schema } = await import("@openmonetis/db");
     applicationPool = pool;
     await migrate(db, {
-      migrationsFolder: new URL("../../../../packages/db/drizzle", import.meta.url).pathname,
+      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
     });
     const transactions = await import("./transactions.repository");
     const recurring = await import("./recurring-transactions.repository");

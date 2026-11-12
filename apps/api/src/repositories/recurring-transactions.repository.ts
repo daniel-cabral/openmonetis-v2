@@ -196,6 +196,8 @@ export async function listRecurringRulesForReport(
       isSettled: recurringTransactionRules.isSettled,
       note: recurringTransactionRules.note,
       status: recurringTransactionRules.status,
+      createdAt: recurringTransactionRules.createdAt,
+      updatedAt: recurringTransactionRules.updatedAt,
       personName: people.name,
       personAvatarUrl: people.avatarUrl,
       personRole: people.role,

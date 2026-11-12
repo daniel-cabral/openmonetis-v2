@@ -49,7 +49,9 @@
     "./import-c6": "./src/import-c6.ts",
     "./import-csv": "./src/import-csv.ts",
     "./import-profiles": "./src/import-profiles.ts",
-    "./import-row-identity": "./src/import-row-identity.ts"
+    "./import-row-identity": "./src/import-row-identity.ts",
+    "./reconciliations": "./src/reconciliations.ts",
+    "./reconciliations-plan": "./src/reconciliations-plan.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

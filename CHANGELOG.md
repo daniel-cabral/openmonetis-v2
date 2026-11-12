@@ -35,6 +35,9 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Filtro **Viagem** nos relatórios de Estabelecimentos e de Tendências por categoria. Escolher uma
   viagem usa automaticamente os meses cobertos por ela, limitados a 24. Novo endpoint
   `GET /trips/:tripId/period-range`. Detalhes em `docs/establishments-report.md`.
+- Conciliação de extrato e fatura do C6 com lançamentos: regras determinísticas de casamento,
+  casamentos suspeitos pedem decisão, o valor do arquivo prevalece, lançamento pendente casado vira
+  pago, lote com desfazer, linhas ignoradas com motivo e memória de nome e categoria por comerciante.
 
 ## [0.16.0] - 2026-11-07
 
