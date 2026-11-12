@@ -33,6 +33,7 @@ import { dashboardRepository } from "./repositories/dashboard.repository";
 import { deviceTokensRepository } from "./repositories/device-tokens.repository";
 import { dueDateRulesRepository } from "./repositories/due-date-rules.repository";
 import { establishmentsRepository } from "./repositories/establishments.repository";
+import { establishmentsReportRepository } from "./repositories/establishments-report.repository";
 import { externalExpensesRepository } from "./repositories/external-expenses.repository";
 import { financialDistributionRepository } from "./repositories/financial-distribution.repository";
 import { goalsRepository } from "./repositories/goals.repository";
@@ -84,6 +85,7 @@ import { createDashboardRoute } from "./routes/dashboard";
 import { createCompanionDeviceRoute, createDeviceTokensRoute } from "./routes/device-tokens";
 import { createDueDateRulesRoute } from "./routes/due-date-rules";
 import { createEstablishmentsRoute } from "./routes/establishments";
+import { createEstablishmentsReportRoute } from "./routes/establishments-report";
 import { createExternalExpensesRoute } from "./routes/external-expenses";
 import { createFinancialDistributionRoute } from "./routes/financial-distribution";
 import { createGoalsRoute } from "./routes/goals";
@@ -127,6 +129,7 @@ import {
   type DueDatePreviewCandidate,
 } from "./services/due-date-rules.service";
 import { createEstablishmentsService } from "./services/establishments.service";
+import { createEstablishmentsReportService } from "./services/establishments-report.service";
 import {
   createExternalExpensesService,
   synchronizeRecurringExternalExpenses,
@@ -192,6 +195,9 @@ const billsRoute = createBillsRoute(billsService);
 const categoriesRoute = createCategoriesRoute(createCategoriesService(categoriesRepository));
 const categoryTrendsRoute = createCategoryTrendsRoute(
   createCategoryTrendsService(categoryTrendsRepository),
+);
+const establishmentsReportRoute = createEstablishmentsReportRoute(
+  createEstablishmentsReportService(establishmentsReportRepository),
 );
 const installmentsRoute = createInstallmentsRoute(
   createInstallmentsService(installmentsRepository),
@@ -844,6 +850,7 @@ app.route(
   ),
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
+app.route("/reports/establishments", establishmentsReportRoute);
 app.route(
   "/reports/commitments",
   createCommitmentsRoute(createCommitmentsService(commitmentsRepository)),
