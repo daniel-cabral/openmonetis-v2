@@ -12,6 +12,7 @@ import {
   FileText,
   LayoutGrid,
   Lock,
+  type LucideIcon,
   Paperclip,
   Percent,
   PieChart,
@@ -26,7 +27,6 @@ import {
   Wallet,
   Wrench,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
 
 export const landingLinks = {
@@ -137,14 +137,12 @@ export const landingFeatures: readonly LandingItem[] = [
   {
     icon: Wallet,
     title: "Contas e transações",
-    description:
-      "Contas bancárias, cartões e dinheiro em um só lugar, organizados do seu jeito.",
+    description: "Contas bancárias, cartões e dinheiro em um só lugar, organizados do seu jeito.",
   },
   {
     icon: Percent,
     title: "Parcelamentos",
-    description:
-      "Controle compras parceladas e antecipe parcelas quando quiser.",
+    description: "Controle compras parceladas e antecipe parcelas quando quiser.",
   },
   {
     icon: Sparkles,
@@ -161,8 +159,7 @@ export const landingFeatures: readonly LandingItem[] = [
   {
     icon: CreditCard,
     title: "Faturas de cartão",
-    description:
-      "Acompanhe faturas por período, limites e vencimentos de cada cartão.",
+    description: "Acompanhe faturas por período, limites e vencimentos de cada cartão.",
   },
   {
     icon: Users,
@@ -184,14 +181,12 @@ export const landingFeatures: readonly LandingItem[] = [
   {
     icon: CalendarDays,
     title: "Calendário financeiro",
-    description:
-      "Veja lançamentos e vencimentos no calendário mensal para não perder prazos.",
+    description: "Veja lançamentos e vencimentos no calendário mensal para não perder prazos.",
   },
   {
     icon: Upload,
     title: "Importação e conciliação",
-    description:
-      "Importe extratos em OFX, QFX, Excel e CSV e concilie com os seus lançamentos.",
+    description: "Importe extratos em OFX, QFX, Excel e CSV e concilie com os seus lançamentos.",
   },
   {
     icon: Paperclip,
@@ -206,8 +201,7 @@ export const landingFeatures: readonly LandingItem[] = [
   {
     icon: EyeOff,
     title: "Modo privacidade",
-    description:
-      "Oculte valores com um clique. Tema claro e escuro e calculadora integrada.",
+    description: "Oculte valores com um clique. Tema claro e escuro e calculadora integrada.",
   },
 ];
 
@@ -225,8 +219,7 @@ export const landingPwaHighlights: readonly LandingItem[] = [
   {
     icon: Zap,
     title: "Experiência mais direta",
-    description:
-      "Abre em modo standalone, com navegação limpa e sem a barra do navegador.",
+    description: "Abre em modo standalone, com navegação limpa e sem a barra do navegador.",
   },
 ];
 
@@ -234,20 +227,17 @@ export const landingCompanionSteps: readonly LandingItem[] = [
   {
     icon: Bell,
     title: "Notificação bancária chega",
-    description:
-      "O Companion identifica automaticamente a notificação de apps bancários.",
+    description: "O Companion identifica automaticamente a notificação de apps bancários.",
   },
   {
     icon: Smartphone,
     title: "Dados extraídos e enviados",
-    description:
-      "Valor, descrição e banco são identificados e enviados ao OpenMonetis.",
+    description: "Valor, descrição e banco são identificados e enviados ao OpenMonetis.",
   },
   {
     icon: Check,
     title: "Revise e confirme no OpenMonetis",
-    description:
-      "Pré-lançamentos ficam na caixa de entrada para a sua aprovação.",
+    description: "Pré-lançamentos ficam na caixa de entrada para a sua aprovação.",
   },
 ];
 
@@ -278,20 +268,17 @@ export const landingAudienceFor: readonly LandingItem[] = [
   {
     icon: Clock,
     title: "Tem disciplina para registrar gastos",
-    description:
-      "Dedica alguns minutos por dia ou por semana para manter tudo atualizado.",
+    description: "Dedica alguns minutos por dia ou por semana para manter tudo atualizado.",
   },
   {
     icon: Lock,
     title: "Quer controle total sobre os seus dados",
-    description:
-      "Prefere hospedar os próprios dados em vez de depender de serviços de terceiros.",
+    description: "Prefere hospedar os próprios dados em vez de depender de serviços de terceiros.",
   },
   {
     icon: ChartLine,
     title: "Quer entender para onde o dinheiro vai",
-    description:
-      "Gosta de visualizar padrões de gastos para tomar decisões informadas.",
+    description: "Gosta de visualizar padrões de gastos para tomar decisões informadas.",
   },
 ];
 
@@ -305,8 +292,7 @@ export const landingAudienceNotFor: readonly LandingItem[] = [
   {
     icon: Server,
     title: "Não é um serviço hospedado",
-    description:
-      "Não há versão online: você roda o OpenMonetis no seu computador ou servidor.",
+    description: "Não há versão online: você roda o OpenMonetis no seu computador ou servidor.",
   },
   {
     icon: TriangleAlert,
@@ -358,10 +344,7 @@ export const landingQuickStartTabs: readonly LandingQuickStartTab[] = [
       },
       {
         title: "Prepare o pnpm",
-        commands: [
-          "corepack enable",
-          "corepack prepare pnpm@11.25.0 --activate",
-        ],
+        commands: ["corepack enable", "corepack prepare pnpm@11.25.0 --activate"],
         note: "Requer Node.js 22.12 ou superior.",
       },
       {
@@ -381,5 +364,4 @@ export const landingQuickStartTabs: readonly LandingQuickStartTab[] = [
   },
 ];
 
-export const landingLicenseNote =
-  "Código-fonte público sob a Sustainable Use License.";
+export const landingLicenseNote = "Código-fonte público sob a Sustainable Use License.";
