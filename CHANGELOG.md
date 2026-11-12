@@ -49,6 +49,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   do fim do arquivo listados. Créditos da fatura viram lançamentos com a nova origem `invoiceCredit`
   (fora de receitas, despesas, orçamentos e relatórios; migration `0034`). Ícone de pago não
   conciliado no extrato da conta. Detalhes em `docs/reconciliations.md`.
+- Calendário mensal com lançamentos, parcelas, boletos e faturas por dia, detalhe do dia e criação
+  rápida.
 
 ## [0.16.0] - 2026-11-07
 
