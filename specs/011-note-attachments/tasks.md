@@ -62,7 +62,7 @@ T009 moved into Phase 3 (before T008, which tests it).
 ## Phase 6: Polish
 
 - [X] T014 [P] Create `docs/note-attachments.md` in the maintainer's style (contract: endpoints, rules, kind gate, cleanup, exclusive parent; link from `docs/` index/README if attachments docs are listed somewhere) and add a CHANGELOG entry under `### Fork` at the end of `Unreleased` (PT-BR, migration `note_attachments` and `NoteOutput.attachmentCount` noted as contract additions).
-- [ ] T015 Gate: start the S3 mock (`docker compose -f compose.test.yml -p openmonetis-v2-lane-b-test up -d s3`; if port 19000 is already bound by another lane's mock, reuse it), run `pnpm check` (Biome), `pnpm typecheck`, the touched unit tests (`node --import tsx --test packages/domain/src/notes.test.ts apps/api/src/services/attachments.service.test.ts apps/web/src/features/attachments/attachments.presentation.test.ts`), `pnpm test:note-attachments:integration` and `pnpm test:storage:integration` (bash; regression of the shared code); fix failures; do not commit incidental `apps/web/src/routeTree.gen.ts` diffs.
+- [X] T015 Gate: start the S3 mock (`docker compose -f compose.test.yml -p openmonetis-v2-lane-b-test up -d s3`; if port 19000 is already bound by another lane's mock, reuse it), run `pnpm check` (Biome), `pnpm typecheck`, the touched unit tests (`node --import tsx --test packages/domain/src/notes.test.ts apps/api/src/services/attachments.service.test.ts apps/web/src/features/attachments/attachments.presentation.test.ts`), `pnpm test:note-attachments:integration` and `pnpm test:storage:integration` (bash; regression of the shared code); fix failures; do not commit incidental `apps/web/src/routeTree.gen.ts` diffs.
 
 ---
 
