@@ -12,6 +12,7 @@ import type {
   InformationalItem,
   InsertBatch,
   PlanResult,
+  RepairList,
   Resolutions,
   TableCount,
   V1Transaction,
@@ -109,6 +110,21 @@ export function planUser(
     count.v1Table === TRANSACTIONS_TABLE ? { ...count, read: count.read - detachedRows } : count,
   );
 
+  // passwordReset and passkeysNotLoaded come from convertCredentials (T038); they stay empty here.
+  const repairList: RepairList = {
+    companionRepair:
+      x.apiTokens.length > 0
+        ? [{ v1UserId: x.user.id, email: x.user.email, tokens: x.apiTokens.length }]
+        : [],
+    shareReinvite: x.payerShares.map((share) => ({
+      ownerEmail: x.user.email,
+      personName: x.payers.find((payer) => payer.id === share.pagador_id)?.nome ?? "",
+      sharedWithEmail: x.index.emailByUser.get(share.shared_with_user_id) ?? "",
+    })),
+    passwordReset: [],
+    passkeysNotLoaded: [],
+  };
+
   return {
     ok: true,
     plan: {
@@ -126,12 +142,7 @@ export function planUser(
         findings.filter((finding) => finding.severity === "informational"),
         "reason",
       ).map(({ key, rows }): InformationalItem => ({ reason: key, rows })),
-      repairList: {
-        companionRepair: [],
-        shareReinvite: [],
-        passwordReset: [],
-        passkeysNotLoaded: [],
-      },
+      repairList,
     },
     findings,
   };
