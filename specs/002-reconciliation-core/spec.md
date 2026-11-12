@@ -270,3 +270,10 @@ Chosen autonomously (mockup-ui, 2026-11-11): **option A**. Previews (local, not 
 - Sticky bottom bar: counts of what Apply will do, suspicious and alignment counts, blocking reason (empty names) in destructive text, primary Button "Aplicar" ("Aplicando…").
 - After Apply: a `sonner` toast "{criados} criados, {conciliados} conciliados, {ignorados} ignorados." with action "Desfazer" (as V1), plus a warning toast for skipped creations; the screen returns to the upload step.
 - Discarded: option B (Tabs per bucket, Apply in the header) hides suspicious and bank-only work behind tabs and breaks the V1 top-to-bottom walk; option C (one dense table with a bucket filter) cannot fit the per-row creation fields and drops the bucket headers that carry "Marcar todas como Criar".
+
+## Execution decisions (2026-11-11)
+
+- Integration test files resolved `packages/db/drizzle` and `.env` with `new URL(...).pathname`, which yields `/D:/...` on Windows and broke every DB integration test in the lane; switched to `fileURLToPath` (test-only change, commit `a74cc97`).
+- Lane lint gate: the repo `biome.json` force-ignores `**/.claude`, which contains the worktree path, so `pnpm lint` checks 0 files in a lane worktree. Gate used: Biome over the files this branch changed vs `main`, from the committed tree exported outside `.claude`, with `--line-ending=crlf` (the fork stores CRLF blobs). `pnpm lint:ui` ran normally.
+- `pnpm db:migrations:check` hashes working-copy bytes; with `core.autocrlf=true` the baseline hash mismatches. Gate run on an LF export (`git -c core.autocrlf=false archive`): 33 migrations valid. The committed baseline blob matches the stored hash.
+- Migration `0032_remarkable_human_fly` collides in number with `main`'s `0032_aromatic_grey_gargoyle` (feature 004); left for the merge protocol (regenerate on top of `main`).
