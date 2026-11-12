@@ -1,9 +1,9 @@
 import { CONDITION_MAP } from "../conversions/amounts";
-import { convertCatalog } from "../conversions/catalog";
+import { convertCatalog, convertCredentials } from "../conversions/catalog";
 import { convertInstallments } from "../conversions/installments";
 import { convertInvoices } from "../conversions/markers";
 import { convertRecurrence } from "../conversions/recurrence";
-import { convertSideData } from "../conversions/side-data";
+import { convertImportMappings, convertSideData } from "../conversions/side-data";
 import { convertTransactions } from "../conversions/transactions";
 import type {
   ExtractedUser,
@@ -26,8 +26,7 @@ const ANTICIPATION_TABLES = new Set(["installmentAnticipations", "installmentAnt
 export function planUser(
   x: ExtractedUser,
   r: Resolutions | null,
-  // v1RpId and targetRpId are consumed by convertCredentials (T038).
-  _opts: { v1RpId: string | null; targetRpId: string },
+  opts: { v1RpId: string | null; targetRpId: string },
 ): PlanResult {
   const resolved = r?.resolutions ?? {};
   const findings: Finding[] = [];
@@ -41,6 +40,8 @@ export function planUser(
   findings.push(...catalog.findings);
   if (unresolvedOf().length > 0) return { ok: false, unresolved: unresolvedOf() };
   const refs = catalog.refs;
+  const credentials = convertCredentials(x, refs, opts); // rows 2, 3
+  findings.push(...credentials.findings);
 
   const recurringRows: V1Transaction[] = [];
   const installmentRows: V1Transaction[] = [];
@@ -60,6 +61,7 @@ export function planUser(
 
   const idMap: IdMapRow[] = [
     ...catalog.idMap,
+    ...credentials.idMap,
     ...installments.idMap,
     ...recurrence.idMap,
     ...transactions.idMap,
@@ -75,6 +77,8 @@ export function planUser(
   );
   const sideData = convertSideData(x, refs, txByV1, resolved); // rows 16 to 21
   idMap.push(...sideData.idMap);
+  const importMappings = convertImportMappings(x, refs, resolved); // rows 22 and 23
+  idMap.push(...importMappings.idMap);
 
   findings.push(
     ...recurrence.findings,
@@ -82,18 +86,21 @@ export function planUser(
     ...transactions.findings,
     ...invoices.findings,
     ...sideData.findings,
+    ...importMappings.findings,
   );
   const unresolved = unresolvedOf();
   if (unresolved.length > 0) return { ok: false, unresolved };
 
   const batches: InsertBatch[] = [
     ...catalog.batches,
+    ...credentials.batches,
     ...installments.batches.filter((batch) => !ANTICIPATION_TABLES.has(batch.table)),
     ...recurrence.batches,
     ...transactions.batches,
     ...invoices.batches,
     ...installments.batches.filter((batch) => ANTICIPATION_TABLES.has(batch.table)),
     ...sideData.batches,
+    ...importMappings.batches,
   ].filter((batch) => batch.rows.length > 0);
 
   const detachedRows = recurrence.detached.length;
@@ -103,6 +110,7 @@ export function planUser(
     ...recurrence.counts,
     ...transactions.counts,
     ...sideData.counts,
+    ...importMappings.counts,
   ]).map((count) =>
     // Detached recurrence rows are read by both convertRecurrence and convertTransactions: count
     // the read once. They stay in `written` (output-formats "Load output": detached rows count as
@@ -110,7 +118,6 @@ export function planUser(
     count.v1Table === TRANSACTIONS_TABLE ? { ...count, read: count.read - detachedRows } : count,
   );
 
-  // passwordReset and passkeysNotLoaded come from convertCredentials (T038); they stay empty here.
   const repairList: RepairList = {
     companionRepair:
       x.apiTokens.length > 0
@@ -121,8 +128,7 @@ export function planUser(
       personName: x.payers.find((payer) => payer.id === share.pagador_id)?.nome ?? "",
       sharedWithEmail: x.index.emailByUser.get(share.shared_with_user_id) ?? "",
     })),
-    passwordReset: [],
-    passkeysNotLoaded: [],
+    ...credentials.repair,
   };
 
   return {

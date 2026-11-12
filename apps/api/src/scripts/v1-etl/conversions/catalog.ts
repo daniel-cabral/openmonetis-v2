@@ -12,6 +12,7 @@ import type {
   Finding,
   IdMapRow,
   InsertBatch,
+  RepairList,
   Resolutions,
   Severity,
   TableCount,
@@ -44,6 +45,10 @@ const SEPARATE_ROOT_SUFFIX = " (V1)";
 const TRIP_NAME_MAX = 60;
 const TRIP_NOTE_MAX = 500;
 const PAYER_DROPPED_COLUMNS = ["share_code", "is_auto_send", "last_mail"];
+const CREDENTIAL_PROVIDER = "credential";
+// Default Better Auth scrypt shape `salt:key` in hex, the only one V2 verifies (research R13).
+const SCRYPT_HASH = /^[0-9a-f]{32}:[0-9a-f]{128}$/;
+const PASSKEY_NAME_MAX = 120;
 
 type Row = Record<string, unknown>;
 
@@ -308,6 +313,126 @@ export function convertCatalog(x: ExtractedUser, r: Resolutions["resolutions"]):
     counts,
     findings,
     refs,
+  };
+}
+
+export type CredentialsResult = {
+  batches: InsertBatch[];
+  idMap: IdMapRow[];
+  findings: Finding[];
+  repair: Pick<RepairList, "passwordReset" | "passkeysNotLoaded">;
+};
+
+// Data-model rows 2 and 3. Better Auth 1.7.16 never writes `account.issuer` (it only remains
+// as a nullable legacy column), so V2 Google accounts carry `issuer` null and so do these rows.
+export function convertCredentials(
+  x: ExtractedUser,
+  refs: CatalogRefs,
+  opts: { v1RpId: string | null; targetRpId: string },
+): CredentialsResult {
+  const v1UserId = x.user.id;
+  const findings: Finding[] = [];
+  const idMap: IdMapRow[] = [];
+  const finding = (rule: string, severity: Severity, table: string, v1Id: string, reason: string) =>
+    findings.push({
+      rule,
+      severity,
+      table,
+      v1Id,
+      v1UserId,
+      reason,
+      context: {},
+      resolutions: [],
+      resolutionKey: `${rule}:${table}:${v1Id}`,
+    });
+
+  let incompatibleHash = false;
+  const accountRows: Row[] = x.accounts.map((account) => {
+    const id = v2Id("account", account.id);
+    const isCredential = account.providerId === CREDENTIAL_PROVIDER;
+    let password = isCredential ? account.password : null;
+    if (password !== null && !SCRYPT_HASH.test(password)) {
+      finding(
+        "credential.incompatible-hash",
+        "fixable",
+        "account",
+        account.id,
+        "password hash is not the scrypt shape V2 verifies, user flagged for password reset",
+      );
+      incompatibleHash = true;
+      password = null;
+    }
+    idMap.push({
+      v1Table: "account",
+      v1Id: account.id,
+      role: "",
+      v2Table: "account",
+      v2Id: id,
+      v1UserId,
+    });
+    return {
+      id,
+      issuer: null,
+      accountId: isCredential ? refs.userId : account.accountId,
+      providerId: account.providerId,
+      userId: refs.userId,
+      password,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    };
+  });
+
+  const passkeysLoad = opts.v1RpId !== null && opts.v1RpId === opts.targetRpId;
+  const passkeyRows: Row[] = [];
+  for (const passkey of x.passkeys) {
+    if (!passkeysLoad) {
+      finding(
+        "passkey.rp-id-mismatch",
+        "informational",
+        "passkey",
+        passkey.id,
+        "passkey loads only when --v1-rp-id equals the target host",
+      );
+      continue;
+    }
+    const id = v2Id("passkey", passkey.id);
+    idMap.push({
+      v1Table: "passkey",
+      v1Id: passkey.id,
+      role: "",
+      v2Table: "passkey",
+      v2Id: id,
+      v1UserId,
+    });
+    passkeyRows.push({
+      id,
+      name: passkey.name?.slice(0, PASSKEY_NAME_MAX) ?? null,
+      publicKey: passkey.publicKey,
+      userId: refs.userId,
+      credentialID: passkey.credentialID,
+      counter: passkey.counter,
+      deviceType: passkey.deviceType,
+      backedUp: passkey.backedUp,
+      transports: passkey.transports,
+      aaguid: passkey.aaguid,
+      // Set on every row so the load checksum never depends on a DB default.
+      createdAt: passkey.createdAt ?? x.user.createdAt,
+    });
+  }
+  const notLoaded = x.passkeys.length - passkeyRows.length;
+
+  return {
+    batches: [
+      { table: "account", rows: accountRows },
+      { table: "passkey", rows: passkeyRows },
+    ],
+    idMap,
+    findings,
+    repair: {
+      passwordReset: incompatibleHash ? [{ email: x.user.email }] : [],
+      passkeysNotLoaded:
+        notLoaded > 0 ? [{ email: x.user.email, count: notLoaded, reason: "rp-id-mismatch" }] : [],
+    },
   };
 }
 
