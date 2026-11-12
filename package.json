@@ -44,6 +44,7 @@
     "test:categories:integration": "CATEGORIES_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/categories.repository.integration.test.ts",
     "test:recurring:integration": "RECURRING_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/recurring-transactions.repository.integration.test.ts",
     "test:settlements:integration": "SETTLEMENTS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/settlements.repository.integration.test.ts",
+    "test:ai-provider-credentials:integration": "AI_PROVIDER_CREDENTIALS_INTEGRATION_TEST=1 tsx --test apps/api/src/repositories/ai-provider-credentials.repository.integration.test.ts",
     "test:auth:integration": "AUTH_INTEGRATION_TEST=1 tsx --test apps/api/src/auth.integration.test.ts",
     "test:transactions:integration": "TRANSACTIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/transactions.integration.test.ts",
     "test:connections:integration": "CONNECTIONS_INTEGRATION_TEST=1 tsx --test apps/api/src/person-connections.integration.test.ts",
