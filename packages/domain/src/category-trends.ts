@@ -13,6 +13,7 @@ import {
   type TransactionOrigin,
   type TransactionType,
 } from "./transactions";
+import { matchesTripFilter, type TripFilter } from "./trips";
 
 export const categoryTrendChangeKinds = ["increase", "decrease", "stable", "started"] as const;
 
@@ -31,6 +32,7 @@ export type CategoryTrendCategory = {
 
 export type CategoryTrendActualEntry = {
   excludeFromBalance?: boolean;
+  tripId?: string | null;
   categoryId: string;
   origin?: TransactionOrigin;
   transactionType: TransactionType;
@@ -42,6 +44,7 @@ export type CategoryTrendActualEntry = {
 export type CategoryTrendRecurringRule = SettlementAwareRule & {
   excludeFromBalance?: boolean;
   occurrenceAccountExclusions?: Record<string, boolean>;
+  occurrenceTripIds?: Record<string, string>;
   isSettled?: boolean | null;
   categoryId: string;
   type: CategoryTrendType;
@@ -124,7 +127,9 @@ export function calculateCategoryTrends(input: {
   recurringRules: readonly CategoryTrendRecurringRule[];
   recurringOccurrenceScope?: "all" | "settled";
   excludeHiddenAccounts?: boolean;
+  tripFilter?: TripFilter;
 }): CategoryTrendsReport {
+  const tripFilter: TripFilter = input.tripFilter ?? { mode: "all" };
   const periods = listPeriods(input.startPeriod, input.endPeriod);
   const lookbackPeriod = addMonthsToPeriod(input.startPeriod, -1);
   const selectedCategoryIds = input.categoryIds?.length
@@ -158,6 +163,7 @@ export function calculateCategoryTrends(input: {
 
   for (const entry of input.actualEntries) {
     if (input.excludeHiddenAccounts && entry.excludeFromBalance) continue;
+    if (!matchesTripFilter(entry.tripId, tripFilter)) continue;
     if (entry.period < lookbackPeriod || entry.period > input.endPeriod) continue;
     if (
       entry.transactionType === "transfer" ||
@@ -192,47 +198,23 @@ export function calculateCategoryTrends(input: {
     const category = categoryById.get(rule.categoryId);
     if (!category || category.type !== rule.type) continue;
 
-    for (const purchasePeriod of listPeriods(
-      addMonthsToPeriod(lookbackPeriod, -2),
-      addMonthsToPeriod(input.endPeriod, 1),
+    for (const { purchaseDate, period, amount } of listRuleOccurrences(
+      rule,
+      lookbackPeriod,
+      input.endPeriod,
     )) {
-      for (const purchaseDate of listRecurrenceDatesInPeriod({
-        dueDate: rule.dueDate,
-
-        recurrenceEndDate: rule.configuredEndDate,
-
-        anchorDate: rule.anchorDate,
-        startDate: rule.startDate,
-        endDate: rule.endDate,
-        frequency: rule.frequency,
-        period: purchasePeriod,
-      })) {
-        if (
-          input.excludeHiddenAccounts &&
-          (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
-        )
-          continue;
-        if (
-          input.recurringOccurrenceScope === "settled" &&
-          (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true
-        )
-          continue;
-        const transactionPeriod = deriveTransactionPeriod({
-          paymentMethod: rule.paymentMethod,
-          purchaseDate,
-          dueDate: getRecurringDueDate(rule.dueDate, purchaseDate),
-          card: rule.card,
-        });
-
-        if (transactionPeriod < lookbackPeriod || transactionPeriod > input.endPeriod) continue;
-        addCategoryAmount(
-          amountsByCategory,
-          rule.categoryId,
-          transactionPeriod,
-          "recurringCents",
-          getOccurrenceAmount(rule, purchaseDate, rule.amount),
-        );
-      }
+      if (
+        input.excludeHiddenAccounts &&
+        (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
+      )
+        continue;
+      if (!matchesTripFilter(rule.occurrenceTripIds?.[purchaseDate] ?? null, tripFilter)) continue;
+      if (
+        input.recurringOccurrenceScope === "settled" &&
+        (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true
+      )
+        continue;
+      addCategoryAmount(amountsByCategory, rule.categoryId, period, "recurringCents", amount);
     }
   }
 
@@ -325,6 +307,47 @@ export function calculateCategoryTrends(input: {
     availableCategories: visibleCategories.sort(compareAvailableCategories),
     summary: buildSummary(periodOutputs, categoryOutputs.length),
   };
+}
+
+export function listRuleOccurrences(
+  rule: Omit<CategoryTrendRecurringRule, "categoryId" | "type">,
+  fromPeriod: string,
+  toPeriod: string,
+): Array<{ purchaseDate: string; period: string; amount: number }> {
+  const occurrences: Array<{ purchaseDate: string; period: string; amount: number }> = [];
+
+  for (const purchasePeriod of listPeriods(
+    addMonthsToPeriod(fromPeriod, -2),
+    addMonthsToPeriod(toPeriod, 1),
+  )) {
+    for (const purchaseDate of listRecurrenceDatesInPeriod({
+      dueDate: rule.dueDate,
+
+      recurrenceEndDate: rule.configuredEndDate,
+
+      anchorDate: rule.anchorDate,
+      startDate: rule.startDate,
+      endDate: rule.endDate,
+      frequency: rule.frequency,
+      period: purchasePeriod,
+    })) {
+      const period = deriveTransactionPeriod({
+        paymentMethod: rule.paymentMethod,
+        purchaseDate,
+        dueDate: getRecurringDueDate(rule.dueDate, purchaseDate),
+        card: rule.card,
+      });
+
+      if (period < fromPeriod || period > toPeriod) continue;
+      occurrences.push({
+        purchaseDate,
+        period,
+        amount: getOccurrenceAmount(rule, purchaseDate, rule.amount),
+      });
+    }
+  }
+
+  return occurrences;
 }
 
 function buildCategoryOutput(

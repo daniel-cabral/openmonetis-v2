@@ -28,6 +28,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   custo líquido e quebras por categoria, cartão ou conta e pessoa, sugestões de lançamentos do
   período e **Definir viagem** em lote. Novas tabelas `trips`, `transaction_trips` e
   `recurring_occurrence_trips` (migration `0032`).
+- Relatório **Estabelecimentos** em Relatórios: ranking dos lugares onde mais se compra, com
+  quantidade, total, média, categorias principais e resumo, para 3, 6 ou 12 meses. Conta só compras
+  reais (exclui transferências, pagamentos de fatura, ajustes, estornos e contas fora do saldo) e
+  usa a parte própria de lançamentos divididos. Novo endpoint `GET /reports/establishments`.
+- Filtro **Viagem** nos relatórios de Estabelecimentos e de Tendências por categoria. Escolher uma
+  viagem usa automaticamente os meses cobertos por ela, limitados a 24. Novo endpoint
+  `GET /trips/:tripId/period-range`. Detalhes em `docs/establishments-report.md`.
 
 ## [0.16.0] - 2026-11-07
 

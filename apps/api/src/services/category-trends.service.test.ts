@@ -193,3 +193,136 @@ test("grouped trends count direct, child, refund and recurrence amounts once acr
   assert.equal(childOnly.categories[0]?.categoryId, childId);
   assert.equal(childOnly.categories[0]?.subcategories, undefined);
 });
+
+for (const scenario of [
+  {
+    name: "trip t1 keeps its rows and its linked occurrence",
+    trip: "90000000-0000-4000-8000-000000000001",
+    expected: { expense: 125, actual: 100, recurring: 25, previous: 10 },
+  },
+  {
+    name: "none keeps unlinked rows and unlinked occurrences",
+    trip: "none",
+    expected: { expense: 120, actual: 70, recurring: 50, previous: 45 },
+  },
+  {
+    name: "absent trip keeps everything",
+    trip: undefined,
+    expected: { expense: 495, actual: 420, recurring: 75, previous: 55 },
+  },
+  {
+    name: "trip not owned by the user behaves as absent",
+    trip: "90000000-0000-4000-8000-000000000009",
+    expected: { expense: 495, actual: 420, recurring: 75, previous: 55 },
+  },
+] as const) {
+  test(`category trends filter by trip: ${scenario.name}`, async () => {
+    const categoryId = "10000000-0000-4000-8000-000000000001";
+    const firstTripId = "90000000-0000-4000-8000-000000000001";
+    const secondTripId = "90000000-0000-4000-8000-000000000002";
+    const service = createCategoryTrendsService(
+      {
+        async listCategoriesForUser() {
+          return [{ categoryId, name: "Casa", icon: null, type: "expense" }];
+        },
+        async listActualEntriesForUser() {
+          return [
+            {
+              categoryId,
+              period: "2026-03",
+              amount: "10.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: firstTripId,
+            },
+            {
+              categoryId,
+              period: "2026-03",
+              amount: "20.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: null,
+            },
+            {
+              categoryId,
+              period: "2026-04",
+              amount: "100.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: firstTripId,
+            },
+            {
+              categoryId,
+              period: "2026-04",
+              amount: "50.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: secondTripId,
+            },
+            {
+              categoryId,
+              period: "2026-04",
+              amount: "30.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: null,
+            },
+            {
+              categoryId,
+              period: "2026-05",
+              amount: "200.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: secondTripId,
+            },
+            {
+              categoryId,
+              period: "2026-06",
+              amount: "40.00",
+              type: "expense",
+              transactionType: "expense",
+              tripId: null,
+            },
+          ];
+        },
+        async listRecurringRulesForUser() {
+          return [
+            {
+              categoryId,
+              type: "expense",
+              amount: "25.00",
+              anchorDate: "2026-03-01",
+              startDate: "2026-03-01",
+              endDate: null,
+              frequency: "monthly",
+              paymentMethod: "pix",
+              dueDate: null,
+              status: "active",
+              card: null,
+              occurrenceTripIds: { "2026-04-01": firstTripId },
+            },
+          ];
+        },
+      },
+      {
+        async findTripForUser(_userId, tripId) {
+          return tripId === firstTripId || tripId === secondTripId ? { id: tripId } : null;
+        },
+      },
+    );
+
+    const report = await service.list(
+      "owner",
+      ListCategoryTrendsQuerySchema.parse({
+        startPeriod: "2026-04",
+        endPeriod: "2026-06",
+        trip: scenario.trip,
+      }),
+    );
+
+    assert.equal(report.summary.expenseAmount, scenario.expected.expense);
+    assert.equal(report.summary.actualAmount, scenario.expected.actual);
+    assert.equal(report.summary.recurringAmount, scenario.expected.recurring);
+    assert.equal(report.categories[0]?.values[0]?.previousAmount, scenario.expected.previous);
+  });
+}

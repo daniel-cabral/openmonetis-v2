@@ -11,6 +11,7 @@ const categoryTrendsKeys = {
       query.endPeriod,
       [...query.categoryIds].sort().join(","),
       query.personScope ?? "admin",
+      query.trip ?? "all",
     ] as const,
 };
 

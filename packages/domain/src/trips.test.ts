@@ -7,9 +7,13 @@ import {
   findOverlappingTrip,
   findTripForDate,
   isTripLinkable,
+  listTripLinkedPeriods,
+  matchesTripFilter,
   paginateTripSuggestions,
+  parseTripFilter,
   parseTripLinkTarget,
   planTripLinkChange,
+  resolveTripPeriodRange,
   summarizeTrip,
   type TripSuggestionRow,
 } from "./trips";
@@ -229,5 +233,67 @@ test("suggestion pages are clamped and report the visible range", () => {
       paginateTripSuggestions([], 1).to,
     ],
     [1, 0, 0],
+  );
+});
+
+test("trip filter parsing and matching", () => {
+  const tripId = "3f6d2b84-6ed0-4a50-b257-8adf0b6178de";
+  const parseCases = [
+    [undefined, { mode: "all" }],
+    ["", { mode: "all" }],
+    ["abc", { mode: "all" }],
+    ["none", { mode: "none" }],
+    [tripId, { mode: "trip", tripId }],
+  ] as const;
+  for (const [raw, filter] of parseCases) {
+    assert.deepEqual(parseTripFilter(raw), filter, String(raw));
+  }
+  const matchCases = [
+    [null, { mode: "all" }, true],
+    ["t1", { mode: "all" }, true],
+    [null, { mode: "none" }, true],
+    ["t1", { mode: "none" }, false],
+    [null, { mode: "trip", tripId: "t1" }, false],
+    ["t1", { mode: "trip", tripId: "t1" }, true],
+  ] as const;
+  for (const [id, filter, matches] of matchCases) {
+    assert.equal(matchesTripFilter(id, filter), matches, `${id} ${filter.mode}`);
+  }
+});
+
+test("trip period range spans the periods and caps at maxMonths", () => {
+  const thirtyMonths = Array.from({ length: 30 }, (_, index) => {
+    const year = 2026 + Math.floor(index / 12);
+    const month = (index % 12) + 1;
+    return `${year}-${String(month).padStart(2, "0")}`;
+  });
+  assert.deepEqual(resolveTripPeriodRange({ periods: ["2026-06", "2026-03", "2026-12"] }), {
+    startPeriod: "2026-03",
+    endPeriod: "2026-12",
+  });
+  assert.deepEqual(resolveTripPeriodRange({ periods: thirtyMonths, maxMonths: 24 }), {
+    startPeriod: "2026-01",
+    endPeriod: "2027-12",
+  });
+  assert.deepEqual(resolveTripPeriodRange({ periods: thirtyMonths }), {
+    startPeriod: "2026-01",
+    endPeriod: "2028-06",
+  });
+  assert.equal(resolveTripPeriodRange({ periods: [] }), null);
+  assert.deepEqual(
+    resolveTripPeriodRange({
+      periods: listTripLinkedPeriods({
+        transactionPeriods: ["2026-06"],
+        occurrences: [
+          {
+            occurrenceDate: "2026-03-28",
+            paymentMethod: "credit_card",
+            dueDate: null,
+            card: { closingDay: 25, dueDay: 28 },
+          },
+        ],
+      }),
+    }),
+    { startPeriod: "2026-04", endPeriod: "2026-06" },
   );
 });

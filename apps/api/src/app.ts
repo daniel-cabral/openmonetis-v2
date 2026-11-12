@@ -33,6 +33,7 @@ import { dashboardRepository } from "./repositories/dashboard.repository";
 import { deviceTokensRepository } from "./repositories/device-tokens.repository";
 import { dueDateRulesRepository } from "./repositories/due-date-rules.repository";
 import { establishmentsRepository } from "./repositories/establishments.repository";
+import { establishmentsReportRepository } from "./repositories/establishments-report.repository";
 import { externalExpensesRepository } from "./repositories/external-expenses.repository";
 import { financialDistributionRepository } from "./repositories/financial-distribution.repository";
 import { goalsRepository } from "./repositories/goals.repository";
@@ -84,6 +85,7 @@ import { createDashboardRoute } from "./routes/dashboard";
 import { createCompanionDeviceRoute, createDeviceTokensRoute } from "./routes/device-tokens";
 import { createDueDateRulesRoute } from "./routes/due-date-rules";
 import { createEstablishmentsRoute } from "./routes/establishments";
+import { createEstablishmentsReportRoute } from "./routes/establishments-report";
 import { createExternalExpensesRoute } from "./routes/external-expenses";
 import { createFinancialDistributionRoute } from "./routes/financial-distribution";
 import { createGoalsRoute } from "./routes/goals";
@@ -127,6 +129,7 @@ import {
   type DueDatePreviewCandidate,
 } from "./services/due-date-rules.service";
 import { createEstablishmentsService } from "./services/establishments.service";
+import { createEstablishmentsReportService } from "./services/establishments-report.service";
 import {
   createExternalExpensesService,
   synchronizeRecurringExternalExpenses,
@@ -191,7 +194,9 @@ const billsService = createBillsService(billsRepository, undefined, dueDateRules
 const billsRoute = createBillsRoute(billsService);
 const categoriesRoute = createCategoriesRoute(createCategoriesService(categoriesRepository));
 const categoryTrendsRoute = createCategoryTrendsRoute(
-  createCategoryTrendsService(categoryTrendsRepository),
+  createCategoryTrendsService(categoryTrendsRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+  }),
 );
 const installmentsRoute = createInstallmentsRoute(
   createInstallmentsService(installmentsRepository),
@@ -237,21 +242,26 @@ const tagsRoute = createTagsRoute(
     return (await transactionsService.listTransactions(userId, query, false)).items;
   }),
 );
-const tripsRoute = createTripsRoute(
-  createTripsService(tripsRepository, {
-    getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
-    listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
-      (
-        await transactionsService.listTransactions(
-          userId,
-          ListTransactionsQuerySchema.parse({
-            dateStart: startDate,
-            dateEnd: endDate,
-            pageSize: 100,
-          }),
-          false,
-        )
-      ).items,
+const tripsService = createTripsService(tripsRepository, {
+  getRecurringOccurrence: transactionsService.getRecurringRuleOccurrence,
+  listTransactionsByPurchaseDate: async (userId, startDate, endDate) =>
+    (
+      await transactionsService.listTransactions(
+        userId,
+        ListTransactionsQuerySchema.parse({
+          dateStart: startDate,
+          dateEnd: endDate,
+          pageSize: 100,
+        }),
+        false,
+      )
+    ).items,
+});
+const tripsRoute = createTripsRoute(tripsService);
+const establishmentsReportRoute = createEstablishmentsReportRoute(
+  createEstablishmentsReportService(establishmentsReportRepository, {
+    findTripForUser: (userId, tripId) => tripsRepository.findByIdForUser(tripId, userId),
+    getTripPeriodRange: (userId, tripId) => tripsService.getPeriodRange(userId, tripId),
   }),
 );
 const peopleRoute = createPeopleRoute(
@@ -844,6 +854,7 @@ app.route(
   ),
 );
 app.route("/reports/category-trends", categoryTrendsRoute);
+app.route("/reports/establishments", establishmentsReportRoute);
 app.route(
   "/reports/commitments",
   createCommitmentsRoute(createCommitmentsService(commitmentsRepository)),

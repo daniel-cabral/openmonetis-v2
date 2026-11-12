@@ -11,11 +11,13 @@ import {
   transactionTrips,
   trips,
 } from "@openmonetis/db";
+import { resolveCardClosingRule } from "@openmonetis/domain/cards";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type {
   LedgerTransactionRow,
   TripInput,
   TripLedgerRows,
+  TripPeriodSources,
   TripRecord,
   TripsRepository,
 } from "../services/trips.service";
@@ -188,6 +190,97 @@ export const tripsRepository: TripsRepository = {
         };
       }),
     } satisfies TripLedgerRows;
+  },
+  async listPeriodSourcesForUser(userId, tripId) {
+    const transactionRows = await db
+      .select({ period: transactions.period })
+      .from(transactionTrips)
+      .innerJoin(
+        transactions,
+        and(
+          eq(transactions.id, transactionTrips.transactionId),
+          eq(transactions.userId, transactionTrips.userId),
+        ),
+      )
+      .where(and(eq(transactionTrips.userId, userId), eq(transactionTrips.tripId, tripId)));
+
+    const occurrenceLinks = await db
+      .select({
+        recurringSeriesId: recurringOccurrenceTrips.recurringSeriesId,
+        occurrenceDate: recurringOccurrenceTrips.occurrenceDate,
+      })
+      .from(recurringOccurrenceTrips)
+      .where(
+        and(
+          eq(recurringOccurrenceTrips.userId, userId),
+          eq(recurringOccurrenceTrips.tripId, tripId),
+        ),
+      );
+
+    const seriesIds = [...new Set(occurrenceLinks.map((link) => link.recurringSeriesId))];
+    const ruleVersions = seriesIds.length
+      ? await db
+          .select({
+            seriesId: recurringTransactionRules.seriesId,
+            startDate: recurringTransactionRules.startDate,
+            endDate: recurringTransactionRules.endDate,
+            paymentMethod: recurringTransactionRules.paymentMethod,
+            dueDate: recurringTransactionRules.dueDate,
+            cardClosingDay: cards.closingDay,
+            cardClosingRuleType: cards.closingRuleType,
+            cardClosingOffsetDays: cards.closingOffsetDays,
+            cardClosingOffsetMode: cards.closingOffsetMode,
+            cardClosingDayPurchasesNextInvoice: cards.closingDayPurchasesNextInvoice,
+            cardDueDay: cards.dueDay,
+          })
+          .from(recurringTransactionRules)
+          .leftJoin(
+            cards,
+            and(eq(cards.id, recurringTransactionRules.cardId), eq(cards.userId, userId)),
+          )
+          .where(
+            and(
+              eq(recurringTransactionRules.userId, userId),
+              inArray(recurringTransactionRules.seriesId, seriesIds),
+            ),
+          )
+      : [];
+
+    return {
+      transactionPeriods: transactionRows.map((row) => row.period),
+      occurrences: occurrenceLinks.flatMap((link) => {
+        const occurrenceDate = toDateString(link.occurrenceDate);
+        const rule = ruleVersions.find(
+          (version) =>
+            version.seriesId === link.recurringSeriesId &&
+            toDateString(version.startDate) <= occurrenceDate &&
+            (version.endDate === null || toDateString(version.endDate) >= occurrenceDate),
+        );
+        if (!rule) return [];
+        return [
+          {
+            occurrenceDate,
+            paymentMethod: rule.paymentMethod,
+            dueDate: rule.dueDate ? toDateString(rule.dueDate) : null,
+            card:
+              rule.cardClosingRuleType !== null && rule.cardDueDay !== null
+                ? {
+                    closingDay: rule.cardClosingDay,
+                    closingRule: resolveCardClosingRule({
+                      closingRuleType: rule.cardClosingRuleType,
+                      closingDay: rule.cardClosingDay,
+                      closingOffsetDays: rule.cardClosingOffsetDays,
+                      closingOffsetMode: rule.cardClosingOffsetMode,
+                      closingDayPurchasesNextInvoice:
+                        rule.cardClosingDayPurchasesNextInvoice ?? false,
+                    }),
+                    dueDay: rule.cardDueDay,
+                  }
+                : null,
+          },
+        ];
+      }),
+    } satisfies TripPeriodSources;
   },
   async findAdminPersonIdForUser(userId) {
     const [admin] = await db

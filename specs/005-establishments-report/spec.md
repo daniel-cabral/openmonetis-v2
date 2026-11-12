@@ -10,6 +10,18 @@
 
 **Fork-only flag**: the establishments report is a V1 base feature missing in V2 and is a candidate for an upstream PR on its own; the trip filter depends on trips (004), which are fork-only. Keep the report PR-able without the trip filter.
 
+## Clarifications
+
+### Session 2026-11-11
+
+Answered autonomously by the lane worker (roadmap per-feature workflow), from V1 evidence and the V2 code.
+
+- Q: Which month does a purchase belong to for the 3/6/12 window? → A: Its V2 transaction period (card purchases fall in their invoice period), and recurring occurrences use the period derived by the domain, the same attribution category trends already uses.
+- Q: How do installments and ties rank? → A: Each installment inside the window counts as one purchase with its installment amount (V1 counted rows); ties on count are ordered by total spent descending, then name ascending.
+- Q: Which rows count as a purchase? → A: Only expense rows with origin `regular` (refunds, which are income, are excluded, not netted); uncategorized expenses count in establishment totals and summaries but are omitted from category lists.
+- Q: Which recurring occurrences count when a specific trip is selected in the establishments report? → A: Only occurrences explicitly linked to that trip (004 occurrence links), at their linked dates; unlinked projections never count under a specific trip.
+- Q: What are the URL parameter names and values? → A: `trip` (absent = "Todos os lançamentos", `none` = "Sem viagens", otherwise a trip id) on both reports; `months` (3, 6 or 12) and `period` (`YYYY-MM`) on the establishments report.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See where I spend the most (Priority: P1)
@@ -99,7 +111,7 @@ The category trends report gets the same "Viagem" selector; choosing a trip make
 - Establishments are grouped by the transaction name as recorded (case-sensitive, as in V1); logos use the existing V2 name-based logo lookup.
 - Average and percentages with zero transactions are zero, never NaN.
 - A deleted trip in a shared URL falls back to "Todos os lançamentos" without an error page.
-- Period parameter invalid or absent falls back to the current period; 3/6/12 invalid falls back to 6.
+- Period parameter invalid or absent falls back to the current period; 3/6/12 invalid falls back to 6 (web resolver; the API returns 400).
 - Money is computed in integer cents.
 
 ## Requirements *(mandatory)*
@@ -107,16 +119,16 @@ The category trends report gets the same "Viagem" selector; choosing a trip make
 ### Functional Requirements
 
 - **FR-001**: The system MUST provide an "Estabelecimentos" report reachable from the reports navigation, with a period selector (selected month) and a window of 3, 6 or 12 months (default 6), reflected in the URL.
-- **FR-002**: The report MUST rank establishments (grouped by transaction name) by number of purchases descending, limited to the top 50, each with count, total spent and average ticket.
+- **FR-002**: The report MUST rank establishments (grouped by transaction name) by number of purchases descending (ties: total spent descending, then name ascending), limited to the top 50, each with count, total spent and average ticket. Each installment in the window counts as one purchase; purchases belong to their V2 transaction period.
 - **FR-003**: Each establishment MUST show its top 3 categories by count.
 - **FR-004**: The report MUST show summary figures: distinct establishments, number of transactions, total spent, average ticket, "Mais Frequente" and "Maior Gasto Total" establishments.
 - **FR-005**: The report MUST show the top 10 categories by total spent with transaction count.
-- **FR-006**: The report MUST count only the user's own share of expenses, excluding income, transfers, invoice payments, invoice adjustments and credits, account balance adjustments, initial-balance rows, person settlements and transactions on accounts excluded from balances.
+- **FR-006**: The report MUST count only the user's own share of expenses, excluding income, transfers, invoice payments, invoice adjustments and credits, account balance adjustments, initial-balance rows, person settlements and transactions on accounts excluded from balances (only expense rows with origin `regular` count). Uncategorized expenses count in totals but not in category lists.
 - **FR-007**: Recurring occurrences inside the window MUST count as purchases.
 - **FR-008**: Empty windows MUST show the V1 empty states and zeroed summaries.
 - **FR-009**: Both the establishments report and category trends MUST offer a "Viagem" selector with modes "Todos os lançamentos" (default), "Sem viagens" and one entry per own trip.
-- **FR-010**: The chosen mode MUST be stored in the URL, survive reload, and unknown or foreign trip identifiers MUST degrade to "Todos os lançamentos" without revealing whether the trip exists.
-- **FR-011**: In the establishments report a specific trip MUST ignore the month window and label the period "Viagem: {name}"; "Sem viagens" MUST keep the window.
+- **FR-010**: The chosen mode MUST be stored in the URL parameter `trip` (absent = all, `none`, or a trip id), survive reload, and unknown or foreign trip identifiers MUST degrade to "Todos os lançamentos" without revealing whether the trip exists.
+- **FR-011**: In the establishments report a specific trip MUST ignore the month window and label the period "Viagem: {name}", counting only rows and recurring occurrences explicitly linked to the trip; "Sem viagens" MUST keep the window.
 - **FR-012**: In category trends choosing a trip MUST set the range to the earliest through latest period among the trip's linked rows (including linked recurring occurrences), capped at 24 months from the first period; a trip without rows keeps the current range.
 - **FR-013**: In category trends a specific trip MUST include only rows and occurrences linked to it, "Sem viagens" only rows with no link (projected recurring occurrences included), and "Todos" everything as before; totals, summaries and previous-period comparisons MUST be computed on the filtered set.
 - **FR-014**: "Limpar" in category trends MUST reset the trip filter to "Todos os lançamentos", clear the category selection and restore the default range.
@@ -163,3 +175,18 @@ V1 evidence (`D:\Repos\daniel-cabral\openmonetis`): `openspec/specs/trip-report-
 V2 code extended: `apps/web/src/routes/reports/category-trends.tsx`, `apps/web/src/features/category-trends/`, `packages/domain/src/category-trends.ts`, `apps/api/src/services/category-trends.service.ts`, `apps/api/src/routes/establishments.ts` (logos only).
 
 Inventory rows covered: base "Report: establishments" (missing, port); fork "Trip filter in reports (category trends, establishments; `viagem=` param; range auto-adjust)" (missing, port own entity).
+
+## UI decisions
+
+Previews (real app CSS compiled from `apps/web/src/styles/app.css`; regenerate with
+`cd apps/web && pnpm dlx @tailwindcss/cli@4.3.4 -i ../../specs/005-establishments-report/previews/preview.css -o ../../specs/005-establishments-report/previews/app.css`):
+`specs/005-establishments-report/previews/option-a-v1-layout.html`, `option-b-table.html`, `category-trends-trip.html`.
+
+**Chosen: option A (V1 layout: summary cards, highlights, list + top categories)**, decided autonomously. Rationale: closest to V1 (same sections and order) using only existing V2 pieces, and its list rows are reusable by the dashboard spending widget (010).
+
+- Route `/reports/establishments`, nav entry "Estabelecimentos" in the "Relatórios" group of `components/navigation/nav-items.tsx` (`preservePeriod: true`, icon `Store`, description "Onde você mais compra").
+- Header: `PageHeader` (eyebrow "Relatórios"); toolbar with `MonthNavigation` (`period`), shadcn `ToggleGroup` "3 meses" / "6 meses" / "12 meses" (`months`) and a "Viagem" `Select` ("Todos os lançamentos", "Sem viagens", own trips); period label "Últimos N meses" or "Viagem: {nome}". While a trip is selected, month navigation and the toggle are disabled.
+- Four summary `Card`s (Locais diferentes, Compras no período, Soma de todas as compras, Média por transação), two highlight tiles ("Mais Frequente", "Maior Gasto Total"), then `grid xl:grid-cols-3`: establishments list (2 cols; rank, `EstablishmentLogo` with `editable={false}`, name, up to 3 category `Badge`s, "{n} compras", total, "média R$ x") and "Principais categorias" (1 col, top 10 with count).
+- Empty states: "Nenhum estabelecimento encontrado" / "Quando houver compras registradas, elas aparecerão aqui." and "Nenhuma categoria encontrada"; summaries zero.
+- Category trends: a "Viagem" `Select` (same component, shared from `features/trips/components/trip-filter-select.tsx`) added to `category-trends-filters.tsx` next to the categories filter; "Limpar filtros" also resets it and shows when a trip is selected; choosing a trip replaces the range with the one returned by the API.
+- Discarded: option B (dense table + metric strip), because it drops the V1 highlights and does not fit mobile without horizontal scroll.

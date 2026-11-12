@@ -39,7 +39,7 @@ const recurringCardAccounts = alias(
 
 // Resolve account metadata for each confirmed occurrence: its settlement account may differ
 // from the series account. Correlation keeps both occurrences and accounts scoped to the owner.
-const recurringOccurrenceAccountExclusionsSql = sql<Record<string, boolean>>`coalesce((
+export const recurringOccurrenceAccountExclusionsSql = sql<Record<string, boolean>>`coalesce((
   select jsonb_object_agg(to_char(o.purchase_date, 'YYYY-MM-DD'), a.exclude_from_balance)
   from recurring_transaction_occurrences o
   inner join financial_accounts a on a.id = o.account_id and a.user_id = o.user_id

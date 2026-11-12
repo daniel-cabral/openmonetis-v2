@@ -605,7 +605,7 @@ const transactionColumns = {
   )`.as("trip_id"),
 };
 
-const recurringOccurrenceTripIdsSql = sql<
+export const recurringOccurrenceTripIdsSql = sql<
   Record<string, string>
 >`coalesce((select jsonb_object_agg(to_char(${recurringOccurrenceTrips.occurrenceDate}, 'YYYY-MM-DD'), ${recurringOccurrenceTrips.tripId}) from ${recurringOccurrenceTrips} where ${recurringOccurrenceTrips.userId} = ${recurringTransactionRules.userId} and ${recurringOccurrenceTrips.recurringSeriesId} = ${recurringTransactionRules.seriesId}), '{}'::jsonb)`.as(
   "occurrence_trip_ids",

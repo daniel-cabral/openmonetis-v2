@@ -37,6 +37,7 @@ import { Route as PersonConnectionsAcceptRouteImport } from './routes/person-con
 import { Route as ReportsAiDiagnosesRouteImport } from './routes/reports/ai-diagnoses'
 import { Route as ReportsCategoryTrendsRouteImport } from './routes/reports/category-trends'
 import { Route as ReportsCommitmentsRouteImport } from './routes/reports/commitments'
+import { Route as ReportsEstablishmentsRouteImport } from './routes/reports/establishments'
 import { Route as ReportsFinancialDistributionRouteImport } from './routes/reports/financial-distribution'
 import { Route as ReportsInstallmentsRouteImport } from './routes/reports/installments'
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
@@ -184,6 +185,11 @@ const ReportsCommitmentsRoute = ReportsCommitmentsRouteImport.update({
   path: '/reports/commitments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportsEstablishmentsRoute = ReportsEstablishmentsRouteImport.update({
+  id: '/reports/establishments',
+  path: '/reports/establishments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsFinancialDistributionRoute =
   ReportsFinancialDistributionRouteImport.update({
     id: '/reports/financial-distribution',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/reports/ai-diagnoses': typeof ReportsAiDiagnosesRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/commitments': typeof ReportsCommitmentsRoute
+  '/reports/establishments': typeof ReportsEstablishmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/reports/ai-diagnoses': typeof ReportsAiDiagnosesRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/commitments': typeof ReportsCommitmentsRoute
+  '/reports/establishments': typeof ReportsEstablishmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -320,6 +328,7 @@ export interface FileRoutesById {
   '/reports/ai-diagnoses': typeof ReportsAiDiagnosesRoute
   '/reports/category-trends': typeof ReportsCategoryTrendsRoute
   '/reports/commitments': typeof ReportsCommitmentsRoute
+  '/reports/establishments': typeof ReportsEstablishmentsRoute
   '/reports/financial-distribution': typeof ReportsFinancialDistributionRoute
   '/reports/installments': typeof ReportsInstallmentsRoute
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
@@ -358,6 +367,7 @@ export interface FileRouteTypes {
     | '/reports/ai-diagnoses'
     | '/reports/category-trends'
     | '/reports/commitments'
+    | '/reports/establishments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -394,6 +404,7 @@ export interface FileRouteTypes {
     | '/reports/ai-diagnoses'
     | '/reports/category-trends'
     | '/reports/commitments'
+    | '/reports/establishments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -430,6 +441,7 @@ export interface FileRouteTypes {
     | '/reports/ai-diagnoses'
     | '/reports/category-trends'
     | '/reports/commitments'
+    | '/reports/establishments'
     | '/reports/financial-distribution'
     | '/reports/installments'
     | '/reports/recurring-expenses'
@@ -467,6 +479,7 @@ export interface RootRouteChildren {
   ReportsAiDiagnosesRoute: typeof ReportsAiDiagnosesRoute
   ReportsCategoryTrendsRoute: typeof ReportsCategoryTrendsRoute
   ReportsCommitmentsRoute: typeof ReportsCommitmentsRoute
+  ReportsEstablishmentsRoute: typeof ReportsEstablishmentsRoute
   ReportsFinancialDistributionRoute: typeof ReportsFinancialDistributionRoute
   ReportsInstallmentsRoute: typeof ReportsInstallmentsRoute
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
@@ -673,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsCommitmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reports/establishments': {
+      id: '/reports/establishments'
+      path: '/reports/establishments'
+      fullPath: '/reports/establishments'
+      preLoaderRoute: typeof ReportsEstablishmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports/financial-distribution': {
       id: '/reports/financial-distribution'
       path: '/reports/financial-distribution'
@@ -747,6 +767,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsAiDiagnosesRoute: ReportsAiDiagnosesRoute,
   ReportsCategoryTrendsRoute: ReportsCategoryTrendsRoute,
   ReportsCommitmentsRoute: ReportsCommitmentsRoute,
+  ReportsEstablishmentsRoute: ReportsEstablishmentsRoute,
   ReportsFinancialDistributionRoute: ReportsFinancialDistributionRoute,
   ReportsInstallmentsRoute: ReportsInstallmentsRoute,
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,
