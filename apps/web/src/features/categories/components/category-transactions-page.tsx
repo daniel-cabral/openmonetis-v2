@@ -2,6 +2,7 @@ import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type { CategoryOutput } from "@openmonetis/validators/categories";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ChartNoAxesCombined, Tags, Users } from "lucide-react";
+import type { ReactNode } from "react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { EntityLoadError } from "@/components/entity-load-error";
 import { FinancialSummaryHeader } from "@/components/financial-summary-header";
@@ -19,8 +20,9 @@ import { TransactionsContainer } from "@/features/transactions/components/transa
 import type { TransactionsSearch } from "@/features/transactions/transactions.presentation";
 import { formatPeriod } from "@/lib/period-presentation";
 import { categoryTypeLabels, getCategoryLabel } from "../categories.presentation";
-import { categoryQueryOptions } from "../categories.queries";
+import { categoriesQueryOptions, categoryQueryOptions } from "../categories.queries";
 import { CategoryIcon } from "../category-icons";
+import { SubcategoryBreakdown } from "./subcategory-breakdown";
 
 export type CategoryTransactionsSearch = TransactionsSearch & {
   personScope?: string;
@@ -39,6 +41,13 @@ export function CategoryTransactionsPage({
   onSearchChange,
 }: CategoryTransactionsPageProps) {
   const categoryQuery = useQuery(categoryQueryOptions(categoryId));
+  const categoriesQuery = useQuery(categoriesQueryOptions());
+  const period = search.period ?? getCurrentPeriodInBrazil();
+  const selectedPersonScope = search.personScope ?? "admin";
+  const subcategories = (categoriesQuery.data ?? []).filter(
+    (item) => item.parentId === categoryId,
+  );
+  const activeSubcategory = resolveActiveSubcategory(search.subcategory, subcategories);
 
   return (
     <ProtectedRoute>
@@ -59,14 +68,24 @@ export function CategoryTransactionsPage({
             onSearchChange={onSearchChange}
             scope={getCategoryTransactionsScope(
               categoryQuery.data,
-              search.period ?? getCurrentPeriodInBrazil(),
-              search.personScope ?? "admin",
+              period,
+              selectedPersonScope,
               (personScope) =>
                 onSearchChange({
                   personScope: personScope === "admin" ? undefined : personScope,
                   people: undefined,
                   page: undefined,
                 }),
+              activeSubcategory,
+              subcategories.length ? (
+                <SubcategoryBreakdown
+                  activeSubcategory={activeSubcategory}
+                  categoryId={categoryId}
+                  onSelect={(subcategory) => onSearchChange({ subcategory, page: undefined })}
+                  period={period}
+                  personScope={selectedPersonScope}
+                />
+              ) : undefined,
             )}
             search={search}
           />
@@ -81,13 +100,17 @@ function getCategoryTransactionsScope(
   period: string,
   personScope: string,
   onPersonScopeChange: (value: string) => void,
+  activeSubcategory: string | undefined,
+  subcategoryBreakdown: ReactNode,
 ) {
   const periodLabel = formatPeriod(period);
 
   return {
     adminPersonOnly: personScope === "admin",
     personIds: personScope === "all" ? [] : personScope === "admin" ? undefined : [personScope],
-    categoryIds: [category.id],
+    categoryIds:
+      activeSubcategory && activeSubcategory !== "none" ? [activeSubcategory] : [category.id],
+    exactCategories: activeSubcategory === "none",
     createDefaults: { categoryId: category.id },
     createTypes: [category.type],
     header: {
@@ -104,6 +127,7 @@ function getCategoryTransactionsScope(
           periodLabel={periodLabel}
           personScope={personScope}
           onPersonScopeChange={onPersonScopeChange}
+          subcategoryBreakdown={subcategoryBreakdown}
         />
       ),
     },
@@ -118,12 +142,14 @@ function CategoryTransactionsSummary({
   periodLabel,
   personScope,
   onPersonScopeChange,
+  subcategoryBreakdown,
 }: {
   category: CategoryOutput;
   period: string;
   periodLabel: string;
   personScope: string;
   onPersonScopeChange: (value: string) => void;
+  subcategoryBreakdown: ReactNode;
 }) {
   const peopleQuery = useQuery(peopleQueryOptions());
   const people = peopleQuery.data ?? [];
@@ -190,6 +216,7 @@ function CategoryTransactionsSummary({
           </SelectContent>
         </Select>
       }
+      details={subcategoryBreakdown}
       eyebrow={`Histórico de ${periodLabel}`}
       identity={
         <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-current/10">
@@ -238,6 +265,15 @@ function CategoryTransactionsSummary({
       variant="soft"
     />
   );
+}
+
+function resolveActiveSubcategory(
+  subcategory: string | undefined,
+  subcategories: CategoryOutput[],
+) {
+  if (!subcategories.length) return undefined;
+  if (subcategory === "none") return subcategory;
+  return subcategories.some((item) => item.id === subcategory) ? subcategory : undefined;
 }
 
 function CategoryTransactionsLoading() {
