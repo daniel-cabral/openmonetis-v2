@@ -100,6 +100,28 @@ export function buildCategoryHistorySeries(
   });
 }
 
+/** Keeps the stored selection to valid string ids, capped at the widget limit. */
+export function parseCategoryHistorySelection(stored: unknown): string[] {
+  return Array.isArray(stored)
+    ? stored
+        .filter((id): id is string => typeof id === "string")
+        .slice(0, categoryHistoryMaxSelection)
+    : [];
+}
+
+/** Appends a category unless it is already selected or the selection is full. */
+export function addCategoryToHistory(selectedIds: string[], categoryId: string): string[] {
+  return selectedIds.includes(categoryId) || selectedIds.length >= categoryHistoryMaxSelection
+    ? selectedIds
+    : [...selectedIds, categoryId];
+}
+
+/** Drops ids that are no longer in the catalog; returns the same array when nothing changes. */
+export function pruneCategoryHistory(selectedIds: string[], availableIds: readonly string[]) {
+  const next = selectedIds.filter((id) => availableIds.includes(id));
+  return next.length === selectedIds.length ? selectedIds : next;
+}
+
 export function formatTrendPercentage(value: number | null, kind: string) {
   if (kind === "started") return "Novo";
   if (value === null) return "Sem base";

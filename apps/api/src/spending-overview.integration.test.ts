@@ -37,7 +37,7 @@ test("spending overview ranks the owner's June expenses by their own share and i
           accountId: account.id,
         });
       }
-      await api.expense(owner, {
+      const fatura = await api.expense(owner, {
         name: "Fatura de energia",
         amount: 412.8,
         purchaseDate: "2026-06-15",
@@ -52,6 +52,14 @@ test("spending overview ranks the owner's June expenses by their own share and i
           { personId: owner.personId, amount: 60 },
           { personId: ana.id, amount: 140 },
         ],
+      });
+      await api.expense(owner, {
+        name: "Assinatura streaming",
+        condition: "recurring",
+        recurrenceFrequency: "monthly",
+        amount: 40,
+        purchaseDate: "2026-04-05",
+        accountId: account.id,
       });
       await api.expense(owner, {
         name: "Cinema julho",
@@ -77,14 +85,24 @@ test("spending overview ranks the owner's June expenses by their own share and i
         await api.request(overviewPath, owner),
       );
       assert.deepEqual(
-        overview.topExpenses.map((expense) => [expense.name, expense.amount]),
+        overview.topExpenses.map((expense) => [expense.name, expense.amount, expense.purchaseDate]),
         [
-          ["Fatura de energia", 412.8],
-          ["Mercado A", 120],
-          ["Mercado A", 80],
-          ["Loja", 60],
-          ["Mercado A", 50],
+          ["Fatura de energia", 412.8, "2026-06-15"],
+          ["Mercado A", 120, "2026-06-03"],
+          ["Mercado A", 80, "2026-06-10"],
+          ["Loja", 60, "2026-06-05"],
+          ["Mercado A", 50, "2026-06-20"],
+          ["Assinatura streaming", 40, "2026-06-05"],
         ],
+      );
+      assert.equal(overview.topExpenses[0]?.key, fatura.id);
+      assert.equal(
+        new Set(overview.topExpenses.map((expense) => expense.key)).size,
+        overview.topExpenses.length,
+      );
+      assert.match(
+        overview.topExpenses.find((expense) => expense.name === "Assinatura streaming")?.key ?? "",
+        /:2026-06-05$/,
       );
       assert.deepEqual(
         overview.topEstablishments.map((item) => [item.name, item.count, item.total]),
@@ -92,6 +110,7 @@ test("spending overview ranks the owner's June expenses by their own share and i
           ["Mercado A", 3, 250],
           ["Fatura de energia", 1, 412.8],
           ["Loja", 1, 60],
+          ["Assinatura streaming", 1, 40],
         ],
       );
 

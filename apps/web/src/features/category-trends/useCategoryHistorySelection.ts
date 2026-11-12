@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { categoryHistoryMaxSelection } from "./category-trends.presentation";
+import {
+  addCategoryToHistory,
+  parseCategoryHistorySelection,
+  pruneCategoryHistory,
+} from "./category-trends.presentation";
 
 const categoryHistoryStorageKey = "openmonetis.dashboard.category-history";
 
 function readStoredSelection(): string[] {
   try {
     const stored: unknown = JSON.parse(sessionStorage.getItem(categoryHistoryStorageKey) ?? "[]");
-    return Array.isArray(stored)
-      ? stored
-          .filter((id): id is string => typeof id === "string")
-          .slice(0, categoryHistoryMaxSelection)
-      : [];
+    return parseCategoryHistorySelection(stored);
   } catch {
     return [];
   }
@@ -33,11 +33,7 @@ export function useCategoryHistorySelection() {
   }, [selectedIds]);
 
   const add = useCallback((categoryId: string) => {
-    setSelectedIds((current) =>
-      current.includes(categoryId) || current.length >= categoryHistoryMaxSelection
-        ? current
-        : [...current, categoryId],
-    );
+    setSelectedIds((current) => addCategoryToHistory(current, categoryId));
   }, []);
 
   const remove = useCallback((categoryId: string) => {
@@ -47,10 +43,7 @@ export function useCategoryHistorySelection() {
   const clear = useCallback(() => setSelectedIds([]), []);
 
   const prune = useCallback((availableIds: readonly string[]) => {
-    setSelectedIds((current) => {
-      const next = current.filter((id) => availableIds.includes(id));
-      return next.length === current.length ? current : next;
-    });
+    setSelectedIds((current) => pruneCategoryHistory(current, availableIds));
   }, []);
 
   return { selectedIds, add, remove, clear, prune };

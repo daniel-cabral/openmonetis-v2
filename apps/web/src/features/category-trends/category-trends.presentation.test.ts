@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
 import {
+  addCategoryToHistory,
   buildCategoryHistorySeries,
   categoryHistoryWindow,
   categoryTrendsCsv,
+  parseCategoryHistorySelection,
+  pruneCategoryHistory,
   resolveCategoryTrendsSearch,
   validateCategoryTrendsSearch,
 } from "./category-trends.presentation";
@@ -112,4 +115,21 @@ test("category names cannot inject spreadsheet formulas", () => {
   assert.match(categoryTrendsCsv(report('=HYPERLINK("https://example.test")')), /"'=HYPERLINK/);
   assert.match(categoryTrendsCsv(report("-2+3")), /"'-2\+3"/);
   assert.match(categoryTrendsCsv(report('Casa; "Aluguel"')), /"Casa; ""Aluguel"""/);
+});
+
+test("category history keeps at most five distinct categories and ignores invalid stored entries", () => {
+  const full = ["a", "b", "c", "d", "e"];
+
+  assert.deepEqual(parseCategoryHistorySelection(["a", 1, "b", "c", "d", "e", "f"]), full);
+  assert.deepEqual(parseCategoryHistorySelection({ a: "a" }), []);
+  assert.equal(addCategoryToHistory(full, "f"), full);
+  assert.deepEqual(addCategoryToHistory(["a"], "a"), ["a"]);
+  assert.deepEqual(addCategoryToHistory(["a"], "b"), ["a", "b"]);
+});
+
+test("category history prune drops categories that left the catalog", () => {
+  const selected = ["a", "b"];
+
+  assert.deepEqual(pruneCategoryHistory(selected, ["a"]), ["a"]);
+  assert.equal(pruneCategoryHistory(selected, ["a", "b", "c"]), selected);
 });
