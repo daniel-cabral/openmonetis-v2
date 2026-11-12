@@ -2767,8 +2767,8 @@ export function createTransactionsService(
       const next = nextSchedule(row);
       // Protected rows (null payment method) were rejected above.
       const paymentMethod = row.paymentMethod as PaymentMethod;
-      const invoicePeriod =
-        paymentMethod === "credit_card" ? (changes.invoicePeriod ?? row.period) : undefined;
+      // Only an explicit invoice period pins the period; a moved purchase date re-derives it.
+      const invoicePeriod = paymentMethod === "credit_card" ? changes.invoicePeriod : undefined;
       const card = next.cardId ? (cardsById.get(next.cardId) ?? null) : null;
       return resolveEditedTransactionPeriod({
         current: {
