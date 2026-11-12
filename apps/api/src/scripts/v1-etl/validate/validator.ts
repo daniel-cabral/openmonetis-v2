@@ -23,7 +23,7 @@ const WHOLE_TABLE = "*";
 const PLACEHOLDER = /<[^>]+>$/;
 
 // Operator input the run refuses: exit 2 for a resolution file of another dump (contracts/cli.md),
-// exit 3 for an invalid resolution or an unknown --user.
+// exit 3 for an invalid resolution, an unknown --user or a failed --check-bucket.
 export class ValidationInputError extends Error {
   constructor(
     readonly exitCode: 2 | 3,
@@ -81,7 +81,17 @@ export async function validate(
     }
   }
   findings.push(...duplicateCredentialFindings(passkeys));
-  if (opts.checkBucket) findings.push(...(await checkBucketKeys(attachments)));
+  if (opts.checkBucket) {
+    try {
+      findings.push(...(await checkBucketKeys(attachments)));
+    } catch (error) {
+      // Missing S3 env, credentials or network: an operational failure (exit 3), not a finding.
+      throw new ValidationInputError(
+        3,
+        `--check-bucket failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 
   findings.sort(
     (a, b) =>

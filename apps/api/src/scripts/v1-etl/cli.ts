@@ -206,6 +206,15 @@ async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Promise<nu
   }
 }
 
-main(process.argv.slice(2), process.env).then((code) => {
-  process.exitCode = code;
-});
+main(process.argv.slice(2), process.env).then(
+  (code) => {
+    process.exitCode = code;
+  },
+  (error: unknown) => {
+    // Unexpected operational failure: exit 3 (contracts/cli.md), never read as "blockers found".
+    process.stderr.write(
+      `etl:v1 failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    process.exitCode = EXIT_CODES.usage;
+  },
+);
