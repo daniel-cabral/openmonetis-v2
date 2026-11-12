@@ -1501,6 +1501,44 @@ test("assembled API protects financial endpoints and persists transfers and refu
       },
     );
 
+    await t.test(
+      "categoryMatch=exact lists only the selected category while the default includes its children",
+      async () => {
+        const f = await fixture(owner, 0);
+        const parent = await data<{ id: string }>(
+          await request("/categories", owner, "POST", {
+            name: `Parent ${randomUUID()}`,
+            type: "expense",
+          }),
+          201,
+        );
+        const child = await data<{ id: string }>(
+          await request("/categories", owner, "POST", {
+            name: `Child ${randomUUID()}`,
+            type: "expense",
+            parentId: parent.id,
+          }),
+          201,
+        );
+        const create = async (categoryId: string) =>
+          data<TransactionOutput>(
+            await request("/transactions", owner, "POST", { ...f.expense, categoryId }),
+            201,
+          );
+        const parentRow = await create(parent.id);
+        const childRow = await create(child.id);
+        const listed = async (match = "") => {
+          const body = await data<{ items: TransactionOutput[] }>(
+            await request(`/transactions?period=${period}&categoryIds=${parent.id}${match}`, owner),
+          );
+          return body.items.map((item) => item.recordId).sort();
+        };
+
+        assert.deepEqual(await listed(), [parentRow.recordId, childRow.recordId].sort());
+        assert.deepEqual(await listed("&categoryMatch=exact"), [parentRow.recordId]);
+      },
+    );
+
     await t.test("a forged session cookie cannot authenticate a financial request", async () => {
       await error(
         await request("/accounts", {
