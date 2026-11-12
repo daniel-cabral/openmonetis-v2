@@ -168,6 +168,7 @@ export function calculateCategoryTrends(input: {
     if (
       entry.transactionType === "transfer" ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment"
     ) {
       continue;

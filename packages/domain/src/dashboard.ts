@@ -383,6 +383,7 @@ function contributesToProjected(entry: DashboardMetricEntry) {
     !entry.excludeFromBalance &&
     entry.forecastPeriod !== null &&
     entry.origin !== "invoicePayment" &&
+    entry.origin !== "invoiceCredit" &&
     entry.origin !== "personSettlement"
   );
 }
@@ -399,6 +400,7 @@ function calculatePeriod(entries: DashboardMetricEntry[], period: string) {
     if (
       entry.personRole !== "admin" ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "personSettlement" ||
       entry.excludeFromBalance
     ) {
@@ -453,6 +455,7 @@ function hasPeriodData(
       entry.period !== period ||
       entry.personRole !== "admin" ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "personSettlement" ||
       Math.abs(toCents(entry.amount)) === 0
     ) {
@@ -561,6 +564,7 @@ export function calculateDashboardPaymentStatus(
       entry.adminAmount === null ||
       entry.type === "transfer" ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment"
     ) {
       continue;
@@ -603,6 +607,7 @@ export function calculateDashboardExpenseDistribution(
       entry.period === period &&
       entry.personRole === "admin" &&
       entry.origin !== "invoicePayment" &&
+      entry.origin !== "invoiceCredit" &&
       entry.origin !== "accountBalanceAdjustment" &&
       calculateExpenseImpact(entry) !== 0,
   );
@@ -657,6 +662,7 @@ export function calculateDashboardPeopleExpenses(
     if (
       entry.excludeFromBalance ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment" ||
       entry.origin === "personSettlement" ||
       (entry.period !== period && entry.period !== previousPeriod)
@@ -734,6 +740,7 @@ function groupCategoryBreakdown(
       entry.personRole !== "admin" ||
       entry.type === "transfer" ||
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment" ||
       (entry.period !== period && entry.period !== previousPeriod)
     ) {

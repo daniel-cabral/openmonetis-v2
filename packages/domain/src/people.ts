@@ -107,7 +107,11 @@ const personPaymentMethods = [
 
 // Invoice payments settle purchases already counted on the card; balance adjustments are not spending.
 function isExcludedFromPersonExpenses(entry: Pick<PersonFinancialEntry, "origin">) {
-  return entry.origin === "invoicePayment" || entry.origin === "accountBalanceAdjustment";
+  return (
+    entry.origin === "invoicePayment" ||
+    entry.origin === "invoiceCredit" ||
+    entry.origin === "accountBalanceAdjustment"
+  );
 }
 
 export function calculatePersonFinancialSummary(

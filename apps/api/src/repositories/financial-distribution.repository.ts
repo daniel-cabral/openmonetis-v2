@@ -134,6 +134,7 @@ export const financialDistributionRepository = {
         and(
           eq(transactions.userId, userId),
           ne(transactions.type, "transfer"),
+          ne(transactions.origin, "invoiceCredit"),
           or(
             isNull(categories.id),
             ne(categories.name, invoicePaymentCategoryName),

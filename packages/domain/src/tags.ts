@@ -49,6 +49,7 @@ export function summarizeTags(tagIds: readonly string[], entries: readonly Tagge
     seen.add(entry.id);
     if (
       entry.origin === "invoicePayment" ||
+      entry.origin === "invoiceCredit" ||
       entry.origin === "accountBalanceAdjustment" ||
       entry.origin === "personSettlement"
     )
