@@ -20,6 +20,7 @@ import {
   Tags,
   Target,
   Users,
+  Wallet,
   WalletCards,
   Waypoints,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import { InvoicesWidget } from "@/features/invoices/components/invoices-widget";
 import { NotesWidget } from "@/features/notes/components/notes-widget";
 import { PersonSettlementsWidget } from "@/features/person-settlements/components/person-settlements-widget";
 import { RecurringExpensesWidget } from "@/features/recurring-expenses/components/recurring-expenses-widget";
+import { SpendingOverviewWidget } from "@/features/spending-overview/components/spending-overview-widget";
 import { CategoryBreakdownWidget } from "./category-breakdown-widget";
 import { CategoryTransactionsWidget } from "./category-transactions-widget";
 import { DashboardAttentionWidget } from "./dashboard-attention-widget";
@@ -158,6 +160,14 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     description: "Quanto da receita do mês já está comprometido",
     icon: Gauge,
     render: (period) => <CommitmentsWidget period={period} />,
+  },
+  {
+    id: "spending-overview",
+    section: "analysis",
+    title: "Panorama de gastos",
+    description: "Maiores gastos e lugares onde você mais compra no mês",
+    icon: Wallet,
+    render: (period) => <SpendingOverviewWidget period={period} />,
   },
   {
     id: "category-trends",
