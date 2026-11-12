@@ -8,6 +8,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { LoadReport } from "./scripts/v1-etl/types";
+import { createTestApiClient } from "./test-support/api-client";
+import { withIntegrationDatabase } from "./test-support/integration-database";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const fixturesFolder = fileURLToPath(new URL("./scripts/v1-etl/__fixtures__/", import.meta.url));
@@ -59,9 +61,10 @@ async function createV1Fixture(files: string[]): Promise<string> {
 
 // A fresh, fully migrated V2 database. withIntegrationDatabase binds the @openmonetis/db singleton
 // once per process, and the load tests need several independent targets.
-async function createV2Target(): Promise<string> {
+async function createV2Target(
+  databaseName = `openmonetis_v1_etl_target_${randomUUID().replaceAll("-", "")}`,
+): Promise<string> {
   const url = await serverUrl();
-  const databaseName = `openmonetis_v1_etl_target_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString: url.toString() });
   try {
     await admin.query(`CREATE DATABASE "${databaseName}"`);
@@ -121,7 +124,7 @@ async function runValidate(v1Url: string) {
   }
 }
 
-async function runLoad(v1Url: string, targetUrl: string) {
+async function runLoad(v1Url: string, targetUrl: string, flags = ["--scratch"]) {
   const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
   try {
     const run = await runCli([
@@ -130,7 +133,7 @@ async function runLoad(v1Url: string, targetUrl: string) {
       v1Url,
       "--target-url",
       targetUrl,
-      "--scratch",
+      ...flags,
       "--out",
       out,
     ]);
@@ -548,6 +551,120 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
         assert.deepEqual(await storedChecksums(v1Url, fresh), loaded);
       },
     );
+
+    await t.test(
+      "a failing user rolls back alone and a re-run resumes to the uninterrupted state",
+      async () => {
+        const v1Url = await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]);
+        const target = await createV2Target();
+        const db = new Pool({ connectionString: target, max: 1 });
+        try {
+          // Failure injected at the database boundary: user B's only account cannot be inserted.
+          await db.query(`
+            CREATE FUNCTION refuse_conta_b() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+              IF NEW.name = 'Conta B' THEN RAISE EXCEPTION 'injected failure'; END IF;
+              RETURN NEW;
+            END $$`);
+          await db.query(`
+            CREATE TRIGGER refuse_conta_b BEFORE INSERT ON financial_accounts
+            FOR EACH ROW EXECUTE FUNCTION refuse_conta_b()`);
+
+          // US2.6: user B fails alone, naming the table and the cause, and leaves no row behind.
+          const failed = await runLoad(v1Url, target);
+          assert.equal(failed.code, 1, failed.stderr);
+          assert.deepEqual(
+            failed.report?.users.map((user) => [
+              user.v1UserId,
+              user.status,
+              "table" in user ? user.table : null,
+              "cause" in user ? user.cause : null,
+            ]),
+            [
+              ["v1-user-a", "loaded", null, null],
+              ["v1-user-b", "failed", "financial_accounts", "P0001"],
+            ],
+          );
+          const bruno = failed.report?.users[1]?.v2UserId;
+          const leftovers = await db.query({
+            text: `
+              SELECT (SELECT count(*) FROM "user" WHERE id = $1),
+                     (SELECT count(*) FROM financial_accounts WHERE user_id = $1),
+                     (SELECT count(*) FROM people WHERE user_id = $1),
+                     (SELECT count(*) FROM v1_etl.user_loads WHERE v2_user_id = $1)`,
+            values: [bruno],
+            rowMode: "array",
+          });
+          assert.deepEqual(leftovers.rows, [["0", "0", "0", "0"]]);
+
+          await db.query("DROP TRIGGER refuse_conta_b ON financial_accounts");
+        } finally {
+          await db.end();
+        }
+
+        const resumed = await runLoad(v1Url, target);
+        assert.equal(resumed.code, 0, resumed.stderr);
+        assert.deepEqual(
+          resumed.report?.users.map((user) => [user.v1UserId, user.status]),
+          [
+            ["v1-user-a", "skipped-already-loaded"],
+            ["v1-user-b", "loaded"],
+          ],
+        );
+
+        // SC-004: the resumed target stores what an uninterrupted load stores.
+        const reference = await createV2Target();
+        const referenceLoad = await runLoad(v1Url, reference);
+        assert.equal(referenceLoad.code, 0, referenceLoad.stderr);
+        assert.deepEqual(
+          await storedChecksums(v1Url, target),
+          await storedChecksums(v1Url, reference),
+        );
+      },
+    );
+
+    await t.test("guards refuse unsafe targets", async () => {
+      const v1Url = await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]);
+      const loaded = await createV2Target();
+      const firstLoad = await runLoad(v1Url, loaded);
+      assert.equal(firstLoad.code, 0, firstLoad.stderr);
+      const otherDump = await createV1Fixture(["v1-schema.sql"]);
+      const fresh = await createV2Target();
+      const productionNamed = await createV2Target("openmonetis_prod_test");
+
+      // The registered-user target is the database withIntegrationDatabase binds the API to.
+      await withIntegrationDatabase(async () => {
+        await (await createTestApiClient()).register();
+        const registered = process.env.DATABASE_URL ?? "";
+        const cases = [
+          { target: fresh, v1: v1Url, flags: [], reason: /--scratch is required/ },
+          { target: v1Url, v1: v1Url, flags: ["--scratch"], reason: /points to the V1 database/ },
+          { target: registered, v1: v1Url, flags: ["--scratch"], reason: /non-migrated data/ },
+          { target: loaded, v1: otherDump, flags: ["--scratch"], reason: /different V1 dump/ },
+          {
+            target: productionNamed,
+            v1: v1Url,
+            flags: ["--scratch"],
+            reason: /looks like production/,
+          },
+        ];
+        for (const { target, v1, flags, reason } of cases) {
+          const userCount = async () => {
+            const db = new Pool({ connectionString: target, max: 1 });
+            try {
+              return (await db.query('SELECT count(*) FROM "user"')).rows[0]?.count;
+            } finally {
+              await db.end();
+            }
+          };
+          const before = await userCount();
+          const run = await runLoad(v1, target, flags);
+          assert.equal(run.code, 2, `${reason}: ${run.stderr}`);
+          assert.match(run.stderr, reason);
+          assert.equal(await userCount(), before, String(reason));
+        }
+      });
+    });
   } finally {
     await dropTestDatabases();
   }
