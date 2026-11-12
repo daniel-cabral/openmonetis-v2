@@ -9,6 +9,7 @@ import type { AiChatRunEvent, AiChatRunner } from "../services/ai-chats.service"
 import type { AiDiagnosisRunner } from "../services/ai-diagnoses.service";
 import type { AiProviderLogin, AiProvidersGateway } from "../services/ai-providers.service";
 import type { AiToolsGateway } from "../services/ai-tools.service";
+import { createAiKeyCipher } from "./ai-key-cipher";
 import { assertProductionSecret, getRequiredProductionEnv, parseBooleanEnv } from "./env";
 
 const statusTimeoutMs = 20_000;
@@ -236,6 +237,7 @@ function parseChatEvent(line: string): AiChatRunEvent | null {
 const aiServiceEnabled = parseBooleanEnv("AI_ENABLED");
 const developmentServiceSecret = "development-ai-service-secret-change-me";
 const developmentHomeSecret = "development-ai-home-secret-change-me";
+const developmentKeysSecret = "development-ai-keys-secret-change-me";
 
 export const aiServiceGateway = createAiServiceGateway({
   enabled: aiServiceEnabled,
@@ -250,3 +252,11 @@ export const aiServiceGateway = createAiServiceGateway({
     ? (assertProductionSecret("AI_HOME_SECRET", [developmentHomeSecret]) ?? developmentHomeSecret)
     : undefined,
 });
+
+/** Null when AI_KEYS_SECRET is unset: API-key providers stay unavailable (fail closed). */
+const aiKeysSecret = assertProductionSecret("AI_KEYS_SECRET", [developmentKeysSecret]);
+if (aiKeysSecret && aiKeysSecret.length < 32) {
+  throw new Error("AI_KEYS_SECRET must have at least 32 characters");
+}
+
+export const aiKeyCipher = aiKeysSecret ? createAiKeyCipher(aiKeysSecret) : null;
