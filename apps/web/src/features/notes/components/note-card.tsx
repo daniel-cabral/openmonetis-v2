@@ -5,6 +5,7 @@ import {
   CalendarDays,
   FileText,
   ListChecks,
+  Paperclip,
   Pencil,
   RotateCcw,
   Trash2,
@@ -14,6 +15,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
+import { formatAttachmentCount } from "@/features/attachments/attachments.presentation";
 import { cn } from "@/lib/utils";
 import {
   formatNoteUpdatedAt,
@@ -206,6 +208,16 @@ export function NoteCard({
       </CardContent>
 
       <CardFooter className="mt-auto flex flex-wrap gap-3 border-t pt-3">
+        {note.attachmentCount > 0 ? (
+          <span
+            aria-label={formatAttachmentCount(note.attachmentCount)}
+            className="inline-flex items-center gap-1 text-muted-foreground text-xs"
+            role="img"
+          >
+            <Paperclip aria-hidden="true" className="size-3.5" />
+            {note.attachmentCount}
+          </span>
+        ) : null}
         {!note.isArchived ? (
           <button
             className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-medium text-brand-strong text-sm transition-opacity hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/50"

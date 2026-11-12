@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { NoteAttachments } from "@/features/attachments/components/note-attachments";
 import { cn } from "@/lib/utils";
 import {
   formatNoteUpdatedAt,
@@ -176,6 +177,12 @@ export function NoteDetailsDialog({
             </div>
           )}
         </div>
+        {note.attachmentCount > 0 ? (
+          <div className="grid gap-2">
+            <span className="font-medium text-sm">Anexos</span>
+            <NoteAttachments noteId={note.id} readOnly />
+          </div>
+        ) : null}
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
             Fechar

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { maximumAttachmentSize } from "@openmonetis/domain/attachments";
+import type { NoteKind } from "@openmonetis/domain/notes";
 import type { AttachmentStorage } from "../utils/storage";
 import { type AttachmentsRepository, createAttachmentsService } from "./attachments.service";
 
@@ -12,6 +13,10 @@ function fixture() {
   const records = new Map<string, Record>();
   const objects = new Map<string, Awaited<ReturnType<AttachmentStorage["inspect"]>>>();
   const links = new Set<string>();
+  const noteKinds = new Map<string, NoteKind>([
+    ["owned-checklist-note", "checklist"],
+    ["owned-task-note", "task"],
+  ]);
   let failRemove = false;
   let failCommit = false;
   let failPrepare = false;
@@ -28,6 +33,13 @@ function fixture() {
   };
   const repository: AttachmentsRepository = {
     transactionExistsForUser: async (id, userId) => userId === owner && id.startsWith("owned"),
+    findNoteForAttachmentForUser: async (id, userId) =>
+      userId === owner && noteKinds.has(id) ? { kind: noteKinds.get(id) as NoteKind } : null,
+    finalizeAndAttachToNote: async () => {
+      throw new Error("not used by the note gate tests");
+    },
+    listForNote: async () => [],
+    detachFromNoteForUser: async () => null,
     insertPending: async (input) => {
       const row = { ...input, createdAt: new Date() };
       records.set(row.id, row);
@@ -156,7 +168,7 @@ test("attachment confirmation validates bytes, commits once and is safe to retry
   assert.equal((await f.service.listForTransaction("owned-1", f.owner)).length, 1);
 });
 
-test("attachment preparation enforces ownership, whitelist, storage availability and size before persistence", async () => {
+test("attachment preparation enforces ownership, whitelist, storage availability and size before persistence", async (t) => {
   const f = fixture();
   const input = {
     transactionId: "owned-1",
@@ -169,6 +181,15 @@ test("attachment preparation enforces ownership, whitelist, storage availability
     await assert.rejects(f.service.prepare({ ...input, fileSize }, f.owner), {
       code: "invalid_attachment",
     });
+  const prepareUpload = t.mock.method(f.storage, "prepareUpload");
+  for (const [noteId, code] of [
+    ["owned-checklist-note", "note_attachments_not_allowed"],
+    ["owned-task-note", "note_attachments_not_allowed"],
+    ["missing-note", "note_not_found"],
+  ] as const)
+    await assert.rejects(f.service.prepareForNote({ ...input, noteId }, f.owner), { code });
+  assert.equal(f.records.size, 0);
+  assert.equal(prepareUpload.mock.callCount(), 0);
   f.storage.enabled = false;
   await assert.rejects(f.service.prepare(input, f.owner), {
     code: "attachment_storage_unavailable",

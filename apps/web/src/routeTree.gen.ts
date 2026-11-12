@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as AttachmentsRouteImport } from './routes/attachments'
 import { Route as BudgetsRouteImport } from './routes/budgets'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as CardsRouteImport } from './routes/cards'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as ChangelogRouteImport } from './routes/changelog'
@@ -64,6 +65,11 @@ const AttachmentsRoute = AttachmentsRouteImport.update({
 const BudgetsRoute = BudgetsRouteImport.update({
   id: '/budgets',
   path: '/budgets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CardsRoute = CardsRouteImport.update({
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
+  '/calendar': typeof CalendarRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
@@ -274,6 +281,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
+  '/calendar': typeof CalendarRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
@@ -313,6 +321,7 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/attachments': typeof AttachmentsRoute
   '/budgets': typeof BudgetsRoute
+  '/calendar': typeof CalendarRoute
   '/cards': typeof CardsRoute
   '/categories': typeof CategoriesRoute
   '/changelog': typeof ChangelogRoute
@@ -353,6 +362,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/attachments'
     | '/budgets'
+    | '/calendar'
     | '/cards'
     | '/categories'
     | '/changelog'
@@ -391,6 +401,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/attachments'
     | '/budgets'
+    | '/calendar'
     | '/cards'
     | '/categories'
     | '/changelog'
@@ -429,6 +440,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/attachments'
     | '/budgets'
+    | '/calendar'
     | '/cards'
     | '/categories'
     | '/changelog'
@@ -468,6 +480,7 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   AttachmentsRoute: typeof AttachmentsRoute
   BudgetsRoute: typeof BudgetsRoute
+  CalendarRoute: typeof CalendarRoute
   CardsRoute: typeof CardsRoute
   CategoriesRoute: typeof CategoriesRoute
   ChangelogRoute: typeof ChangelogRoute
@@ -530,6 +543,13 @@ declare module '@tanstack/react-router' {
       path: '/budgets'
       fullPath: '/budgets'
       preLoaderRoute: typeof BudgetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cards': {
@@ -764,6 +784,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   AttachmentsRoute: AttachmentsRoute,
   BudgetsRoute: BudgetsRoute,
+  CalendarRoute: CalendarRoute,
   CardsRoute: CardsRoute,
   CategoriesRoute: CategoriesRoute,
   ChangelogRoute: ChangelogRoute,

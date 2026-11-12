@@ -2,10 +2,13 @@ import {
   attachments,
   categories,
   db,
+  noteAttachments,
+  notes,
   people,
   transactionAttachments,
   transactions,
 } from "@openmonetis/db";
+import type { NoteKind } from "@openmonetis/domain/notes";
 import { and, asc, desc, eq, like, lt, notExists, notLike, sql } from "drizzle-orm";
 import type { AttachmentsRepository } from "../services/attachments.service";
 import { categoryLabelSql } from "./categories.repository";
@@ -18,6 +21,15 @@ export const attachmentsRepository = {
       .where(and(eq(transactions.id, transactionId), eq(transactions.userId, userId)))
       .limit(1);
     return Boolean(row);
+  },
+
+  async findNoteForAttachmentForUser(noteId, userId) {
+    const [row] = await db
+      .select({ kind: notes.kind })
+      .from(notes)
+      .where(and(eq(notes.id, noteId), eq(notes.userId, userId)))
+      .limit(1);
+    return row ? { kind: row.kind as NoteKind } : null;
   },
 
   async insertPending(data) {
@@ -41,6 +53,13 @@ export const attachmentsRepository = {
         .limit(1)
         .for("update");
       if (!current || (current.fileKey !== pendingKey && current.fileKey !== finalKey)) return null;
+
+      const [noteLink] = await transaction
+        .select({ attachmentId: noteAttachments.attachmentId })
+        .from(noteAttachments)
+        .where(and(eq(noteAttachments.attachmentId, uploadId), eq(noteAttachments.userId, userId)))
+        .limit(1);
+      if (noteLink) return null;
 
       let attachment = current;
       if (current.fileKey === pendingKey) {
@@ -68,6 +87,136 @@ export const attachmentsRepository = {
         .onConflictDoNothing();
 
       return attachment;
+    });
+  },
+
+  async finalizeAndAttachToNote(uploadId, noteId, userId, pendingKey, finalKey) {
+    return db.transaction(async (transaction) => {
+      const [ownedNote] = await transaction
+        .select({ id: notes.id })
+        .from(notes)
+        .where(and(eq(notes.id, noteId), eq(notes.userId, userId)))
+        .limit(1);
+      if (!ownedNote) return null;
+
+      const [current] = await transaction
+        .select()
+        .from(attachments)
+        .where(and(eq(attachments.id, uploadId), eq(attachments.userId, userId)))
+        .limit(1)
+        .for("update");
+      if (!current || (current.fileKey !== pendingKey && current.fileKey !== finalKey)) return null;
+
+      const [transactionLink] = await transaction
+        .select({ attachmentId: transactionAttachments.attachmentId })
+        .from(transactionAttachments)
+        .where(
+          and(
+            eq(transactionAttachments.attachmentId, uploadId),
+            eq(transactionAttachments.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (transactionLink) return null;
+
+      const [otherNoteLink] = await transaction
+        .select({ noteId: noteAttachments.noteId })
+        .from(noteAttachments)
+        .where(
+          and(
+            eq(noteAttachments.attachmentId, uploadId),
+            eq(noteAttachments.userId, userId),
+            sql`${noteAttachments.noteId} <> ${noteId}`,
+          ),
+        )
+        .limit(1);
+      if (otherNoteLink) return null;
+
+      let attachment = current;
+      if (current.fileKey === pendingKey) {
+        const [updatedRecord] = await transaction
+          .update(attachments)
+          .set({ fileKey: finalKey })
+          .where(
+            and(
+              eq(attachments.id, uploadId),
+              eq(attachments.userId, userId),
+              eq(attachments.fileKey, pendingKey),
+            ),
+          )
+          .returning();
+        attachment = updatedRecord as typeof attachments.$inferSelect;
+      }
+
+      await transaction
+        .insert(noteAttachments)
+        .values({ userId, noteId, attachmentId: attachment.id })
+        .onConflictDoNothing();
+
+      return attachment;
+    });
+  },
+
+  listForNote(noteId, userId) {
+    return db
+      .select({
+        id: attachments.id,
+        userId: attachments.userId,
+        fileKey: attachments.fileKey,
+        fileName: attachments.fileName,
+        fileSize: attachments.fileSize,
+        mimeType: attachments.mimeType,
+        createdAt: attachments.createdAt,
+      })
+      .from(noteAttachments)
+      .innerJoin(
+        attachments,
+        and(eq(noteAttachments.attachmentId, attachments.id), eq(attachments.userId, userId)),
+      )
+      .where(
+        and(
+          eq(noteAttachments.noteId, noteId),
+          eq(noteAttachments.userId, userId),
+          like(attachments.fileKey, "attachments/%"),
+        ),
+      )
+      .orderBy(asc(attachments.createdAt), asc(attachments.id));
+  },
+
+  async detachFromNoteForUser(noteId, attachmentId, userId) {
+    return db.transaction(async (transaction) => {
+      const [current] = await transaction
+        .select()
+        .from(attachments)
+        .where(and(eq(attachments.id, attachmentId), eq(attachments.userId, userId)))
+        .limit(1)
+        .for("update");
+      if (!current?.fileKey.startsWith("attachments/")) return null;
+
+      const deleted = await transaction
+        .delete(noteAttachments)
+        .where(
+          and(
+            eq(noteAttachments.noteId, noteId),
+            eq(noteAttachments.attachmentId, attachmentId),
+            eq(noteAttachments.userId, userId),
+          ),
+        )
+        .returning({ attachmentId: noteAttachments.attachmentId });
+      if (!deleted.length) return null;
+
+      const [tombstoneRecord] = await transaction
+        .update(attachments)
+        .set({ fileKey: toDeletionKey(current.fileKey) })
+        .where(
+          and(
+            eq(attachments.id, attachmentId),
+            eq(attachments.userId, userId),
+            eq(attachments.fileKey, current.fileKey),
+          ),
+        )
+        .returning();
+      return tombstoneRecord as typeof attachments.$inferSelect;
     });
   },
 
@@ -269,6 +418,9 @@ export const attachmentsRepository = {
             eq(transactionAttachments.userId, userId),
           ),
         );
+      await transaction
+        .delete(noteAttachments)
+        .where(and(eq(noteAttachments.attachmentId, id), eq(noteAttachments.userId, userId)));
       if (current.fileKey.startsWith("deleting/")) return current;
 
       const [tombstoneRecord] = await transaction
@@ -308,6 +460,13 @@ export const attachmentsRepository = {
         .limit(1);
       if (linked) return null;
 
+      const [noteLinked] = await transaction
+        .select({ attachmentId: noteAttachments.attachmentId })
+        .from(noteAttachments)
+        .where(and(eq(noteAttachments.attachmentId, uploadId), eq(noteAttachments.userId, userId)))
+        .limit(1);
+      if (noteLinked) return null;
+
       const [attachmentRecord] = await transaction
         .update(attachments)
         .set({ fileKey: toDeletionKey(pendingKey) })
@@ -332,6 +491,7 @@ export const attachmentsRepository = {
           eq(attachments.userId, userId),
           notLike(attachments.fileKey, "pending/%"),
           notLike(attachments.fileKey, "deleting/%"),
+          notExistsNoteLink(userId),
           notExists(
             db
               .select({ attachmentId: transactionAttachments.attachmentId })
@@ -357,6 +517,7 @@ export const attachmentsRepository = {
           eq(attachments.userId, userId),
           like(attachments.fileKey, "pending/%"),
           lt(attachments.createdAt, olderThan),
+          notExistsNoteLink(userId),
           notExists(
             db
               .select({ attachmentId: transactionAttachments.attachmentId })
@@ -389,6 +550,7 @@ export const attachmentsRepository = {
           eq(attachments.id, id),
           eq(attachments.userId, userId),
           eq(attachments.fileKey, tombstoneKey),
+          notExistsNoteLink(userId),
           notExists(
             db
               .select({ attachmentId: transactionAttachments.attachmentId })
@@ -406,6 +568,17 @@ export const attachmentsRepository = {
     return attachment ?? null;
   },
 } satisfies AttachmentsRepository;
+
+function notExistsNoteLink(userId: string) {
+  return notExists(
+    db
+      .select({ attachmentId: noteAttachments.attachmentId })
+      .from(noteAttachments)
+      .where(
+        and(eq(noteAttachments.attachmentId, attachments.id), eq(noteAttachments.userId, userId)),
+      ),
+  );
+}
 
 function toDeletionKey(fileKey: string) {
   return `deleting/${fileKey}`;

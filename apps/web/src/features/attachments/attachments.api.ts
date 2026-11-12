@@ -2,7 +2,6 @@ import type {
   AttachmentOutput,
   AttachmentsSummaryOutput,
   AttachmentUrlOutput,
-  ConfirmAttachmentInput,
   ListAttachmentsQuery,
   PaginatedAttachmentsOutput,
   PrepareAttachmentInput,
@@ -37,18 +36,6 @@ export const getAttachmentUrl = (id: string, disposition: "inline" | "attachment
     `/attachments/${encodeURIComponent(id)}/download-url?disposition=${disposition}`,
   );
 
-const prepareAttachment = (input: PrepareAttachmentInput) =>
-  request<{ uploadId: string; uploadUrl: string }>("/attachments/prepare", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-
-const confirmAttachment = (input: ConfirmAttachmentInput) =>
-  request<AttachmentOutput>("/attachments/confirm", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-
 export const deleteAttachment = (id: string) =>
   request<{ id: string }>(`/attachments/${encodeURIComponent(id)}`, { method: "DELETE" });
 
@@ -58,14 +45,47 @@ export const detachTransactionAttachment = (transactionId: string, attachmentId:
     { method: "DELETE" },
   );
 
-export async function uploadAttachment(file: File, transactionId: string) {
-  const input = {
-    transactionId,
-    fileName: file.name,
-    fileSize: file.size,
-    mimeType: file.type as PrepareAttachmentInput["mimeType"],
-  };
-  const prepared = await prepareAttachment(input);
+export const getNoteAttachments = (noteId: string) =>
+  request<AttachmentOutput[]>(`/attachments/note/${encodeURIComponent(noteId)}`);
+
+export const detachNoteAttachment = (noteId: string, attachmentId: string) =>
+  request<{ id: string; noteId: string; deleted: boolean }>(
+    `/attachments/note/${encodeURIComponent(noteId)}/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE" },
+  );
+
+export function uploadAttachment(file: File, transactionId: string) {
+  return uploadFile(
+    file,
+    { prepare: "/attachments/prepare", confirm: "/attachments/confirm" },
+    { transactionId },
+  );
+}
+
+export function uploadNoteAttachment(file: File, noteId: string) {
+  return uploadFile(
+    file,
+    { prepare: "/attachments/note/prepare", confirm: "/attachments/note/confirm" },
+    { noteId },
+  );
+}
+
+type UploadParent = { transactionId: string } | { noteId: string };
+
+async function uploadFile(
+  file: File,
+  paths: { prepare: string; confirm: string },
+  parent: UploadParent,
+) {
+  const prepared = await request<{ uploadId: string; uploadUrl: string }>(paths.prepare, {
+    method: "POST",
+    body: JSON.stringify({
+      ...parent,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type as PrepareAttachmentInput["mimeType"],
+    }),
+  });
   const response = await fetch(prepared.uploadUrl, {
     method: "PUT",
     body: file,
@@ -74,5 +94,8 @@ export async function uploadAttachment(file: File, transactionId: string) {
 
   if (!response.ok) throw new Error("Upload failed");
 
-  return confirmAttachment({ uploadId: prepared.uploadId, transactionId });
+  return request<AttachmentOutput>(paths.confirm, {
+    method: "POST",
+    body: JSON.stringify({ uploadId: prepared.uploadId, ...parent }),
+  });
 }

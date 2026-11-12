@@ -15,6 +15,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Fork
 
+- Anotações de texto aceitam anexos PDF e imagem, com validação e armazenamento privado iguais aos dos lançamentos. Migration `0035_note_attachments` cria a tabela `note_attachments`; `NoteOutput` ganha o campo `attachmentCount` (contrato adicionado). Checklists e tarefas não aceitam anexos. Ver `docs/note-attachments.md`.
 - Importação de extrato e fatura CSV do C6 Bank: o arquivo é associado a um perfil de banco e a
   uma conta ou cartão antes da leitura. Linhas de crédito e pagamento de fatura aparecem na revisão
   como informativas e não são importáveis.
@@ -49,6 +50,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   do fim do arquivo listados. Créditos da fatura viram lançamentos com a nova origem `invoiceCredit`
   (fora de receitas, despesas, orçamentos e relatórios; migration `0034`). Ícone de pago não
   conciliado no extrato da conta. Detalhes em `docs/reconciliations.md`.
+- Calendário mensal com lançamentos, parcelas, boletos e faturas por dia, detalhe do dia e criação
+  rápida.
 - **Adicionar em massa** e **Editar** em lote: cria vários lançamentos avulsos de uma vez, com
   configurações comuns de tipo, forma de pagamento, conta ou cartão e fatura; e altera data, fatura,
   vencimento, pessoa, conta, cartão, categoria, observação e valor de uma seleção, com escopo para
