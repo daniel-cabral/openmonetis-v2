@@ -82,6 +82,10 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Landing page pública opcional em `/`, ligada por `LANDING_PAGE_ENABLED=true` (padrão `false`).
   A tela de login fica sempre em `/login`; com a landing desligada, `/` continua mostrando o login.
   Ver `docs/environment-variables.md`.
+- Ferramenta de migração de dados do V1 para o V2 (`pnpm etl:v1`): valida o dump antes de qualquer
+  carga, carrega de forma idempotente em banco de ensaio e concilia saldos, faturas e totais. O V1
+  é lido somente em leitura e a carga grava somente em banco de ensaio. Runbook em
+  `docs/fork-v1-migration.md`.
 
 ## [0.16.0] - 2026-11-07
 
