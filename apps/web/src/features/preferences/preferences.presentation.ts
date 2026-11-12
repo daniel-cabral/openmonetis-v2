@@ -1,6 +1,8 @@
+import { defaultAttachmentSizeLimitMb } from "@openmonetis/domain/attachments";
 import type {
   MobileShortcutDestination,
   StartPageDestination,
+  TransactionColumnId,
 } from "@openmonetis/domain/preferences";
 import type { UserPreferencesOutput } from "@openmonetis/validators/preferences";
 import type { TransactionCreateDefaults } from "@/features/transactions/components/transaction-form.validation";
@@ -37,6 +39,19 @@ export const startPagePaths = {
   budgets: "/budgets",
   inbox: "/inbox",
 } as const satisfies Record<StartPageDestination, string>;
+
+export const transactionColumnLabels: Record<TransactionColumnId, string> = {
+  name: "Descrição",
+  amount: "Valor",
+  condition: "Condição",
+  paymentMethod: "Forma",
+  note: "Anotação",
+  account: "Conta/Cartão",
+};
+
+export function attachmentSizeLimitLabel(limitMb: number) {
+  return limitMb === defaultAttachmentSizeLimitMb ? `${limitMb} MB (padrão)` : `${limitMb} MB`;
+}
 
 export function getTransactionPreferenceDefaults(
   preferences?: UserPreferencesOutput,
