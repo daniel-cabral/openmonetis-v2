@@ -32,6 +32,7 @@ import {
 type TransactionsMobileListProps = {
   accountStatement?: boolean;
   allowImport?: boolean;
+  groupByDate: boolean;
   exportOptions?: TransactionsMobileExport;
   transactions: TransactionOutput[];
   currentPage: number;
@@ -44,11 +45,13 @@ type TransactionsMobileListProps = {
 export function TransactionsMobileList(props: TransactionsMobileListProps) {
   const [selectionMode, setSelectionMode] = useState(false);
   const selection = useTransactionSelection(props.transactions);
-  const groups = groupTransactionsByDate(props.transactions, (transaction) =>
-    props.accountStatement
-      ? (transaction.postingDate ?? transaction.purchaseDate)
-      : transaction.purchaseDate,
-  );
+  const groups: Array<{ date: string | null; rows: TransactionOutput[] }> = props.groupByDate
+    ? groupTransactionsByDate(props.transactions, (transaction) =>
+        props.accountStatement
+          ? (transaction.postingDate ?? transaction.purchaseDate)
+          : transaction.purchaseDate,
+      )
+    : [{ date: null, rows: props.transactions }];
 
   if (!props.transactions.length) {
     return (
@@ -110,10 +113,16 @@ export function TransactionsMobileList(props: TransactionsMobileListProps) {
         )}
       </div>
       {groups.map(({ date, rows: transactions }) => (
-        <section aria-labelledby={`transactions-${date}`} className="grid gap-2" key={date}>
-          <h2 className="eyebrow px-1 text-muted-foreground" id={`transactions-${date}`}>
-            {formatTransactionGroupDate(date)}
-          </h2>
+        <section
+          aria-labelledby={date ? `transactions-${date}` : undefined}
+          className="grid gap-2"
+          key={date ?? "all"}
+        >
+          {date ? (
+            <h2 className="eyebrow px-1 text-muted-foreground" id={`transactions-${date}`}>
+              {formatTransactionGroupDate(date)}
+            </h2>
+          ) : null}
           <Card className="gap-0 overflow-hidden py-0">
             <ul className="divide-y">
               {transactions.map((transaction) => (

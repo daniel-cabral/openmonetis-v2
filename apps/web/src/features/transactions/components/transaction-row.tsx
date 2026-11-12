@@ -4,12 +4,13 @@ import {
   invoicePaymentCategoryName,
   yieldCategoryName,
 } from "@openmonetis/domain/categories";
+import type { TransactionColumnId } from "@openmonetis/domain/preferences";
 import {
   canDeleteTransactionOrigin,
   canEditTransactionOrigin,
 } from "@openmonetis/domain/transactions";
 import { Circle, CircleCheck, CreditCard, Loader2, Minus, Scale } from "lucide-react";
-import { useState } from "react";
+import { Fragment, type ReactNode, useState } from "react";
 import { MoneyValue } from "@/components/money-value";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,6 +33,7 @@ export function TransactionRow({
   period,
   accountStatement,
   adminPersonId,
+  columns,
   selectionMode,
   selected,
   selectable,
@@ -122,6 +124,82 @@ export function TransactionRow({
           ? "Desfazer o pagamento e marcar como em aberto."
           : "Marcar este lançamento como pago.";
 
+  const cells: Record<TransactionColumnId, ReactNode> = {
+    name: (
+      <TransactionRowDescription
+        period={period}
+        transaction={transaction}
+        accountStatement={accountStatement}
+        splitConnector={splitConnector}
+        onView={onView}
+        isLastInstallment={isLastInstallment}
+        shouldShowPersonContext={shouldShowPersonContext}
+        showPurchaseDate={showPurchaseDate}
+        featuredLogo={featuredLogo}
+        featuredLogoName={featuredLogoName}
+        categoryLabel={categoryLabel}
+        noteAsColumn={columns.includes("note")}
+      />
+    ),
+    amount: (
+      <TableCell className="text-right whitespace-nowrap">
+        <span className="sr-only">
+          {isRefund
+            ? "Reembolso"
+            : isInvoiceReduction
+              ? "Redução de despesa"
+              : transaction.type === "income"
+                ? "Receita"
+                : transaction.type === "expense"
+                  ? "Despesa"
+                  : "Transferência"}
+          :
+        </span>
+        <MoneyValue
+          amount={visibleAmount}
+          className={`font-medium ${amountClassName}`}
+          showPositiveSign={
+            transaction.type === "income" || isIncomingTransfer || isInvoiceReduction
+          }
+        />
+        {transaction.settledAmount != null &&
+        transaction.plannedAmount != null &&
+        transaction.settledAmount !== transaction.plannedAmount ? (
+          <span
+            className="block text-muted-foreground text-xs"
+            title={`Previsto total: ${transaction.plannedAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+          >
+            Valor ajustado
+          </span>
+        ) : null}
+      </TableCell>
+    ),
+    condition: (
+      <TableCell className="pl-5 whitespace-nowrap">
+        <span className="inline-flex items-center gap-2">
+          <ConditionIcon aria-hidden="true" className="size-4" />
+          {transactionConditionLabels[transaction.condition]}
+        </span>
+      </TableCell>
+    ),
+    paymentMethod: (
+      <TableCell className="whitespace-nowrap">
+        <span className="inline-flex items-center gap-2">
+          <PaymentIcon aria-hidden="true" className="size-4" />
+          {formatPaymentMethodTable(transaction.paymentMethod, transaction.origin)}
+        </span>
+      </TableCell>
+    ),
+    note: (
+      <TableCell className="max-w-48 truncate text-muted-foreground">{transaction.note}</TableCell>
+    ),
+    account: (
+      <TableCell>
+        <TransactionRelation transaction={transaction} />
+      </TableCell>
+    ),
+  };
+
   return (
     <TableRow
       className={cn(
@@ -158,65 +236,9 @@ export function TransactionRow({
           />
         </TableCell>
       ) : null}
-      <TransactionRowDescription
-        period={period}
-        transaction={transaction}
-        accountStatement={accountStatement}
-        splitConnector={splitConnector}
-        onView={onView}
-        isLastInstallment={isLastInstallment}
-        shouldShowPersonContext={shouldShowPersonContext}
-        showPurchaseDate={showPurchaseDate}
-        featuredLogo={featuredLogo}
-        featuredLogoName={featuredLogoName}
-        categoryLabel={categoryLabel}
-      />
-      <TableCell className="text-right whitespace-nowrap">
-        <span className="sr-only">
-          {isRefund
-            ? "Reembolso"
-            : isInvoiceReduction
-              ? "Redução de despesa"
-              : transaction.type === "income"
-                ? "Receita"
-                : transaction.type === "expense"
-                  ? "Despesa"
-                  : "Transferência"}
-          :
-        </span>
-        <MoneyValue
-          amount={visibleAmount}
-          className={`font-medium ${amountClassName}`}
-          showPositiveSign={
-            transaction.type === "income" || isIncomingTransfer || isInvoiceReduction
-          }
-        />
-        {transaction.settledAmount != null &&
-        transaction.plannedAmount != null &&
-        transaction.settledAmount !== transaction.plannedAmount ? (
-          <span
-            className="block text-muted-foreground text-xs"
-            title={`Previsto total: ${transaction.plannedAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
-          >
-            Valor ajustado
-          </span>
-        ) : null}
-      </TableCell>
-      <TableCell className="pl-5 whitespace-nowrap">
-        <span className="inline-flex items-center gap-2">
-          <ConditionIcon aria-hidden="true" className="size-4" />
-          {transactionConditionLabels[transaction.condition]}
-        </span>
-      </TableCell>
-      <TableCell className="whitespace-nowrap">
-        <span className="inline-flex items-center gap-2">
-          <PaymentIcon aria-hidden="true" className="size-4" />
-          {formatPaymentMethodTable(transaction.paymentMethod, transaction.origin)}
-        </span>
-      </TableCell>
-      <TableCell>
-        <TransactionRelation transaction={transaction} />
-      </TableCell>
+      {columns.map((column) => (
+        <Fragment key={column}>{cells[column]}</Fragment>
+      ))}
       <TableCell>
         <div className="flex items-center justify-end gap-1">
           {isPaymentControlledByInvoice ? (
