@@ -2,6 +2,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { passkey } from "@better-auth/passkey";
 import { db } from "@openmonetis/db";
 import * as schema from "@openmonetis/db/schema";
+import { freshSessionMaxAgeSeconds } from "@openmonetis/domain/settings";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, freshSessionMiddleware } from "better-auth/api";
 import type { GoogleProfile } from "better-auth/social-providers";
@@ -20,7 +21,6 @@ import {
 
 const DEFAULT_SESSION_EXPIRES_IN_DAYS = 30;
 const DEFAULT_SESSION_UPDATE_AGE_HOURS = 24;
-const PASSKEY_FRESH_SESSION_AGE_SECONDS = 10 * 60;
 const PASSKEY_SENSITIVE_MANAGEMENT_PATHS = new Set([
   "/passkey/update-passkey",
   "/passkey/delete-passkey",
@@ -202,7 +202,7 @@ export function createAuth(options: { disableSignup?: boolean } = {}) {
     },
     session: {
       expiresIn: sessionExpiresInDays * 24 * 60 * 60,
-      freshAge: PASSKEY_FRESH_SESSION_AGE_SECONDS,
+      freshAge: freshSessionMaxAgeSeconds,
       updateAge: sessionUpdateAgeHours * 60 * 60,
     },
     plugins: [
