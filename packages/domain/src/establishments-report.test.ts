@@ -6,6 +6,7 @@ import {
   type EstablishmentRecurringRule,
   resolveEstablishmentsWindow,
 } from "./establishments-report";
+import type { TripFilter } from "./trips";
 
 const window = { startPeriod: "2026-01", endPeriod: "2026-06" };
 
@@ -270,4 +271,19 @@ test("only purchases inside the window count", () => {
   assert.equal(result.summary.transactionCount, 1);
   assert.equal(result.summary.totalCents, 10000);
   assert.equal(result.establishments[0].count, 1);
+});
+
+test("a recurring occurrence counts only under the trip it is linked to", () => {
+  const rules = [recurringRule({ name: "Academia", occurrenceTripIds: { "2026-03-05": "t1" } })];
+  const listingFor = (tripFilter: TripFilter) =>
+    calculateEstablishmentsReport({
+      window,
+      tripFilter,
+      entries: [],
+      recurringRules: rules,
+    }).establishments.map((item) => [item.name, item.count, item.totalCents]);
+
+  assert.deepEqual(listingFor({ mode: "none" }), [["Academia", 5, 49950]]);
+  assert.deepEqual(listingFor({ mode: "trip", tripId: "t1" }), [["Academia", 1, 9990]]);
+  assert.deepEqual(listingFor({ mode: "all" }), [["Academia", 6, 59940]]);
 });
