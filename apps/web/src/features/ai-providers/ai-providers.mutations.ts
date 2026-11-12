@@ -1,7 +1,9 @@
 import type { AiProvider } from "@openmonetis/domain/ai-providers";
+import type { SaveAiProviderKeyInput } from "@openmonetis/validators/ai-providers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   disconnectAiProvider,
+  saveAiProviderKey,
   startAiProviderLogin,
   submitAiProviderLoginCode,
   updateAiProvider,
@@ -54,6 +56,15 @@ export function useDisconnectAiProviderMutation() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (provider: AiProvider) => disconnectAiProvider(provider),
+    onSuccess: () => client.invalidateQueries({ queryKey: aiProviderKeys.list() }),
+  });
+}
+
+export function useSaveAiProviderKeyMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ provider, input }: { provider: AiProvider; input: SaveAiProviderKeyInput }) =>
+      saveAiProviderKey(provider, input),
     onSuccess: () => client.invalidateQueries({ queryKey: aiProviderKeys.list() }),
   });
 }
