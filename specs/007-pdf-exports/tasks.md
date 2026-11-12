@@ -73,7 +73,7 @@ report PDF and Excel, US3 consistent and safe files.
   `FINANCIAL_INTEGRITY_INTEGRATION_TEST=1 pnpm exec tsx --test apps/api/src/financial-integrity.integration.test.ts`
   pass.
 
-- [ ] T004 [P] Generic file builders in `apps/web/src/lib/` (plan.md "Design > Web",
+- [x] T004 [P] Generic file builders in `apps/web/src/lib/` (plan.md "Design > Web",
   data-model.md, research.md R4-R6). New `download-blob.ts`: `downloadBlob(blob, fileName)`.
   New `export-branding.ts` (browser only): `type ExportBranding`, `resolveExportBranding()`
   (`--primary` via a probe element -> `[r,g,b]`, fallback `[201, 106, 58]`; SVG mark and wordmark
