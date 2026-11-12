@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import type { Resolutions } from "./types";
+import type { Pool, PoolClient } from "pg";
+import type { LoadReport, RepairList, Resolutions, TableCount, WriteResult } from "./types";
 
 const COMMANDS = ["validate", "load", "reconcile", "rehearse"] as const;
 type CliCommand = (typeof COMMANDS)[number];
@@ -8,6 +9,9 @@ type CliCommand = (typeof COMMANDS)[number];
 const TARGET_COMMANDS: readonly CliCommand[] = ["load", "reconcile", "rehearse"];
 
 const EXIT_CODES = { success: 0, findings: 1, guardRefusal: 2, usage: 3 } as const;
+
+// Same fallback as the API passkey configuration (auth.ts) when WEB_URL is unset.
+const DEFAULT_WEB_URL = "http://localhost:7002";
 
 const USAGE = `Usage: pnpm etl:v1 <validate|load|reconcile|rehearse> [options]
 
@@ -169,8 +173,160 @@ async function runValidate(options: CliOptions): Promise<number> {
     : EXIT_CODES.findings;
 }
 
-async function runCommand(options: CliOptions): Promise<number> {
+async function runLoad(options: CliOptions, env: NodeJS.ProcessEnv): Promise<number> {
+  const targetUrl = options.targetUrl;
+  if (targetUrl === null) throw new UsageError("The load command requires --target-url.");
+  const resolutions =
+    options.resolutionsPath === null ? null : await readResolutions(options.resolutionsPath);
+  const targetRpId = new URL(env.WEB_URL ?? DEFAULT_WEB_URL).hostname;
+  const { openV1, withV1Snapshot, listV1Users, extractUser } = await import("./v1-source");
+  const { validate, unresolvedBlockers, ValidationInputError } = await import(
+    "./validate/validator"
+  );
+  const { defaultOutDir, renderLoadText, renderValidationText, writeOutput } = await import(
+    "./output/render"
+  );
+  const { checkLoadGuards } = await import("./load/guards");
+  const { ensureState, finishRun, isUserLoaded, startRun } = await import("./load/etl-state");
+  const { mergeCounts, planUser } = await import("./load/plan-user");
+  const { openTarget, writeUser } = await import("./load/v2-writer");
+  const { v2Id } = await import("./ids");
+
+  const v1Pool = openV1(options.v1Url);
+  const target = openTarget(targetUrl);
+  try {
+    return await withV1Snapshot(v1Pool, async (v1) => {
+      let validation: Awaited<ReturnType<typeof validate>>;
+      try {
+        validation = await validate(v1, { resolutions, checkBucket: false, user: null });
+      } catch (error) {
+        if (!(error instanceof ValidationInputError)) throw error;
+        process.stderr.write(`${error.message}\n`);
+        return error.exitCode;
+      }
+      const fingerprint = validation.header.dumpFingerprint;
+      const outDir = options.outDir ?? defaultOutDir(fingerprint);
+
+      const guard = await withTargetClient(target, (c) =>
+        checkLoadGuards(c, {
+          v1Url: options.v1Url,
+          targetUrl,
+          scratch: options.scratch,
+          confirmProduction: options.confirmProduction,
+          fingerprint,
+        }),
+      );
+      if (!guard.ok) {
+        process.stderr.write(`Load refused: ${guard.reason}\n`);
+        return EXIT_CODES.guardRefusal;
+      }
+
+      // US2.4: nothing is written while a blocker is unresolved; print the validation output.
+      if (unresolvedBlockers(validation, resolutions).length > 0) {
+        const text = renderValidationText(validation);
+        await writeOutput(outDir, "validate", validation, text);
+        process.stdout.write(`${text}\n`);
+        return EXIT_CODES.findings;
+      }
+
+      await withTargetClient(target, async (c) => {
+        await ensureState(c);
+        await startRun(c, fingerprint, validation.v1Counts);
+      });
+
+      const index = await listV1Users(v1);
+      const users: WriteResult[] = [];
+      const counts: TableCount[] = [];
+      const appliedRules = new Map<string, number>();
+      const repairList: RepairList = {
+        companionRepair: [],
+        shareReinvite: [],
+        passwordReset: [],
+        passkeysNotLoaded: [],
+      };
+      for (const { id: v1UserId } of index.users) {
+        // The target pool has max 1: this client is released before the writer checks one out.
+        const loaded = await withTargetClient(target, (c) =>
+          isUserLoaded(c, v1UserId, fingerprint),
+        );
+        if (loaded !== null) {
+          users.push({ status: "skipped-already-loaded", v1UserId, ...loaded, written: 0 });
+          continue;
+        }
+        const planned = planUser(await extractUser(v1, v1UserId, index), resolutions, {
+          v1RpId: options.v1RpId,
+          targetRpId,
+        });
+        if (!planned.ok) {
+          // A conversion found a blocker the validator did not: the user is not written.
+          users.push({
+            status: "failed",
+            v1UserId,
+            v2UserId: v2Id("user", v1UserId),
+            table: "plan",
+            cause: "unresolved-blocker",
+          });
+          continue;
+        }
+        const { plan } = planned;
+        const result = await writeUser(target, plan, fingerprint);
+        users.push(result);
+        if (result.status !== "loaded") continue;
+        counts.push(...plan.counts);
+        for (const { rule, rows } of plan.appliedRules) {
+          appliedRules.set(rule, (appliedRules.get(rule) ?? 0) + rows);
+        }
+        for (const key of Object.keys(repairList) as (keyof RepairList)[]) {
+          (repairList[key] as unknown[]).push(...plan.repairList[key]);
+        }
+      }
+
+      const allLoaded = users.every((user) => user.status !== "failed");
+      await withTargetClient(target, (c) => finishRun(c, allLoaded ? "loaded" : "failed"));
+
+      const report: LoadReport = {
+        header: {
+          tool: "v1-etl",
+          command: "load",
+          dumpFingerprint: fingerprint,
+          generatedAt: new Date().toISOString(),
+        },
+        tables: mergeCounts(counts),
+        users: users.sort((a, b) => a.v1UserId.localeCompare(b.v1UserId)),
+        appliedRules: [...appliedRules.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([rule, rows]) => ({ rule, rows })),
+        repairList,
+      };
+      const text = renderLoadText(report);
+      await writeOutput(outDir, "load", report, text);
+      process.stdout.write(`${text}\n`);
+      return allLoaded ? EXIT_CODES.success : EXIT_CODES.findings;
+    });
+  } catch (error) {
+    if (isConnectionError(error)) {
+      process.stderr.write(`Cannot reach a database: ${(error as Error).message}\n`);
+      return EXIT_CODES.usage;
+    }
+    throw error;
+  } finally {
+    await target.end();
+    await v1Pool.end();
+  }
+}
+
+async function withTargetClient<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    return await fn(client);
+  } finally {
+    client.release();
+  }
+}
+
+async function runCommand(options: CliOptions, env: NodeJS.ProcessEnv): Promise<number> {
   if (options.command === "validate") return runValidate(options);
+  if (options.command === "load") return runLoad(options, env);
   process.stderr.write(`etl:v1 ${options.command} is not wired yet.\n`);
   return EXIT_CODES.usage;
 }
@@ -198,7 +354,7 @@ async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Promise<nu
   }
 
   try {
-    return await runCommand(options);
+    return await runCommand(options, env);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     process.stderr.write(`${error.message}\n`);

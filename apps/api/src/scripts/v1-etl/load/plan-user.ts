@@ -166,7 +166,8 @@ function checksumColumnsOf(batches: InsertBatch[]): Record<string, string[]> {
   );
 }
 
-function mergeCounts(counts: TableCount[]): TableCount[] {
+// Sums per-table counts by v1Table; also used by the load command to total over users.
+export function mergeCounts(counts: TableCount[]): TableCount[] {
   const byTable = new Map<string, TableCount>();
   for (const count of counts) {
     const current = byTable.get(count.v1Table);
