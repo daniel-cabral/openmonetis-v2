@@ -1,6 +1,19 @@
+import {
+  type AttachmentSizeLimitMb,
+  attachmentSizeLimitOptionsMb,
+  defaultAttachmentSizeLimitMb,
+} from "./attachments";
 import { type PaymentMethod, paymentMethods } from "./transactions";
 
 export const applicationThemes = ["system", "light", "dark"] as const;
+export const transactionColumnIds = [
+  "name",
+  "amount",
+  "condition",
+  "paymentMethod",
+  "note",
+  "account",
+] as const;
 export const notificationDueSoonDayOptions = [1, 3, 5, 7] as const;
 export const transactionPageSizeOptions = [20, 30, 50] as const;
 export const mobileShortcutDestinations = [
@@ -24,6 +37,7 @@ export const startPageDestinations = [
 ] as const;
 
 export type ApplicationTheme = (typeof applicationThemes)[number];
+export type TransactionColumnId = (typeof transactionColumnIds)[number];
 export type NotificationDueSoonDays = (typeof notificationDueSoonDayOptions)[number];
 export type TransactionPageSize = (typeof transactionPageSizeOptions)[number];
 export type MobileShortcutDestination = (typeof mobileShortcutDestinations)[number];
@@ -39,6 +53,12 @@ export type UserPreferences = {
   transactionsPageSize: TransactionPageSize;
   mobileShortcut: MobileShortcutDestination;
   startPage: StartPageDestination;
+  transactionsColumnOrder: TransactionColumnId[] | null;
+  groupTransactionsByDate: boolean;
+  hideAnticipatedInstallments: boolean;
+  showTransactionSummary: boolean;
+  transactionNoteAsColumn: boolean;
+  attachmentMaxSizeMb: AttachmentSizeLimitMb;
 };
 
 export type UserPreferencesRecord = {
@@ -51,9 +71,17 @@ export type UserPreferencesRecord = {
   transactionsPageSize: number;
   mobileShortcut: string;
   startPage: string;
+  transactionsColumnOrder: string[] | null;
+  groupTransactionsByDate: boolean;
+  hideAnticipatedInstallments: boolean;
+  showTransactionSummary: boolean;
+  transactionNoteAsColumn: boolean;
+  attachmentMaxSizeMb: number;
 };
 
 const applicationThemeSet = new Set<string>(applicationThemes);
+const transactionColumnIdSet = new Set<string>(transactionColumnIds);
+const attachmentSizeLimitSet = new Set<number>(attachmentSizeLimitOptionsMb);
 const notificationDueSoonDaySet = new Set<number>(notificationDueSoonDayOptions);
 const paymentMethodSet = new Set<string>(paymentMethods);
 const transactionPageSizeSet = new Set<number>(transactionPageSizeOptions);
@@ -71,7 +99,30 @@ export function createDefaultUserPreferences(): UserPreferences {
     transactionsPageSize: 30,
     mobileShortcut: "accounts",
     startPage: "dashboard",
+    transactionsColumnOrder: null,
+    groupTransactionsByDate: true,
+    hideAnticipatedInstallments: false,
+    showTransactionSummary: true,
+    transactionNoteAsColumn: false,
+    attachmentMaxSizeMb: defaultAttachmentSizeLimitMb,
   };
+}
+
+export function resolveTransactionColumnOrder(
+  saved: readonly string[] | null,
+  options: { noteAsColumn: boolean },
+): TransactionColumnId[] {
+  const order = [
+    ...new Set([...toKnownTransactionColumnIds(saved ?? []), ...transactionColumnIds]),
+  ];
+  return options.noteAsColumn ? order : order.filter((id) => id !== "note");
+}
+
+export function excludeAnticipatedInstallments<T extends { anticipationId: string | null }>(
+  items: readonly T[],
+  hide: boolean,
+): T[] {
+  return hide ? items.filter((item) => item.anticipationId === null) : [...items];
 }
 
 export function normalizeUserPreferences(
@@ -108,5 +159,37 @@ export function normalizeUserPreferences(
     startPage: startPageDestinationSet.has(preferences.startPage ?? "")
       ? (preferences.startPage as StartPageDestination)
       : defaults.startPage,
+    transactionsColumnOrder: normalizeTransactionsColumnOrder(preferences.transactionsColumnOrder),
+    groupTransactionsByDate:
+      typeof preferences.groupTransactionsByDate === "boolean"
+        ? preferences.groupTransactionsByDate
+        : defaults.groupTransactionsByDate,
+    hideAnticipatedInstallments:
+      typeof preferences.hideAnticipatedInstallments === "boolean"
+        ? preferences.hideAnticipatedInstallments
+        : defaults.hideAnticipatedInstallments,
+    showTransactionSummary:
+      typeof preferences.showTransactionSummary === "boolean"
+        ? preferences.showTransactionSummary
+        : defaults.showTransactionSummary,
+    transactionNoteAsColumn:
+      typeof preferences.transactionNoteAsColumn === "boolean"
+        ? preferences.transactionNoteAsColumn
+        : defaults.transactionNoteAsColumn,
+    attachmentMaxSizeMb: attachmentSizeLimitSet.has(preferences.attachmentMaxSizeMb ?? Number.NaN)
+      ? (preferences.attachmentMaxSizeMb as AttachmentSizeLimitMb)
+      : defaults.attachmentMaxSizeMb,
   };
+}
+
+function toKnownTransactionColumnIds(ids: readonly string[]) {
+  return ids.filter((id): id is TransactionColumnId => transactionColumnIdSet.has(id));
+}
+
+function normalizeTransactionsColumnOrder(
+  order: string[] | null | undefined,
+): TransactionColumnId[] | null {
+  if (!Array.isArray(order)) return null;
+  const known = [...new Set(toKnownTransactionColumnIds(order))];
+  return known.length > 0 ? known : null;
 }

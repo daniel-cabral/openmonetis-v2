@@ -18,6 +18,9 @@ for (const action of ["reset", "delete"] as const) {
         image: null,
       }),
       hasPasswordCredentialForUser: async () => true,
+      findAccountEmailStateForUser: async () => null,
+      isEmailUsedByAnotherUser: async () => false,
+      changeEmailForUser: async () => false,
       listAttachmentFileKeysByUser: async (id) => {
         assert.equal(id, "owner");
         return [
@@ -90,6 +93,9 @@ test("resets the admin person with the default avatar", async () => {
       providerAvatarUrl: "https://example.com/provider-avatar.png",
     }),
     hasPasswordCredentialForUser: async () => true,
+    findAccountEmailStateForUser: async () => null,
+    isEmailUsedByAnotherUser: async () => false,
+    changeEmailForUser: async () => false,
     listAttachmentFileKeysByUser: async () => [],
     resetForUser: async (_userId, draft) => {
       resetDrafts.push(draft);
@@ -114,6 +120,9 @@ test("reports whether password changes are available", async () => {
   const repository: SettingsRepository = {
     findUserById: async () => null,
     hasPasswordCredentialForUser: async (userId) => userId === "password-user",
+    findAccountEmailStateForUser: async () => null,
+    isEmailUsedByAnotherUser: async () => false,
+    changeEmailForUser: async () => false,
     listAttachmentFileKeysByUser: async () => [],
     resetForUser: async () => false,
     deleteForUser: async () => false,

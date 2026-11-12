@@ -23,6 +23,7 @@ import {
 type AttachmentFilePickerProps = {
   files?: File[];
   disabled?: boolean;
+  maxSizeMb?: number;
   onAdd: (file: File) => void;
   onRemove?: (file: File) => void;
 };
@@ -30,6 +31,7 @@ type AttachmentFilePickerProps = {
 export function AttachmentFilePicker({
   files = [],
   disabled = false,
+  maxSizeMb = maximumAttachmentSizeMb,
   onAdd,
   onRemove,
 }: AttachmentFilePickerProps) {
@@ -41,7 +43,7 @@ export function AttachmentFilePicker({
     let foundDuplicate = false;
 
     for (const file of filesToAdd) {
-      const validationError = validateAttachmentFile(file);
+      const validationError = validateAttachmentFile(file, maxSizeMb);
 
       if (validationError) {
         toast.error(validationError, { description: file.name });
@@ -154,7 +156,7 @@ export function AttachmentFilePicker({
           <AttachmentContent>
             <AttachmentTitle>{disabled ? "Enviando anexo..." : "Adicionar anexo"}</AttachmentTitle>
             <AttachmentDescription className="whitespace-normal" id={descriptionId}>
-              Solte, cole ou escolha PDF, JPEG, PNG ou WebP · máx. {maximumAttachmentSizeMb} MB
+              Solte, cole ou escolha PDF, JPEG, PNG ou WebP · máx. {maxSizeMb} MB
             </AttachmentDescription>
           </AttachmentContent>
         </Attachment>

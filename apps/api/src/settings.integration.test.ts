@@ -129,6 +129,13 @@ test("reset and account deletion preserve other users and clean owned financial 
       "reset removes owned aggregates and recreates exactly one admin with default categories",
       async () => {
         await api.data(
+          await api.request("/preferences", owner, "PATCH", {
+            groupTransactionsByDate: false,
+            attachmentMaxSizeMb: 5,
+            transactionsColumnOrder: ["amount"],
+          }),
+        );
+        await api.data(
           await api.request("/settings/reset", owner, "POST", { confirmation: "ZERAR" }),
         );
         const current = await snapshot(owner.id);
@@ -149,6 +156,12 @@ test("reset and account deletion preserve other users and clean owned financial 
             .length > 0,
         );
         assert.deepEqual(await snapshot(stranger.id), foreignSnapshot);
+        const preferences = await api.data<Record<string, unknown>>(
+          await api.request("/preferences", owner),
+        );
+        assert.equal(preferences.groupTransactionsByDate, true);
+        assert.equal(preferences.attachmentMaxSizeMb, 50);
+        assert.equal(preferences.transactionsColumnOrder, null);
         await api.data(await api.request("/accounts", owner));
       },
     );

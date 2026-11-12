@@ -1,12 +1,20 @@
+import type { TransactionColumnId } from "@openmonetis/domain/preferences";
+import type { UserPreferencesOutput } from "@openmonetis/validators/preferences";
 import type {
   RecurringOccurrenceActionInput,
   TransactionActionScope,
   TransactionOutput,
 } from "@openmonetis/validators/transactions";
 
+export type TransactionListPreferences = Pick<
+  UserPreferencesOutput,
+  "groupTransactionsByDate" | "transactionNoteAsColumn" | "transactionsColumnOrder"
+>;
+
 export type TransactionsTableProps = {
   accountStatement?: boolean;
   adminPersonId: string | null;
+  listPreferences: TransactionListPreferences;
   selectionMode?: boolean;
   transactions: TransactionOutput[];
   pendingTransactionId: string | null;
@@ -41,6 +49,7 @@ export type TransactionsTableProps = {
 export type TransactionRowProps = {
   accountStatement: boolean;
   adminPersonId: string | null;
+  columns: TransactionColumnId[];
   selectionMode: boolean;
   selected: boolean;
   selectable: boolean;

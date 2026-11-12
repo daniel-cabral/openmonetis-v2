@@ -3,4 +3,6 @@ export type ApiVariables = {
   deviceTokenId: string;
   deviceTokenName: string;
   deviceTokenExpiresAt: Date;
+  sessionId: string;
+  sessionCreatedAt: Date;
 };

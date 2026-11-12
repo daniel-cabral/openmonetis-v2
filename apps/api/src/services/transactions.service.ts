@@ -17,6 +17,7 @@ import {
 import { decodeImportText } from "@openmonetis/domain/import-csv";
 import { detectImportProfile, findImportProfile } from "@openmonetis/domain/import-profiles";
 import { buildImportRowIdentityPayloads } from "@openmonetis/domain/import-row-identity";
+import { excludeAnticipatedInstallments } from "@openmonetis/domain/preferences";
 import { isPaidButUnreconciled } from "@openmonetis/domain/reconciliations";
 import {
   getNextRecurringOccurrenceDate,
@@ -186,6 +187,7 @@ export type TransactionsServiceDependencies = Pick<
   | "updateTransferPairForUser"
 > & {
   dueDateRules?: DueDateRulesReader;
+  readListPreferences?: (userId: string) => Promise<{ hideAnticipatedInstallments: boolean }>;
   transitionRecurringRuleForUser: typeof import("../repositories/recurring-transactions.repository").transitionRecurringRuleForUser;
   listTagsByIdsForUser?: (ids: string[], userId: string) => Promise<Array<{ id: string }>>;
   findTripByIdForUser?: (id: string, userId: string) => Promise<{ id: string } | null>;
@@ -339,6 +341,8 @@ export function createTransactionsService(
   const dueDateRulesReader = dependencies.dueDateRules?.listVersions
     ? dependencies.dueDateRules
     : emptyDueDateRulesReader;
+  const readListPreferences =
+    dependencies.readListPreferences ?? (async () => ({ hideAnticipatedInstallments: false }));
   const {
     addTransactionsTagsForUser,
     copyTransactionAttachmentLinksForUser,
@@ -1523,7 +1527,13 @@ export function createTransactionsService(
     });
   }
 
-  async function listTransactions(userId: string, query: ListTransactionsQuery, paginate = true) {
+  async function listTransactions(
+    userId: string,
+    query: ListTransactionsQuery,
+    options: { paginate?: boolean; hideAnticipatedInstallments?: boolean } | boolean = true,
+  ) {
+    const { paginate = true, hideAnticipatedInstallments = false } =
+      typeof options === "boolean" ? { paginate: options } : options;
     if (query.categoryIds.length && query.categoryMatch !== "exact")
       query = {
         ...query,
@@ -1861,7 +1871,7 @@ export function createTransactionsService(
       );
     // Paginate purchases/occurrences, keeping every matching allocation together.
     const groups = new Map<string, TransactionOutput[]>();
-    for (const item of filtered) {
+    for (const item of excludeAnticipatedInstallments(filtered, hideAnticipatedInstallments)) {
       const key =
         item.recordId ??
         (item.recurringRuleId ? `${item.recurringRuleId}:${item.purchaseDate}` : item.id);
@@ -1880,6 +1890,11 @@ export function createTransactionsService(
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  async function listTransactionsForScreen(userId: string, query: ListTransactionsQuery) {
+    const { hideAnticipatedInstallments } = await readListPreferences(userId);
+    return listTransactions(userId, query, { paginate: true, hideAnticipatedInstallments });
   }
 
   async function exportTransactions(userId: string, query: ExportTransactionsQuery) {
@@ -3480,6 +3495,7 @@ export function createTransactionsService(
     importTransactions,
     listRecentEstablishments,
     listTransactions,
+    listTransactionsForScreen,
     previewTransactionImport,
     readCsvImportLines,
     renameTransactions,

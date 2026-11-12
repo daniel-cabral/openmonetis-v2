@@ -1,6 +1,8 @@
 import { getAuthenticatorName } from "@better-auth/passkey";
 import type { ChangePasswordInput } from "@openmonetis/validators/auth";
 import type {
+  ChangeAccountEmailInput,
+  ChangeAccountEmailOutput,
   DeleteSettingsAccountInput,
   DeleteSettingsAccountOutput,
   ResetSettingsInput,
@@ -85,6 +87,13 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 
 export function resetSettings(input: ResetSettingsInput) {
   return request<ResetSettingsOutput>("/settings/reset", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function changeAccountEmail(input: ChangeAccountEmailInput) {
+  return request<ChangeAccountEmailOutput>("/settings/email", {
     method: "POST",
     body: JSON.stringify(input),
   });

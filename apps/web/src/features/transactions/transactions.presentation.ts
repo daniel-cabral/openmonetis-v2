@@ -583,6 +583,27 @@ export function groupTransactionRows<
   );
 }
 
+/** Buckets rows by their date, keeping the order in which each date first appears. */
+export function groupTransactionsByDate<T>(rows: readonly T[], getDate: (row: T) => string) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const date = getDate(row);
+    const group = groups.get(date);
+    if (group) group.push(row);
+    else groups.set(date, [row]);
+  }
+  return [...groups].map(([date, groupRows]) => ({ date, rows: groupRows }));
+}
+
+export function formatTransactionGroupDate(value: string) {
+  const label = formatDateInBrazil(dateOnlyToSafeInstant(value), {
+    day: "2-digit",
+    month: "long",
+    weekday: "long",
+  });
+  return `${label.charAt(0).toLocaleUpperCase("pt-BR")}${label.slice(1)}`;
+}
+
 export function getTransactionSettlementLabel(
   transaction: Pick<TransactionOutput, "type" | "isSettled" | "paymentMethod">,
 ) {

@@ -47,6 +47,11 @@ test("saving a preference patch preserves settings omitted by the editor", async
   assert.equal(saved.theme, "dark");
   assert.equal(saved.hideValuesOnStart, true);
   assert.equal(writes(), 1);
+  await service.update({ transactionsColumnOrder: ["amount"], attachmentMaxSizeMb: 10 }, "user-a");
+  const patched = await service.update({ groupTransactionsByDate: false }, "user-a");
+  assert.deepEqual(patched.transactionsColumnOrder, ["amount"]);
+  assert.equal(patched.attachmentMaxSizeMb, 10);
+  assert.equal(patched.groupTransactionsByDate, false);
 });
 
 test("saving a mobile shortcut keeps it across preference updates", async () => {

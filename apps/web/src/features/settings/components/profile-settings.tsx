@@ -3,7 +3,7 @@ import type { ReplacePersonInput } from "@openmonetis/validators/people";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
-import { KeyRound, Pencil, ReceiptText, UserRound } from "lucide-react";
+import { KeyRound, Mail, Pencil, ReceiptText, UserRound } from "lucide-react";
 import { useState } from "react";
 import { SettingsPanel, SettingsSection } from "@/components/settings-panel";
 import { SettingsQueryError } from "@/components/settings-query-error";
@@ -15,11 +15,13 @@ import { useReplacePersonMutation } from "@/features/people/people.mutations";
 import { personQueryOptions } from "@/features/people/people.queries";
 import { authClient } from "@/lib/auth-client";
 import { passkeysQueryOptions, settingsSecurityQueryOptions } from "../settings.queries";
+import { ChangeEmailDialog } from "./change-email-dialog";
 
 export function ProfileSettings() {
   const personQuery = useQuery(personQueryOptions("admin"));
   const replacePerson = useReplacePersonMutation();
   const [editing, setEditing] = useState(false);
+  const [changingEmail, setChangingEmail] = useState(false);
 
   if (personQuery.isPending) {
     return (
@@ -77,15 +79,26 @@ export function ProfileSettings() {
                 <p className="truncate text-muted-foreground text-sm">{person.email}</p>
               </div>
             </div>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => setEditing(true)}
-              type="button"
-              variant="outline"
-            >
-              <Pencil aria-hidden="true" />
-              Editar perfil
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setEditing(true)}
+                type="button"
+                variant="outline"
+              >
+                <Pencil aria-hidden="true" />
+                Editar perfil
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setChangingEmail(true)}
+                type="button"
+                variant="outline"
+              >
+                <Mail aria-hidden="true" />
+                Alterar e-mail
+              </Button>
+            </div>
           </div>
           <p className="text-muted-foreground text-sm leading-relaxed">
             O e-mail exibido é o mesmo usado para entrar. Ao alterá-lo, use o novo endereço no
@@ -114,6 +127,11 @@ export function ProfileSettings() {
         onSubmit={(input) => updateProfile(input as ReplacePersonInput)}
         open={editing}
         person={person}
+      />
+      <ChangeEmailDialog
+        currentEmail={person.email ?? ""}
+        onOpenChange={setChangingEmail}
+        open={changingEmail}
       />
     </>
   );

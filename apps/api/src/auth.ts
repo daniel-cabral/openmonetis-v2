@@ -2,6 +2,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { passkey } from "@better-auth/passkey";
 import { db } from "@openmonetis/db";
 import * as schema from "@openmonetis/db/schema";
+import { freshSessionMaxAgeSeconds } from "@openmonetis/domain/settings";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, freshSessionMiddleware } from "better-auth/api";
 import type { GoogleProfile } from "better-auth/social-providers";
@@ -17,10 +18,10 @@ import {
   parseCsvEnv,
   parsePositiveIntegerEnv,
 } from "./utils/env";
+import { createResendEmailSender, readEmailEnvironment } from "./utils/resend";
 
 const DEFAULT_SESSION_EXPIRES_IN_DAYS = 30;
 const DEFAULT_SESSION_UPDATE_AGE_HOURS = 24;
-const PASSKEY_FRESH_SESSION_AGE_SECONDS = 10 * 60;
 const PASSKEY_SENSITIVE_MANAGEMENT_PATHS = new Set([
   "/passkey/update-passkey",
   "/passkey/delete-passkey",
@@ -103,7 +104,7 @@ const baseURL = getRequiredProductionEnv("BETTER_AUTH_URL", "http://localhost:70
 const passkeyOrigin = getPasskeyOriginConfiguration(
   getRequiredProductionEnv("WEB_URL", "http://localhost:7002"),
 );
-const webURL = passkeyOrigin.origin;
+export const webURL = passkeyOrigin.origin;
 const trustedOrigins = [webURL, ...parseCsvEnv(process.env.BETTER_AUTH_TRUSTED_ORIGINS)];
 const authSecret =
   assertProductionSecret("BETTER_AUTH_SECRET", [
@@ -122,6 +123,8 @@ const sessionUpdateAgeHours = parsePositiveIntegerEnv(
 );
 const categoriesService = createCategoriesService(categoriesRepository);
 const peopleService = createPeopleService(peopleRepository);
+const emailSender = createResendEmailSender(readEmailEnvironment());
+export const emailVerificationEnabled = emailSender.enabled;
 
 function requireVerifiedPasskeyUser(userVerified: boolean) {
   if (!userVerified) {
@@ -202,9 +205,24 @@ export function createAuth(options: { disableSignup?: boolean } = {}) {
     },
     session: {
       expiresIn: sessionExpiresInDays * 24 * 60 * 60,
-      freshAge: PASSKEY_FRESH_SESSION_AGE_SECONDS,
+      freshAge: freshSessionMaxAgeSeconds,
       updateAge: sessionUpdateAgeHours * 60 * 60,
     },
+    emailVerification: emailVerificationEnabled
+      ? {
+          sendVerificationEmail: async ({ user: recipient, url }) => {
+            const escapedURL = url.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+            await emailSender.send({
+              to: recipient.email,
+              replyTo: null,
+              subject: "Confirme seu novo e-mail no OpenMonetis",
+              text: `Confirme seu novo e-mail no OpenMonetis: ${url}`,
+              html: `<p>Confirme seu novo e-mail no OpenMonetis.</p><p><a href="${escapedURL}">Confirmar e-mail</a></p>`,
+              idempotencyKey: `verify-email:${recipient.id}:${url}`,
+            });
+          },
+        }
+      : undefined,
     plugins: [
       passkey({
         rpID: passkeyOrigin.rpID,

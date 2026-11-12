@@ -5,6 +5,7 @@ import {
   isAllowedAttachment,
   normalizeAttachmentFileName,
   type PeriodAttachmentLink,
+  resolveAttachmentSizeLimit,
   summarizePeriodAttachments,
 } from "@openmonetis/domain/attachments";
 import { canAttachToNote, type NoteKind } from "@openmonetis/domain/notes";
@@ -106,6 +107,7 @@ type AttachmentGroup = {
 export function createAttachmentsService(
   repository: AttachmentsRepository,
   storage: AttachmentStorage,
+  limits: { getAttachmentSizeLimitMb(userId: string): Promise<number> },
 ) {
   async function assertTransaction(transactionId: string, userId: string) {
     if (!(await repository.transactionExistsForUser(transactionId, userId))) {
@@ -136,6 +138,10 @@ export function createAttachmentsService(
   ) {
     if (!isAllowedAttachment(input.mimeType, input.fileSize)) {
       throw badRequest("Invalid attachment", "invalid_attachment");
+    }
+    const sizeLimit = resolveAttachmentSizeLimit(await limits.getAttachmentSizeLimitMb(userId));
+    if (input.fileSize > sizeLimit) {
+      throw badRequest("Attachment exceeds the size limit", "attachment_too_large");
     }
 
     await cleanupExpiredPendingUploads(repository, storage, userId);

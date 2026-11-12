@@ -1,3 +1,4 @@
+import { createDefaultUserPreferences } from "@openmonetis/domain/preferences";
 import { getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   TransactionActionScope,
@@ -156,6 +157,7 @@ export function TransactionsContainer({
   return (
     <>
       <TransactionsScreen
+        listPreferences={preferencesQuery.data ?? createDefaultUserPreferences()}
         onExport={
           !scope || scope.export
             ? (format) =>

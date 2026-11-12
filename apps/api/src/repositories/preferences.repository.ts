@@ -15,6 +15,12 @@ export const preferencesRepository = {
         transactionsPageSize: userPreferences.transactionsPageSize,
         mobileShortcut: userPreferences.mobileShortcut,
         startPage: userPreferences.startPage,
+        transactionsColumnOrder: userPreferences.transactionsColumnOrder,
+        groupTransactionsByDate: userPreferences.groupTransactionsByDate,
+        hideAnticipatedInstallments: userPreferences.hideAnticipatedInstallments,
+        showTransactionSummary: userPreferences.showTransactionSummary,
+        transactionNoteAsColumn: userPreferences.transactionNoteAsColumn,
+        attachmentMaxSizeMb: userPreferences.attachmentMaxSizeMb,
       })
       .from(userPreferences)
       .leftJoin(

@@ -137,6 +137,10 @@ sem um `EMAIL_FROM` válido. Sem elas, o botão **Enviar por e-mail** do extrato
 uma explicação. As respostas da pessoa vão para o e-mail do dono da conta (`Reply-To`). Veja
 [extrato da pessoa](person-reports.md).
 
+As mesmas variáveis também habilitam o link de confirmação enviado após a troca de e-mail da conta.
+Sem elas, a troca funciona, mas nenhum e-mail é enviado. Veja
+[preferências e troca de e-mail](account-preferences.md).
+
 ## Assistente de IA
 
 | Variável | Serviço | Descrição |

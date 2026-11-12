@@ -16,9 +16,11 @@ import type { PageBreadcrumb } from "@/components/page-header";
 import type { TransactionsExportFormat, TransactionsSearch } from "../transactions.presentation";
 
 import type { TransactionCreateDefaults } from "./transaction-form.validation";
+import type { TransactionListPreferences } from "./transactions-table.types";
 
 export type TransactionsScreenProps = {
   accountStatement?: boolean;
+  listPreferences: TransactionListPreferences;
   transactions: TransactionOutput[];
   accounts: AccountOutput[];
   cards: CardOutput[];

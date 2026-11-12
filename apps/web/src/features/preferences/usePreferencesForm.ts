@@ -30,7 +30,8 @@ export function usePreferencesForm(preferences: UserPreferencesOutput) {
         const changes = Object.fromEntries(
           Object.entries(value).filter(
             ([key, entry]) =>
-              entry !== form.options.defaultValues?.[key as keyof UserPreferencesOutput],
+              JSON.stringify(entry) !==
+              JSON.stringify(form.options.defaultValues?.[key as keyof UserPreferencesOutput]),
           ),
         );
         if (Object.keys(changes).length === 0) return;

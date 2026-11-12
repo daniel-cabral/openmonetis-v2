@@ -24,6 +24,7 @@ export function TransactionRowDescription({
   featuredLogo,
   featuredLogoName,
   categoryLabel,
+  noteAsColumn,
 }: {
   period: TransactionRowProps["period"];
   transaction: TransactionRowProps["transaction"];
@@ -36,6 +37,7 @@ export function TransactionRowDescription({
   featuredLogo: string | null;
   featuredLogoName: string;
   categoryLabel: string | null;
+  noteAsColumn: boolean;
 }) {
   return (
     <TableCell>
@@ -101,7 +103,7 @@ export function TransactionRowDescription({
             {transaction.hasAttachments ? (
               <Paperclip className="size-3.5" aria-label="Possui anexos" />
             ) : null}
-            {transaction.note ? (
+            {transaction.note && !noteAsColumn ? (
               <Tooltip>
                 <TooltipTrigger
                   aria-label="Ver observação"

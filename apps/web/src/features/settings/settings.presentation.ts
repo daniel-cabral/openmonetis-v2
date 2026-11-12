@@ -42,6 +42,23 @@ export function settingsMutationErrorMessage(error: unknown) {
   return "Não foi possível concluir a ação. Tente novamente.";
 }
 
+export function changeEmailErrorMessage(error: unknown): string {
+  if (!(error instanceof SettingsApiError)) return "Não foi possível alterar o e-mail.";
+
+  switch (error.code) {
+    case "email_unchanged":
+      return "O novo e-mail deve ser diferente do atual";
+    case "email_change_rejected":
+      return "Não foi possível alterar o e-mail. Confira os dados e tente novamente.";
+    case "fresh_session_required":
+      return "Entre novamente com Google para confirmar que é você.";
+    case "rate_limited":
+      return "Muitas tentativas. Aguarde um minuto.";
+    default:
+      return "Não foi possível alterar o e-mail.";
+  }
+}
+
 export function passwordMutationErrorMessage(error: unknown) {
   if (error instanceof SettingsApiError && error.code === "PASSWORD_UNCHANGED") {
     return "A nova senha deve ser diferente da atual.";

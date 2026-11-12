@@ -35,6 +35,7 @@ export type {
 
 export function TransactionsScreen({
   accountStatement = false,
+  listPreferences,
   transactions,
   accounts,
   cards,
@@ -433,6 +434,7 @@ export function TransactionsScreen({
       {!isLoading && !hasLoadError && isMobile === true ? (
         <TransactionsMobileList
           accountStatement={accountStatement}
+          groupByDate={listPreferences.groupTransactionsByDate}
           key={`mobile:${selectionScopeKey}`}
           allowImport={allowImport}
           exportOptions={
@@ -455,6 +457,7 @@ export function TransactionsScreen({
       {!isLoading && !hasLoadError && isMobile === false ? (
         <TransactionsTable
           accountStatement={accountStatement}
+          listPreferences={listPreferences}
           key={`desktop:${selectionScopeKey}:${selectionMode}`}
           selectionMode={selectionMode}
           adminPersonId={adminPersonId}

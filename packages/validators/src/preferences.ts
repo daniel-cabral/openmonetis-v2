@@ -1,9 +1,11 @@
 import { z } from "@hono/zod-openapi";
+import { attachmentSizeLimitOptionsMb } from "@openmonetis/domain/attachments";
 import {
   applicationThemes,
   mobileShortcutDestinations,
   notificationDueSoonDayOptions,
   startPageDestinations,
+  transactionColumnIds,
   transactionPageSizeOptions,
 } from "@openmonetis/domain/preferences";
 import { paymentMethods } from "@openmonetis/domain/transactions";
@@ -25,6 +27,21 @@ const TransactionsPageSizeSchema = z.union(
   ],
 );
 
+const TransactionsColumnOrderSchema = z
+  .array(z.enum(transactionColumnIds))
+  .min(1)
+  .max(transactionColumnIds.length)
+  .refine((ids) => new Set(ids).size === ids.length, "Duplicate column");
+
+const AttachmentSizeLimitSchema = z.union(
+  attachmentSizeLimitOptionsMb.map((size) => z.literal(size)) as [
+    z.ZodLiteral<5>,
+    z.ZodLiteral<10>,
+    z.ZodLiteral<25>,
+    z.ZodLiteral<50>,
+  ],
+);
+
 export const UserPreferencesOutputSchema = z
   .object({
     theme: z.enum(applicationThemes),
@@ -36,6 +53,12 @@ export const UserPreferencesOutputSchema = z
     transactionsPageSize: TransactionsPageSizeSchema,
     mobileShortcut: z.enum(mobileShortcutDestinations),
     startPage: z.enum(startPageDestinations),
+    transactionsColumnOrder: TransactionsColumnOrderSchema.nullable(),
+    groupTransactionsByDate: z.boolean(),
+    hideAnticipatedInstallments: z.boolean(),
+    showTransactionSummary: z.boolean(),
+    transactionNoteAsColumn: z.boolean(),
+    attachmentMaxSizeMb: AttachmentSizeLimitSchema,
   })
   .openapi("UserPreferencesOutput");
 

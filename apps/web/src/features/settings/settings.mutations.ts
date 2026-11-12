@@ -1,11 +1,15 @@
 import type { ChangePasswordInput } from "@openmonetis/validators/auth";
 import type {
+  ChangeAccountEmailInput,
   DeleteSettingsAccountInput,
   ResetSettingsInput,
 } from "@openmonetis/validators/settings";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { personKeys } from "@/features/people/people.queries";
+import { authClient } from "@/lib/auth-client";
 import {
   addPasskey,
+  changeAccountEmail,
   changeSettingsPassword,
   deleteSettingsAccount,
   removePasskey,
@@ -28,6 +32,17 @@ export function useChangeSettingsPasswordMutation() {
   return useMutation({
     gcTime: 0,
     mutationFn: (input: ChangePasswordInput) => changeSettingsPassword(input),
+  });
+}
+
+export function useChangeAccountEmailMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ChangeAccountEmailInput) => changeAccountEmail(input),
+    onSuccess: async () => {
+      authClient.$store.notify("$sessionSignal");
+      await queryClient.invalidateQueries({ queryKey: personKeys.all });
+    },
   });
 }
 

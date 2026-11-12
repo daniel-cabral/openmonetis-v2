@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { AttachmentFilePicker } from "@/features/attachments/components/attachment-file-picker";
 import { TransactionAttachments } from "@/features/attachments/components/transaction-attachments";
+import { userPreferencesQueryOptions } from "@/features/preferences/preferences.queries";
 import type { useTransactionForm } from "../useTransactionForm";
 import { FieldShell } from "./transaction-field-shell";
 import type { TransactionFormProps } from "./transaction-form.types";
@@ -22,6 +24,8 @@ export function TransactionAttachmentsField({
   values: TransactionFormValues;
   isSubmitting: boolean;
 }) {
+  const preferences = useQuery(userPreferencesQueryOptions());
+
   return (
     <>
       {mode === "edit" ? (
@@ -49,6 +53,7 @@ export function TransactionAttachmentsField({
           <AttachmentFilePicker
             disabled={isSubmitting}
             files={pendingFiles}
+            maxSizeMb={preferences.data?.attachmentMaxSizeMb}
             onAdd={(file) => setPendingFiles((current) => [...current, file])}
             onRemove={(file) =>
               setPendingFiles((current) => current.filter((item) => item !== file))

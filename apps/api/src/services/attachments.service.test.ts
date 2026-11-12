@@ -119,7 +119,9 @@ function fixture() {
       return { url: "https://test.invalid/download", expiresAt: new Date().toISOString() };
     },
   };
-  const service = createAttachmentsService(repository, storage);
+  const service = createAttachmentsService(repository, storage, {
+    getAttachmentSizeLimitMb: async () => 50,
+  });
   async function prepare() {
     const upload = await service.prepare(
       {

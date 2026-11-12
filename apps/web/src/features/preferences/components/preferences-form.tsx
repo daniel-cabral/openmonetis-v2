@@ -7,8 +7,10 @@ import { userPreferencesQueryOptions } from "../preferences.queries";
 import { usePreferencesForm } from "../usePreferencesForm";
 import { PreferencesActions } from "./preferences-actions";
 import { PreferencesBrowsingSection } from "./preferences-browsing-section";
+import { PreferencesDetailsAttachmentsSection } from "./preferences-details-attachments-section";
 import { PreferencesDisplaySections } from "./preferences-display-sections";
 import { PreferencesTransactionSection } from "./preferences-transaction-section";
+import { PreferencesTransactionsListSection } from "./preferences-transactions-list-section";
 
 export function PreferencesForm() {
   const query = useQuery(userPreferencesQueryOptions());
@@ -48,6 +50,14 @@ function PreferencesEditor({ preferences }: { preferences: UserPreferencesOutput
           <SettingsPanel>
             <PreferencesDisplaySections form={form} disabled={isSubmitting || isRestoring} />
             <PreferencesTransactionSection form={form} disabled={isSubmitting || isRestoring} />
+            <PreferencesTransactionsListSection
+              form={form}
+              disabled={isSubmitting || isRestoring}
+            />
+            <PreferencesDetailsAttachmentsSection
+              form={form}
+              disabled={isSubmitting || isRestoring}
+            />
             <PreferencesBrowsingSection form={form} disabled={isSubmitting || isRestoring} />
           </SettingsPanel>
         )}
