@@ -63,6 +63,20 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   categoria, que ganha **Excel** e **PDF** além do CSV. Novo endpoint `GET /transactions/export/items`
   (lista filtrada sem paginação). Novas dependências no web: `jspdf`, `jspdf-autotable` e `exceljs`,
   carregadas só ao exportar. Detalhes em `docs/exports.md`.
+- Diálogo de pagamento de fatura informa o valor da fatura, o já abatido (créditos e pagamentos
+  anteriores) e o valor a registrar antes de confirmar; o que for registrado é exatamente o
+  anunciado. Fatura já coberta mostra que nada será lançado. Detalhes em `docs/invoice-payments.md`.
+- Pagamento acima do saldo atual de uma pessoa agora responde 409 `invoice_payment_balance_changed`
+  em vez de 400, e a tela recarrega os valores e pede nova confirmação. Pagamento com a fatura
+  alterada durante o registro responde 409 `invoice_payment_conflict`.
+- Faturas expõem `creditAmount`, o total de créditos já lançados na fatura, sem alterar o saldo em
+  aberto.
+- Categoria com subcategorias ganha o bloco **Por subcategoria** no cabeçalho, com percentual e
+  valor por subcategoria; clicar filtra a lista pela subcategoria (`subcategory` na URL). Novo campo
+  `subcategoryBreakdown` nas tendências por categoria e `categoryMatch` em `GET /transactions`
+  (`exact` lista só a categoria escolhida). Detalhes em `docs/category-breakdown.md`.
+- Teste de regressão: destinatário de uma conexão de pessoas tem só leitura dos itens compartilhados
+  e não consegue alterar ou criar lançamentos, contas, cartões ou pessoas do dono.
 
 ## [0.16.0] - 2026-11-07
 

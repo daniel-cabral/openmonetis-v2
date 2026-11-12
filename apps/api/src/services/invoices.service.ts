@@ -15,6 +15,7 @@ import {
 import {
   calculateInvoicePersonBalances,
   createInvoiceAdjustmentDraft,
+  sumInvoiceCredits,
   validateInvoicePaymentAllocations,
 } from "@openmonetis/domain/invoices";
 import {
@@ -24,6 +25,7 @@ import {
   listRecurrenceDatesInPeriod,
   type PaymentMethod,
   type RecurrenceFrequency,
+  type TransactionOrigin,
 } from "@openmonetis/domain/transactions";
 import { getCurrentDateInBrazil } from "@openmonetis/shared/date-time";
 import type {
@@ -56,6 +58,7 @@ type InvoiceMovementRecord = {
   personAvatarUrl: string | null;
   personRole: "admin" | "external";
   amount: string;
+  origin?: TransactionOrigin | null;
 };
 type InvoiceAllocationRecord = { cardId: string; personId: string; amount: string };
 type InvoicePaymentRecord = {
@@ -248,6 +251,9 @@ export function createInvoicesService(
           amount,
           paidAmount,
           remainingAmount,
+          creditAmount: sumInvoiceCredits(
+            cardMovements.map((item) => ({ origin: item.origin, amount: Number(item.amount) })),
+          ),
           status: summary.status,
           closingDate: summary.closingDate,
           dueDate: summary.dueDate,
@@ -294,13 +300,18 @@ export function createInvoicesService(
       const snapshot = await get(period, userId);
       const invoice = snapshot.items.find((item) => item.cardId === cardId);
       if (!invoice) throw notFound("Invoice not found", "invoice_not_found");
+      if (input.allocations.some((allocation) => allocation.amount <= 0))
+        throw badRequest("Invalid payment amount", "invalid_invoice_payment_amount");
       let totalAmount: number;
       try {
         totalAmount = validateInvoicePaymentAllocations(
           invoice.people,
           input.allocations,
         ).totalAmount;
-      } catch {
+      } catch (error) {
+        if (error instanceof RangeError && error.message === "amount_exceeds_person_balance") {
+          throw conflict("Invoice balance changed", "invoice_payment_balance_changed");
+        }
         throw badRequest("Invalid payment amount", "invalid_invoice_payment_amount");
       }
       const context = await repository.findOwnedContext(

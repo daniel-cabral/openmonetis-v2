@@ -184,6 +184,10 @@ test("grouped trends count direct, child, refund and recurrence amounts once acr
   assert.equal(group?.values[0]?.previousAmount, 100);
   assert.equal(group?.subcategories?.[0]?.totalAmount, 280.15);
   assert.equal(group?.directCategory?.totalAmount, 50.1);
+  assert.deepEqual(group?.subcategoryBreakdown, [
+    { categoryId: childId, name: "Luz", amount: 280.15, percentage: 84.8 },
+    { categoryId: null, name: null, amount: 50.1, percentage: 15.2 },
+  ]);
   const filtered = await service.list("owner", query(`${parentId},${childId}`));
   assert.equal(filtered.summary.expenseAmount, 330.25);
   assert.equal(filtered.categories.length, 1);

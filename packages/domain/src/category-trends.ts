@@ -79,12 +79,20 @@ export type CategoryTrendValueOutput = {
   changeKind: CategoryTrendChangeKind;
 };
 
+export type SubcategoryBreakdownRow = {
+  categoryId: string | null;
+  name: string | null;
+  amount: number;
+  percentage: number;
+};
+
 export type CategoryTrendCategoryOutput = CategoryTrendCategory & {
   totalAmount: number;
   averageAmount: number;
   values: CategoryTrendValueOutput[];
   subcategories?: CategoryTrendCategoryOutput[];
   directCategory?: CategoryTrendCategoryOutput;
+  subcategoryBreakdown?: SubcategoryBreakdownRow[];
 };
 
 export type CategoryTrendsSummary = {
@@ -269,6 +277,18 @@ export function calculateCategoryTrends(input: {
           lookbackPeriod,
           amountsByCategory.get(category.categoryId),
         ),
+        subcategoryBreakdown: buildSubcategoryBreakdown([
+          ...children.map((child) => ({
+            categoryId: child.categoryId,
+            name: child.name,
+            cents: sumPeriodCents(amountsByCategory.get(child.categoryId), periods),
+          })),
+          {
+            categoryId: null,
+            name: null,
+            cents: sumPeriodCents(amountsByCategory.get(category.categoryId), periods),
+          },
+        ]),
       };
     })
     .filter(
@@ -388,6 +408,35 @@ function buildCategoryOutput(
     ),
     values,
   };
+}
+
+export function buildSubcategoryBreakdown(
+  rows: readonly { categoryId: string | null; name: string | null; cents: number }[],
+): SubcategoryBreakdownRow[] {
+  const nonZeroRows = rows.filter((row) => row.cents !== 0);
+  const totalCents = nonZeroRows.reduce((sum, row) => sum + row.cents, 0);
+  const children = nonZeroRows
+    .filter((row) => row.categoryId !== null)
+    .sort(
+      (left, right) =>
+        right.cents - left.cents ||
+        (left.name ?? "").localeCompare(right.name ?? "", "pt-BR", { sensitivity: "base" }),
+    );
+  const direct = nonZeroRows.filter((row) => row.categoryId === null);
+
+  return [...children, ...direct].map((row) => ({
+    categoryId: row.categoryId,
+    name: row.name,
+    amount: fromCents(row.cents),
+    percentage: totalCents > 0 ? Math.round((row.cents * 1000) / totalCents) / 10 : 0,
+  }));
+}
+
+function sumPeriodCents(
+  amountsByPeriod: Map<string, CategoryPeriodAmounts> | undefined,
+  periods: readonly string[],
+) {
+  return periods.reduce((sum, period) => sum + totalCents(amountsByPeriod?.get(period)), 0);
 }
 
 function buildSummary(

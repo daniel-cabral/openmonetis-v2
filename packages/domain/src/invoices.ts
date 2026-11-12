@@ -1,4 +1,6 @@
 import { fromCents, toCents } from "./money";
+import type { TransactionOrigin } from "./transactions";
+
 export type InvoicePersonMovement = {
   personId: string;
   personName: string;
@@ -78,14 +80,45 @@ export function validateInvoicePaymentAllocations(
   for (const allocation of allocations) {
     if (allocated.has(allocation.personId)) throw new RangeError("duplicate_person");
     allocated.add(allocation.personId);
+    const remainingCents = remainingByPerson.get(allocation.personId);
+    if (remainingCents === undefined) throw new RangeError("person_without_balance");
     const amount = toCents(allocation.amount);
-    if (amount <= 0 || amount > (remainingByPerson.get(allocation.personId) ?? 0)) {
+    if (amount <= 0 || amount > remainingCents) {
       throw new RangeError("amount_exceeds_person_balance");
     }
     totalCents += amount;
   }
   if (!totalCents) throw new RangeError("payment_amount_required");
   return { totalAmount: fromCents(totalCents) };
+}
+
+export function sumInvoiceCredits(
+  movements: readonly { origin?: TransactionOrigin | null; amount: number }[],
+) {
+  const creditCents = movements.reduce(
+    (total, movement) =>
+      movement.origin === "invoiceCredit" ? total + toCents(movement.amount) : total,
+    0,
+  );
+  return fromCents(creditCents);
+}
+
+export function describeInvoicePaymentAnnouncement(input: {
+  amount: number;
+  creditAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  recordAmount: number;
+}) {
+  const remainingCents = toCents(input.remainingAmount);
+  const recordCents = toCents(input.recordAmount);
+  return {
+    invoiceAmount: fromCents(toCents(input.amount) + toCents(input.creditAmount)),
+    coveredAmount: fromCents(toCents(input.creditAmount) + toCents(input.paidAmount)),
+    recordAmount: input.recordAmount,
+    remainingAfterAmount: fromCents(Math.max(0, remainingCents - recordCents)),
+    nothingToRecord: remainingCents === 0,
+  };
 }
 
 export function createInvoiceAdjustmentDraft(

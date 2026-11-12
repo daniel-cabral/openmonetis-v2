@@ -423,6 +423,7 @@ export const ListTransactionsQuerySchema = z
     sort: z.enum(["recent", "oldest", "dueDate", "amount"]).optional(),
     personIds: csvUuidSchema,
     categoryIds: csvUuidSchema,
+    categoryMatch: z.enum(["family", "exact"]).optional(),
     tagIds: csvUuidSchema.optional(),
     withoutTags: z
       .literal("true")

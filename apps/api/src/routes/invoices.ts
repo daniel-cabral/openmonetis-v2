@@ -214,7 +214,8 @@ export function createInvoicesRoute(service: InvoicesService) {
           content: { "application/json": { schema: errorSchema } },
         },
         409: {
-          description: "Invoice changed during payment",
+          description:
+            "Invoice balance changed (invoice_payment_balance_changed) or payment conflict (invoice_payment_conflict)",
           content: { "application/json": { schema: errorSchema } },
         },
       },
