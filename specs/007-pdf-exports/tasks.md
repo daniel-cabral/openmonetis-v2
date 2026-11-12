@@ -169,7 +169,7 @@ report PDF and Excel, US3 consistent and safe files.
   `node --import tsx --test apps/web/src/features/category-trends/category-trends.presentation.test.ts`
   passes (existing CSV test included, unchanged).
 
-- [ ] T008 [US2] Category export wiring (FR-008, FR-011, FR-012).
+- [x] T008 [US2] Category export wiring (FR-008, FR-011, FR-012).
   `category-trends.mutations.ts`: `useExportCategoryTrendsMutation` takes `{ report, format:
   "csv" | "xlsx" | "pdf" }`; `csv` -> unchanged `downloadCategoryTrendsCsv`; `xlsx` ->
   `import("@/lib/xlsx-export")`; `pdf` -> `import("@/lib/pdf-export")` +
