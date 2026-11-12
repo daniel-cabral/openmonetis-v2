@@ -192,47 +192,22 @@ export function calculateCategoryTrends(input: {
     const category = categoryById.get(rule.categoryId);
     if (!category || category.type !== rule.type) continue;
 
-    for (const purchasePeriod of listPeriods(
-      addMonthsToPeriod(lookbackPeriod, -2),
-      addMonthsToPeriod(input.endPeriod, 1),
+    for (const { purchaseDate, period, amount } of listRuleOccurrences(
+      rule,
+      lookbackPeriod,
+      input.endPeriod,
     )) {
-      for (const purchaseDate of listRecurrenceDatesInPeriod({
-        dueDate: rule.dueDate,
-
-        recurrenceEndDate: rule.configuredEndDate,
-
-        anchorDate: rule.anchorDate,
-        startDate: rule.startDate,
-        endDate: rule.endDate,
-        frequency: rule.frequency,
-        period: purchasePeriod,
-      })) {
-        if (
-          input.excludeHiddenAccounts &&
-          (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
-        )
-          continue;
-        if (
-          input.recurringOccurrenceScope === "settled" &&
-          (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true
-        )
-          continue;
-        const transactionPeriod = deriveTransactionPeriod({
-          paymentMethod: rule.paymentMethod,
-          purchaseDate,
-          dueDate: getRecurringDueDate(rule.dueDate, purchaseDate),
-          card: rule.card,
-        });
-
-        if (transactionPeriod < lookbackPeriod || transactionPeriod > input.endPeriod) continue;
-        addCategoryAmount(
-          amountsByCategory,
-          rule.categoryId,
-          transactionPeriod,
-          "recurringCents",
-          getOccurrenceAmount(rule, purchaseDate, rule.amount),
-        );
-      }
+      if (
+        input.excludeHiddenAccounts &&
+        (rule.occurrenceAccountExclusions?.[purchaseDate] ?? rule.excludeFromBalance)
+      )
+        continue;
+      if (
+        input.recurringOccurrenceScope === "settled" &&
+        (rule.occurrenceOverrides?.[purchaseDate]?.isSettled ?? rule.isSettled) !== true
+      )
+        continue;
+      addCategoryAmount(amountsByCategory, rule.categoryId, period, "recurringCents", amount);
     }
   }
 
@@ -325,6 +300,47 @@ export function calculateCategoryTrends(input: {
     availableCategories: visibleCategories.sort(compareAvailableCategories),
     summary: buildSummary(periodOutputs, categoryOutputs.length),
   };
+}
+
+export function listRuleOccurrences(
+  rule: Omit<CategoryTrendRecurringRule, "categoryId" | "type">,
+  fromPeriod: string,
+  toPeriod: string,
+): Array<{ purchaseDate: string; period: string; amount: number }> {
+  const occurrences: Array<{ purchaseDate: string; period: string; amount: number }> = [];
+
+  for (const purchasePeriod of listPeriods(
+    addMonthsToPeriod(fromPeriod, -2),
+    addMonthsToPeriod(toPeriod, 1),
+  )) {
+    for (const purchaseDate of listRecurrenceDatesInPeriod({
+      dueDate: rule.dueDate,
+
+      recurrenceEndDate: rule.configuredEndDate,
+
+      anchorDate: rule.anchorDate,
+      startDate: rule.startDate,
+      endDate: rule.endDate,
+      frequency: rule.frequency,
+      period: purchasePeriod,
+    })) {
+      const period = deriveTransactionPeriod({
+        paymentMethod: rule.paymentMethod,
+        purchaseDate,
+        dueDate: getRecurringDueDate(rule.dueDate, purchaseDate),
+        card: rule.card,
+      });
+
+      if (period < fromPeriod || period > toPeriod) continue;
+      occurrences.push({
+        purchaseDate,
+        period,
+        amount: getOccurrenceAmount(rule, purchaseDate, rule.amount),
+      });
+    }
+  }
+
+  return occurrences;
 }
 
 function buildCategoryOutput(
