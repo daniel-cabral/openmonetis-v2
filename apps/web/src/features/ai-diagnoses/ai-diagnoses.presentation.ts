@@ -98,6 +98,7 @@ export const aiDiagnosisChartDescriptions: Record<AiDiagnosisChartKind, string> 
 const failureMessages: Record<AiDiagnosisFailureCode, string> = {
   providerDisconnected: "A conexão com a IA expirou. Conecte novamente em Ajustes.",
   providerLimitReached: "O limite da sua assinatura foi atingido. Tente mais tarde.",
+  providerUnavailable: "O provedor de IA está indisponível no momento. Tente mais tarde.",
   providerBusy: "Outro diagnóstico ainda estava em andamento. Tente novamente.",
   invalidOutput: "A IA respondeu em um formato inesperado. Tente novamente.",
   serviceUnavailable: "O serviço de IA não respondeu. Tente novamente em instantes.",
@@ -118,6 +119,12 @@ export const aiDiagnosisExpectedDurations: Record<
   claude: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
   codex: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
   antigravity: { label: "de 1 a 4 minutos", slowAfterSeconds: 240 },
+  anthropic: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
+  openai: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
+  gemini: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
+  openrouter: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
+  minimax: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
+  ollama: { label: "de 15 segundos a 2 minutos", slowAfterSeconds: 120 },
 };
 
 export function formatElapsedTime(seconds: number) {

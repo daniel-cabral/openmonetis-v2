@@ -8,6 +8,18 @@
 
 **Input**: User description: "Support V1-style API-key AI providers (Claude, OpenAI, Gemini, OpenRouter, MiniMax, Ollama) next to the V2 CLI subscription providers (Claude Code, Codex, Antigravity), for diagnoses and chat. Keys are secrets."
 
+## Clarifications
+
+### Session 2026-11-12
+
+Answered autonomously (worker goal), from the V2 code, V1 evidence and the roadmap.
+
+- Q: Which provider ids do API-key providers use, and how is the connection kind known? → A: New ids `anthropic`, `openai`, `gemini`, `openrouter`, `minimax`, `ollama`, distinct from the CLI ids `claude`, `codex`, `antigravity`; the kind (`subscription` or `apiKey`) is a fixed property of the provider id in the domain, not a stored column.
+- Q: Where are vendor calls made, and how does the key reach them? → A: In the AI service (`apps/ai`), through HTTP adapters next to the CLI adapters, with no new SDK dependency (OpenAI-compatible chat API for OpenAI, Gemini, OpenRouter, MiniMax and Ollama; Anthropic Messages API for Claude). The API decrypts the key per request and sends it in the body of the internal, secret-authenticated call; the AI service never stores it.
+- Q: What model ids are accepted for API-key providers? → A: A separate pattern that also allows `/` (letters, digits, `.`, `_`, `:`, `-`, `/`; starts with a letter or digit; max 80 chars; no `..`). Free-text models are accepted only for OpenRouter (`vendor/model`) and Ollama; the other providers must pick a model from the vendor list or the built-in fallback list.
+- Q: How are keys protected and how is a rotated or missing installation secret detected? → A: AES-256-GCM with a key derived from a new installation secret `AI_KEYS_SECRET`; each credential stores ciphertext, nonce, auth tag, last 4 characters and a fingerprint of the secret that encrypted it. A fingerprint mismatch or a decrypt failure marks the provider as needing attention (re-enter the key). Without the secret, API-key providers are not offered (fail closed); production rejects placeholder values.
+- Q: Where is the Ollama address configured and how is "needing attention" shown? → A: `OLLAMA_BASE_URL` is an AI service environment variable set by the administrator; when unset, Ollama is reported unavailable and hidden. A run failing with "key refused" marks the credential as refused; Integrations shows the provider as "Precisa de atenção" with replace and remove actions until a new key is validated.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Connect a provider with my own API key (Priority: P1)
@@ -92,11 +104,12 @@ Wherever the diagnosis and chat screens ask for an assistant, CLI providers and 
 - **FR-012**: Data leaving the installation MUST be limited to what the person's data-sharing permissions allow, and the consent screen MUST state that, for API-key providers, the data goes to the chosen vendor under the person's own key.
 - **FR-013**: Deleting the account or resetting account data MUST delete stored keys and connections.
 - **FR-014**: The docs for the AI assistant MUST describe both connection kinds and the administrator settings (Ollama address, key-protection secret) without listing example key values.
+- **FR-015**: Providers whose stored key was refused by the vendor during a run, or can no longer be decrypted, MUST be shown as needing attention and MUST NOT be used until a new key is validated.
 
 ### Key Entities *(include if feature involves data)*
 
-- **AI provider connection**: per person and provider; connection kind (subscription or API key), consent timestamp, preferred model, status; extended from the existing connection record.
-- **Provider credential**: the encrypted API key for a connection, with the last 4 characters kept for display and a rotation timestamp.
+- **AI provider connection**: per person and provider; consent timestamp, preferred model, status; extended from the existing connection record. The connection kind (subscription or API key) is fixed per provider id.
+- **Provider credential**: the encrypted API key for a connection (ciphertext, nonce, auth tag), the last 4 characters kept for display, the fingerprint of the installation secret that encrypted it, a rotation timestamp and an optional "refused" timestamp set when the vendor refuses the key during a run.
 - **AI run record**: existing diagnosis and chat entries, which reference the provider used.
 
 ## Success Criteria *(mandatory)*
@@ -140,3 +153,21 @@ Kept / changed / dropped vs V1: kept the six providers and OpenRouter free model
 - Roadmap order: after 011 (lane B).
 - Builds on the existing V2 AI assistant (providers, diagnoses, chats, data sharing); AI must remain optional and off by default.
 - 016 does not migrate V1 insights or keys (V1 keys lived in the environment, not in the database).
+
+## UI decisions
+
+- Chosen: **Option A (unified list)**, preview `specs/013-ai-api-key-providers/previews/option-a-unified-list.html`
+  (real app CSS compiled into the ignored `previews/app.css`). Chosen autonomously: closest to V1
+  (one provider selection for all assistants) within the V2 Integrations pattern.
+- Integrations: CLI and API-key providers in one list, each row with a kind badge ("Assinatura" or
+  "Chave de API"). API-key rows show status (Conectado, Desconectado, Precisa de atenção),
+  `•••• last4`, model select (free text for OpenRouter and Ollama), "Trocar chave" and "Remover".
+- "Conectar"/"Trocar chave" opens a dialog with the same shell as the subscription connect dialog:
+  password field (optional for Ollama), consent text stating the data goes to the chosen vendor under
+  the person's own key within the data-sharing permissions, and "Validar e salvar" with pending and
+  PT-BR error states; the old key is kept when validation fails.
+- Diagnosis and chat provider select: one list grouped "Assinaturas" / "Chaves de API".
+- Providers without a logo asset (Gemini, OpenRouter, MiniMax, Ollama) use the existing generic mark.
+- Discarded: Option B (`previews/option-b-separate-section.html`, separate "Chaves de API" section with
+  inline key inputs), because it creates a second parallel UI (story 3 asks to avoid it) and puts a
+  secret input permanently on the page instead of in a focused consent flow.

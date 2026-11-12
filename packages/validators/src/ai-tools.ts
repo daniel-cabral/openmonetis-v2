@@ -6,19 +6,19 @@ import {
   aiToolInstallSteps,
   aiToolVersionPattern,
 } from "@openmonetis/domain/ai-tools";
-import { AiProviderSchema } from "./ai-providers";
+import { AiProviderSchema, AiSubscriptionProviderSchema } from "./ai-providers";
 
 export const AiToolVersionSchema = z.string().regex(aiToolVersionPattern);
 
 export const AiToolParamsSchema = z
   .object({
-    provider: AiProviderSchema.openapi({ param: { name: "provider", in: "path" } }),
+    provider: AiSubscriptionProviderSchema.openapi({ param: { name: "provider", in: "path" } }),
   })
   .openapi("AiToolParams");
 
 export const AiToolJobParamsSchema = z
   .object({
-    provider: AiProviderSchema.openapi({ param: { name: "provider", in: "path" } }),
+    provider: AiSubscriptionProviderSchema.openapi({ param: { name: "provider", in: "path" } }),
     jobId: z.uuid().openapi({ param: { name: "jobId", in: "path" } }),
   })
   .openapi("AiToolJobParams");

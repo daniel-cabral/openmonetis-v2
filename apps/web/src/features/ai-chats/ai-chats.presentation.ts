@@ -13,6 +13,7 @@ export const aiChatSuggestions: { text: string; icon: LucideIcon }[] = [
 const failureMessages: Record<AiChatFailureCode, string> = {
   providerDisconnected: "A conexão com a IA expirou. Conecte novamente em Ajustes.",
   providerLimitReached: "O limite da sua assinatura foi atingido. Tente mais tarde.",
+  providerUnavailable: "O provedor de IA está indisponível no momento. Tente mais tarde.",
   providerBusy: "Outra análise está em andamento na sua conta. Aguarde e tente novamente.",
   serviceUnavailable: "O serviço de IA não respondeu. Tente novamente.",
   runFailed: "Não foi possível responder. Tente novamente.",

@@ -6,6 +6,7 @@ import {
   AiProviderOutputSchema,
   AiProviderParamsSchema,
   AiProvidersOutputSchema,
+  SaveAiProviderKeyInputSchema,
   StartAiProviderLoginInputSchema,
   SubmitAiProviderLoginCodeInputSchema,
   UpdateAiProviderInputSchema,
@@ -175,6 +176,45 @@ export function createAiProvidersRoute(service: AiProvidersService) {
       const { provider } = context.req.valid("param");
       return context.json(
         ok(await service.update(context.get("userId"), provider, context.req.valid("json"))),
+        200,
+      );
+    },
+  );
+
+  route.openapi(
+    createRoute({
+      method: "put",
+      path: "/{provider}/key",
+      tags: ["AI providers"],
+      request: {
+        params: AiProviderParamsSchema,
+        body: {
+          required: true,
+          content: { "application/json": { schema: SaveAiProviderKeyInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Saved and validated API key",
+          content: { "application/json": { schema: ProviderResponseSchema } },
+        },
+        400: errorResponses[400],
+        401: errorResponses[401],
+        422: {
+          description: "The provider refused the key",
+          content: { "application/json": { schema: ErrorSchema } },
+        },
+        429: {
+          description: "The provider limit was reached while validating the key",
+          content: { "application/json": { schema: ErrorSchema } },
+        },
+        503: errorResponses[503],
+      },
+    }),
+    async (context) => {
+      const { provider } = context.req.valid("param");
+      return context.json(
+        ok(await service.saveKey(context.get("userId"), provider, context.req.valid("json"))),
         200,
       );
     },

@@ -3,6 +3,7 @@ import type {
   AiProviderLoginOutput,
   AiProviderOutput,
   AiProvidersOutput,
+  SaveAiProviderKeyInput,
   UpdateAiProviderInput,
 } from "@openmonetis/validators/ai-providers";
 import { ApiClientError, requestApi } from "@/lib/api-client";
@@ -53,4 +54,11 @@ export function updateAiProvider(provider: AiProvider, input: UpdateAiProviderIn
 
 export function disconnectAiProvider(provider: AiProvider) {
   return request<AiProviderOutput>(`/ai-providers/${provider}`, { method: "DELETE" });
+}
+
+export function saveAiProviderKey(provider: AiProvider, input: SaveAiProviderKeyInput) {
+  return request<AiProviderOutput>(`/ai-providers/${provider}/key`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }

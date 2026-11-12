@@ -33,6 +33,7 @@ import {
   type AiFinancialContextReader,
   aiPeriodInstructions,
 } from "./ai-context.service";
+import type { AiProviderCredential } from "./ai-providers.service";
 
 const dailyWindowMs = 24 * 60 * 60_000;
 const newChatTitle = "Nova conversa";
@@ -124,7 +125,9 @@ export type AiChatProviderChecker = {
     userId: string,
     provider: AiProvider,
     requestedModel?: string | null,
-  ): Promise<{ model: string | null }>;
+  ): Promise<{ model: string | null; credential?: AiProviderCredential }>;
+  /** Flags an API key the vendor refused; a no-op for CLI providers. */
+  markKeyRefused(userId: string, provider: AiProvider): Promise<void>;
 };
 
 export type AiChatRunEvent =
@@ -140,7 +143,12 @@ export type AiChatRunner = {
   chat(
     userId: string,
     provider: AiProvider,
-    input: { instructions: string; prompt: string; model: string | null },
+    input: {
+      instructions: string;
+      prompt: string;
+      model: string | null;
+      credential?: AiProviderCredential;
+    },
     signal: AbortSignal,
   ): AsyncIterable<AiChatRunEvent>;
 };
@@ -148,6 +156,7 @@ export type AiChatRunner = {
 type ReplyRun = {
   provider: AiProvider;
   model: string | null;
+  credential: AiProviderCredential | undefined;
   scopes: AiDataScope[];
   voice: AiDiagnosisVoice;
 };
@@ -220,11 +229,16 @@ export function createAiChatsService(dependencies: {
   }
 
   async function prepareReply(chat: AiChatRecord, input: RegenerateAiChatReplyInput) {
-    const { model } = await providers.prepareRun(chat.userId, input.provider, input.model);
+    const { model, credential } = await providers.prepareRun(
+      chat.userId,
+      input.provider,
+      input.model,
+    );
     const scopes = await dataSharing.scopesFor(chat.userId);
     return {
       provider: input.provider,
       model,
+      credential,
       scopes,
       voice: input.voice ?? defaultAiDiagnosisVoice,
     } satisfies ReplyRun;
@@ -302,6 +316,7 @@ export function createAiChatsService(dependencies: {
           instructions: chatInstructions(run.voice),
           prompt: buildPrompt(chat, described.data, conversation),
           model: run.model,
+          credential: run.credential,
         },
         signal,
       );
@@ -316,6 +331,9 @@ export function createAiChatsService(dependencies: {
           continue;
         }
         if (event.type === "failed") {
+          if (event.code === "providerDisconnected") {
+            await providers.markKeyRefused(chat.userId, run.provider);
+          }
           content += text.flush();
           reasoning += thoughts.flush();
           const message = await settle(

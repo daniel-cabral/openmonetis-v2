@@ -1,4 +1,8 @@
-import type { AiProvider, AiProviderStatus } from "@openmonetis/domain/ai-providers";
+import {
+  type AiProvider,
+  type AiProviderStatus,
+  isAiApiKeyProvider,
+} from "@openmonetis/domain/ai-providers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Plug, RefreshCw, Sparkles, Unplug } from "lucide-react";
 import { useState } from "react";
@@ -30,6 +34,7 @@ import {
 } from "../ai-providers.mutations";
 import {
   aiProviderErrorMessage,
+  aiProviderKindLabels,
   aiProviderLabels,
   aiProviderPlanDescriptions,
   aiProviderStatusLabels,
@@ -38,6 +43,7 @@ import {
 import { aiProviderKeys, aiProvidersQueryOptions } from "../ai-providers.queries";
 import { AiModelSelect } from "./ai-model-select";
 import { AiProviderConnectDialog } from "./ai-provider-connect-dialog";
+import { AiProviderKeyDialog } from "./ai-provider-key-dialog";
 import { AiProviderMark } from "./ai-provider-mark";
 
 export function AiProvidersSettings() {
@@ -51,6 +57,7 @@ export function AiProvidersSettings() {
   const updateMutation = useUpdateAiProviderMutation();
   const [connecting, setConnecting] = useState<AiProvider | null>(null);
   const [disconnecting, setDisconnecting] = useState<AiProvider | null>(null);
+  const [keying, setKeying] = useState<AiProvider | null>(null);
 
   function closeConnectDialog(open: boolean) {
     if (open) return;
@@ -122,6 +129,9 @@ export function AiProvidersSettings() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium text-sm">{aiProviderLabels[item.provider]}</p>
+                          <Badge className="font-normal" variant="outline">
+                            {aiProviderKindLabels[item.kind]}
+                          </Badge>
                           <ProviderStatus status={item.status} />
                         </div>
                         {item.status === "connected" && item.accountEmail ? (
@@ -140,6 +150,9 @@ export function AiProvidersSettings() {
                             tool={tool}
                           />
                         ) : null}
+                        {item.keyLast4 ? (
+                          <p className="mt-1 font-mono text-muted-foreground text-xs">{`•••• `}</p>
+                        ) : null}
                         <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
                           {item.status === "unavailable"
                             ? "O serviço de IA não respondeu. Verifique se ele está em execução."
@@ -154,6 +167,15 @@ export function AiProvidersSettings() {
                     <div className="flex items-center gap-1 sm:justify-end">
                       {item.status === "connected" ? (
                         <>
+                          {item.kind === "apiKey" ? (
+                            <Button
+                              onClick={() => setKeying(item.provider)}
+                              type="button"
+                              variant="outline"
+                            >
+                              Trocar chave
+                            </Button>
+                          ) : null}
                           <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] sm:w-56 sm:flex-none">
                             <AiModelSelect
                               className="w-full min-w-0"
@@ -186,6 +208,24 @@ export function AiProvidersSettings() {
                             <TooltipContent>Desconectar</TooltipContent>
                           </Tooltip>
                         </>
+                      ) : item.kind === "apiKey" && item.status === "needsAttention" ? (
+                        <>
+                          <Button
+                            onClick={() => setKeying(item.provider)}
+                            type="button"
+                            variant="outline"
+                          >
+                            Trocar chave
+                          </Button>
+                          <Button
+                            disabled={disconnectMutation.isPending}
+                            onClick={() => setDisconnecting(item.provider)}
+                            type="button"
+                            variant="ghost"
+                          >
+                            Remover
+                          </Button>
+                        </>
                       ) : item.status === "unavailable" ? (
                         <Button
                           disabled={query.isFetching}
@@ -198,7 +238,11 @@ export function AiProvidersSettings() {
                         </Button>
                       ) : (
                         <Button
-                          onClick={() => setConnecting(item.provider)}
+                          onClick={() =>
+                            item.kind === "apiKey"
+                              ? setKeying(item.provider)
+                              : setConnecting(item.provider)
+                          }
                           type="button"
                           variant="outline"
                         >
@@ -216,6 +260,16 @@ export function AiProvidersSettings() {
             </p>
             {tools.length ? <AiToolsFooter /> : null}
           </>
+        ) : null}
+        {keying && isAiApiKeyProvider(keying) ? (
+          <AiProviderKeyDialog
+            key={keying}
+            onOpenChange={(open) => {
+              if (!open) setKeying(null);
+            }}
+            open
+            provider={keying}
+          />
         ) : null}
         {connecting ? (
           <AiProviderConnectDialog
@@ -267,6 +321,7 @@ const statusDotClassNames: Record<AiProviderStatus, string> = {
   connected: "bg-success",
   disconnected: "bg-muted-foreground/50",
   unavailable: "bg-warning",
+  needsAttention: "bg-destructive",
 };
 
 function ProviderStatus({ status }: { status: AiProviderStatus }) {

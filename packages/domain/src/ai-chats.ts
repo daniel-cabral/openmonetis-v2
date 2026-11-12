@@ -8,6 +8,7 @@ export const aiChatFailureCodes = [
   "providerDisconnected",
   "providerLimitReached",
   "providerBusy",
+  "providerUnavailable",
   "serviceUnavailable",
   "runFailed",
   "timedOut",

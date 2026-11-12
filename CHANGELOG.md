@@ -15,6 +15,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Fork
 
+- Chaves de API de Anthropic, OpenAI, Gemini, OpenRouter, MiniMax e Ollama como provedores do assistente de IA, ao lado das assinaturas. A chave é validada pelo provedor antes de ser salva, cifrada com `AI_KEYS_SECRET` e nunca exibida de novo. Ollama usa o endereço do administrador (`OLLAMA_BASE_URL`) e não exige chave. Migration `0036_ai_api_key_providers` cria a tabela `ai_provider_credentials` e os novos provedores.
 - Anotações de texto aceitam anexos PDF e imagem, com validação e armazenamento privado iguais aos dos lançamentos. Migration `0035_note_attachments` cria a tabela `note_attachments`; `NoteOutput` ganha o campo `attachmentCount` (contrato adicionado). Checklists e tarefas não aceitam anexos. Ver `docs/note-attachments.md`.
 - Importação de extrato e fatura CSV do C6 Bank: o arquivo é associado a um perfil de banco e a
   uma conta ou cartão antes da leitura. Linhas de crédito e pagamento de fatura aparecem na revisão
