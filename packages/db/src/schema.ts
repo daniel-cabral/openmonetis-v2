@@ -582,6 +582,12 @@ export const userPreferences = pgTable(
     transactionsPageSize: integer("transactions_page_size").notNull().default(30),
     mobileShortcut: mobileShortcutDestination("mobile_shortcut").notNull().default("accounts"),
     startPage: startPageDestination("start_page").notNull().default("dashboard"),
+    transactionsColumnOrder: text("transactions_column_order").array(),
+    groupTransactionsByDate: boolean("group_transactions_by_date").notNull().default(true),
+    hideAnticipatedInstallments: boolean("hide_anticipated_installments").notNull().default(false),
+    showTransactionSummary: boolean("show_transaction_summary").notNull().default(true),
+    transactionNoteAsColumn: boolean("transaction_note_as_column").notNull().default(false),
+    attachmentMaxSizeMb: integer("attachment_max_size_mb").notNull().default(50),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -598,6 +604,10 @@ export const userPreferences = pgTable(
     check(
       "user_preferences_transactions_page_size_check",
       sql`${table.transactionsPageSize} in (20, 30, 50)`,
+    ),
+    check(
+      "user_preferences_attachment_max_size_mb_check",
+      sql`${table.attachmentMaxSizeMb} in (5, 10, 25, 50)`,
     ),
   ],
 );
