@@ -112,9 +112,19 @@ const CategoryTrendDetailOutputSchema = CategoryTrendAvailableCategoryOutputSche
   values: z.array(CategoryTrendValueOutputSchema),
 });
 
+const CategorySubcategoryBreakdownRowSchema = z
+  .object({
+    categoryId: z.uuid().nullable(),
+    name: z.string().nullable(),
+    amount: z.number(),
+    percentage: z.number(),
+  })
+  .openapi("CategorySubcategoryBreakdownRow");
+
 export const CategoryTrendCategoryOutputSchema = CategoryTrendDetailOutputSchema.extend({
   subcategories: z.array(CategoryTrendDetailOutputSchema).optional(),
   directCategory: CategoryTrendDetailOutputSchema.optional(),
+  subcategoryBreakdown: z.array(CategorySubcategoryBreakdownRowSchema).optional(),
 }).openapi("CategoryTrendCategory");
 
 export const CategoryTrendsSummaryOutputSchema = z
