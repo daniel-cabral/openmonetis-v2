@@ -103,11 +103,10 @@ export function planUser(
     ...transactions.counts,
     ...sideData.counts,
   ]).map((count) =>
-    // Detached recurrence rows are read and counted (as detached) by convertRecurrence, then
-    // read and written again by convertTransactions: count them once, as detached.
-    count.v1Table === TRANSACTIONS_TABLE
-      ? { ...count, read: count.read - detachedRows, written: count.written - detachedRows }
-      : count,
+    // Detached recurrence rows are read by both convertRecurrence and convertTransactions: count
+    // the read once. They stay in `written` (output-formats "Load output": detached rows count as
+    // written); the `detached` list is informational.
+    count.v1Table === TRANSACTIONS_TABLE ? { ...count, read: count.read - detachedRows } : count,
   );
 
   return {
