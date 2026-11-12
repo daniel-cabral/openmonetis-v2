@@ -17,12 +17,12 @@ import {
 } from "@openmonetis/domain/reconciliations-plan";
 import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { listRecurringRulesForReport } from "./recurring-transactions.repository";
-import type { RecurringRuleWithRelations } from "./transactions.repository";
 import {
   effectiveTransactionAmountSql,
   settlePersistedTransactions,
   settleRecurringTransaction,
 } from "./settlements.repository";
+import type { RecurringRuleWithRelations } from "./transactions.repository";
 
 export type ReconciliationTransactionRow = {
   id: string;
@@ -83,7 +83,9 @@ export async function listReconciliationTransactionCandidates(input: {
       name: transactions.name,
       purchaseDate: sql<string>`to_char(${transactions.purchaseDate}, 'YYYY-MM-DD')`,
       period: transactions.period,
-      type: sql<"income" | "expense">`case when ${transactions.amount} < 0 then 'expense' else 'income' end`,
+      type: sql<
+        "income" | "expense"
+      >`case when ${transactions.amount} < 0 then 'expense' else 'income' end`,
       effectiveAmount: effectiveTransactionAmountSql.as("effective_amount"),
       installmentCount: transactions.installmentCount,
       currentInstallment: transactions.currentInstallment,

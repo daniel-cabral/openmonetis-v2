@@ -103,9 +103,13 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
   const classificationByIndex = new Map(
     input.classification.map((classified) => [classified.lineIndex, classified]),
   );
-  const bucketByIndex = new Map(input.buckets.map((assigned) => [assigned.lineIndex, assigned.bucket]));
+  const bucketByIndex = new Map(
+    input.buckets.map((assigned) => [assigned.lineIndex, assigned.bucket]),
+  );
   const entriesByKey = new Map(input.entries.map((entry) => [entry.entryKey, entry]));
-  const decisionByIndex = new Map(input.decisions.map((decision) => [decision.lineIndex, decision]));
+  const decisionByIndex = new Map(
+    input.decisions.map((decision) => [decision.lineIndex, decision]),
+  );
 
   for (const decision of input.decisions) {
     const bucket = bucketByIndex.get(decision.lineIndex);
@@ -114,7 +118,11 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
 
   const entryOf = (entryKey: string): ReconciliationEntry => entriesByKey.get(entryKey) ?? stale();
 
-  const isLinkable = (line: ReconciliationLine, classified: LineClassification, entryKey: string) => {
+  const isLinkable = (
+    line: ReconciliationLine,
+    classified: LineClassification,
+    entryKey: string,
+  ) => {
     if (classified.status === "ambiguous") return classified.candidateKeys.includes(entryKey);
     if (classified.status === "matched" && classified.entryKey === entryKey) return true;
 
@@ -150,8 +158,7 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
     const bucket = bucketByIndex.get(line.index) ?? stale();
     const decision = decisionByIndex.get(line.index);
     const kind =
-      decision?.action ??
-      (bucket === "matched" || bucket === "needs-decision" ? "keep" : "skip");
+      decision?.action ?? (bucket === "matched" || bucket === "needs-decision" ? "keep" : "skip");
 
     const entry =
       kind === "keep" || kind === "link" ? resolveEntry(kind, line, classified, decision) : null;
@@ -199,7 +206,9 @@ export function buildReconciliationPlan(input: ReconciliationPlanInput): Reconci
   for (const { line, classified, decision, kind, entry } of actions) {
     const descriptionKey = getImportedDescriptionKey(line.name);
     const identityEntryKey =
-      classified.status === "matched" && classified.rule === "identity" ? classified.entryKey : null;
+      classified.status === "matched" && classified.rule === "identity"
+        ? classified.entryKey
+        : null;
 
     if (identityEntryKey !== null && (kind === "create" || kind === "link" || kind === "skip")) {
       plan.releases.push({

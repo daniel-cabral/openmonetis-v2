@@ -12,12 +12,12 @@ import {
   formatSuspicionReason,
   reconciliationAlignmentNote,
 } from "../reconciliations.presentation";
-import { type UiLineDecision, linkOptions } from "./reconciliation-review";
+import { linkOptions, type UiLineDecision } from "./reconciliation-review";
 import {
-  ReconciliationEntrySelect,
-  type ReconciliationRowProps,
   formatShortDate,
   formatSignedAmount,
+  ReconciliationEntrySelect,
+  type ReconciliationRowProps,
 } from "./reconciliation-row-fields";
 
 type UiAction = UiLineDecision["action"];

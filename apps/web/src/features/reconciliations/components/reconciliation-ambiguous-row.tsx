@@ -4,11 +4,11 @@ import { Input } from "@/components/ui/input";
 import { SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RowCategorySelect } from "@/features/transactions/components/transaction-import-category-select";
 import { TextOption } from "@/features/transactions/components/transaction-import-options";
-import { type UiLineDecision, candidateOptions } from "./reconciliation-review";
+import { candidateOptions, type UiLineDecision } from "./reconciliation-review";
 import {
+  formatLineMeta,
   ReconciliationEntryItem,
   type ReconciliationRowProps,
-  formatLineMeta,
 } from "./reconciliation-row-fields";
 
 type UiAction = UiLineDecision["action"];

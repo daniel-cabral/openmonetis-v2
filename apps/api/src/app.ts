@@ -56,6 +56,7 @@ import {
 } from "./repositories/person-reports.repository";
 import { personSettlementsRepository } from "./repositories/person-settlements.repository";
 import { preferencesRepository } from "./repositories/preferences.repository";
+import * as reconciliationsRepository from "./repositories/reconciliations.repository";
 import { recurringExpensesRepository } from "./repositories/recurring-expenses.repository";
 import {
   recurringTransactionsRepository,
@@ -64,7 +65,6 @@ import {
 import { applicationVersion, releasesRepository } from "./repositories/releases.repository";
 import { settingsRepository } from "./repositories/settings.repository";
 import { listTagsByIdsForUser, tagsRepository } from "./repositories/tags.repository";
-import * as reconciliationsRepository from "./repositories/reconciliations.repository";
 import * as transactionsRepository from "./repositories/transactions.repository";
 import { createAccountsRoute } from "./routes/accounts";
 import { createAiChatsRoute } from "./routes/ai-chats";
@@ -98,12 +98,12 @@ import { createPersonConnectionsRoute } from "./routes/person-connections";
 import { createPersonReportsRoute } from "./routes/person-reports";
 import { createPersonSettlementsRoute } from "./routes/person-settlements";
 import { createPreferencesRoute } from "./routes/preferences";
+import { createReconciliationsRoute } from "./routes/reconciliations";
 import { createRecurringExpensesRoute } from "./routes/recurring-expenses";
 import { createRecurringTransactionsRoute } from "./routes/recurring-transactions";
 import { createReleasesRoute } from "./routes/releases";
 import { createSettingsRoute } from "./routes/settings";
 import { createTagsRoute } from "./routes/tags";
-import { createReconciliationsRoute } from "./routes/reconciliations";
 import { createTransactionsRoute } from "./routes/transactions";
 import { createAccountsService } from "./services/accounts.service";
 import { createAiChatsService } from "./services/ai-chats.service";
@@ -144,12 +144,12 @@ import { createPersonConnectionsService } from "./services/person-connections.se
 import { createPersonReportsService } from "./services/person-reports.service";
 import { createPersonSettlementsService } from "./services/person-settlements.service";
 import { createPreferencesService } from "./services/preferences.service";
+import { createReconciliationsService } from "./services/reconciliations.service";
 import { createRecurringExpensesService } from "./services/recurring-expenses.service";
 import { createRecurringTransactionsService } from "./services/recurring-transactions.service";
 import { createReleasesService } from "./services/releases.service";
 import { createSettingsService } from "./services/settings.service";
 import { createTagsService } from "./services/tags.service";
-import { createReconciliationsService } from "./services/reconciliations.service";
 import { createTransactionsService } from "./services/transactions.service";
 import type { ApiVariables } from "./types/context";
 import { aiServiceGateway } from "./utils/ai-service";

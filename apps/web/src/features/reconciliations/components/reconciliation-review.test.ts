@@ -10,8 +10,8 @@ import {
   initialDecisions,
   linkOptions,
   markAllBankOnlyAsCreate,
-  type UiDecisions,
   toApplyDecisions,
+  type UiDecisions,
 } from "./reconciliation-review";
 
 type Preview = ReconciliationPreview;

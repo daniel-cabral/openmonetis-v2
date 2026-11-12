@@ -108,10 +108,7 @@ function planFor(scenario: Scenario) {
 }
 
 function assertPlanError(run: () => unknown, code: ReconciliationPlanErrorCode) {
-  assert.throws(
-    run,
-    (error) => error instanceof ReconciliationPlanError && error.code === code,
-  );
+  assert.throws(run, (error) => error instanceof ReconciliationPlanError && error.code === code);
 }
 
 test("create decisions become creations with the signed value, the period and the person", async (t) => {
@@ -209,9 +206,7 @@ test("keeping a matched settled entry only stamps its fingerprint", () => {
   assert.deepEqual(plan, {
     releases: [],
     creations: [],
-    stamps: [
-      { ref: { kind: "transaction", id: "tx-1" }, externalId: "ext-linha", lineIndex: 0 },
-    ],
+    stamps: [{ ref: { kind: "transaction", id: "tx-1" }, externalId: "ext-linha", lineIndex: 0 }],
     alignments: [],
     settlements: [],
     ignores: [],
@@ -235,9 +230,7 @@ test("keeping a pending account entry settles it at the aligned value and the po
       entry: { isSettled: false },
       divergence: null,
       rule: "exact",
-      settlements: [
-        { ref: { kind: "transaction", id: "tx-1" }, cents: -2590, date: "2026-07-12" },
-      ],
+      settlements: [{ ref: { kind: "transaction", id: "tx-1" }, cents: -2590, date: "2026-07-12" }],
     },
     {
       name: "divergent value settles at the file value, dated by the purchase without a posting date",
@@ -245,9 +238,7 @@ test("keeping a pending account entry settles it at the aligned value and the po
       entry: { isSettled: false, signedCents: -2600 },
       divergence: { appCents: -2600, fileCents: -2590 },
       rule: "cents",
-      settlements: [
-        { ref: { kind: "transaction", id: "tx-1" }, cents: -2590, date: "2026-07-10" },
-      ],
+      settlements: [{ ref: { kind: "transaction", id: "tx-1" }, cents: -2590, date: "2026-07-10" }],
     },
     {
       name: "a kept value (splits) settles at the entry value",
@@ -255,9 +246,7 @@ test("keeping a pending account entry settles it at the aligned value and the po
       entry: { isSettled: false, signedCents: -2600, hasSplits: true },
       divergence: { appCents: -2600, fileCents: -2590 },
       rule: "cents",
-      settlements: [
-        { ref: { kind: "transaction", id: "tx-1" }, cents: -2600, date: "2026-07-10" },
-      ],
+      settlements: [{ ref: { kind: "transaction", id: "tx-1" }, cents: -2600, date: "2026-07-10" }],
     },
   ];
 
@@ -322,9 +311,7 @@ test("keeping a settled or card entry aligns it to the file value and never sett
     await t.test(c.name, () => {
       const plan = planFor({
         lines: [line()],
-        classification: [
-          matched(0, "t:tx-1", c.rule, { appCents: -2600, fileCents: -2590 }),
-        ],
+        classification: [matched(0, "t:tx-1", c.rule, { appCents: -2600, fileCents: -2590 })],
         entries: [entry({ ...c.entry, period: "2026-07" })],
         targetType: c.targetType,
         invoicePeriod: c.invoicePeriod,
@@ -344,10 +331,34 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
     typedName: string | undefined;
     learnedName: string;
   }[] = [
-    { name: "account target", targetType: "account", invoicePeriod: null, typedName: "Aluguel", learnedName: "Aluguel" },
-    { name: "card target", targetType: "card", invoicePeriod: "2026-07", typedName: "Aluguel", learnedName: "Aluguel" },
-    { name: "account target without a typed name learns the entry name", targetType: "account", invoicePeriod: null, typedName: undefined, learnedName: "Compra teste" },
-    { name: "card target without a typed name learns the entry name", targetType: "card", invoicePeriod: "2026-07", typedName: undefined, learnedName: "Compra teste" },
+    {
+      name: "account target",
+      targetType: "account",
+      invoicePeriod: null,
+      typedName: "Aluguel",
+      learnedName: "Aluguel",
+    },
+    {
+      name: "card target",
+      targetType: "card",
+      invoicePeriod: "2026-07",
+      typedName: "Aluguel",
+      learnedName: "Aluguel",
+    },
+    {
+      name: "account target without a typed name learns the entry name",
+      targetType: "account",
+      invoicePeriod: null,
+      typedName: undefined,
+      learnedName: "Compra teste",
+    },
+    {
+      name: "card target without a typed name learns the entry name",
+      targetType: "card",
+      invoicePeriod: "2026-07",
+      typedName: undefined,
+      learnedName: "Compra teste",
+    },
   ];
 
   for (const c of cases) {
@@ -356,9 +367,7 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
         lines: [line({ name: LEARNED_LINE_NAME })],
         classification: [bankOnly(0)],
         entries: [entry({ entryKey: "t:tx-7" })],
-        decisions: [
-          { lineIndex: 0, action: "link", entryKey: "t:tx-7", name: c.typedName },
-        ],
+        decisions: [{ lineIndex: 0, action: "link", entryKey: "t:tx-7", name: c.typedName }],
         targetType: c.targetType,
         invoicePeriod: c.invoicePeriod,
       });
@@ -366,9 +375,7 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
       assert.deepEqual(plan.stamps, [
         { ref: { kind: "transaction", id: "tx-7" }, externalId: "ext-linha", lineIndex: 0 },
       ]);
-      assert.deepEqual(plan.nameMappings, [
-        { descriptionKey: LEARNED_KEY, name: c.learnedName },
-      ]);
+      assert.deepEqual(plan.nameMappings, [{ descriptionKey: LEARNED_KEY, name: c.learnedName }]);
     });
   }
 });
@@ -376,9 +383,21 @@ test("linking stamps the chosen entry and learns its name on both targets", asyn
 test("keeping learns the category of the matched entry under the merchant key, never a name", () => {
   const plan = planFor({
     lines: [
-      line({ index: 0, identity: { sourceFingerprint: "source-a", externalId: "ext-0" }, name: "DROGASIL2919" }),
-      line({ index: 1, identity: { sourceFingerprint: "source-a", externalId: "ext-1" }, name: "DROGASIL 4471" }),
-      line({ index: 2, identity: { sourceFingerprint: "source-a", externalId: "ext-2" }, name: "   " }),
+      line({
+        index: 0,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-0" },
+        name: "DROGASIL2919",
+      }),
+      line({
+        index: 1,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-1" },
+        name: "DROGASIL 4471",
+      }),
+      line({
+        index: 2,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-2" },
+        name: "   ",
+      }),
     ],
     classification: [matched(0, "t:tx-1"), matched(1, "t:tx-2"), matched(2, "t:tx-3")],
     entries: [
@@ -433,8 +452,16 @@ test("a created name is learned only on account targets, keyed by the file descr
 test("repeated merchant keys collapse to the last line's name and category", () => {
   const plan = planFor({
     lines: [
-      line({ index: 0, identity: { sourceFingerprint: "source-a", externalId: "ext-0" }, name: "DROGASIL2919" }),
-      line({ index: 1, identity: { sourceFingerprint: "source-a", externalId: "ext-1" }, name: "DROGASIL 4471" }),
+      line({
+        index: 0,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-0" },
+        name: "DROGASIL2919",
+      }),
+      line({
+        index: 1,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-1" },
+        name: "DROGASIL 4471",
+      }),
     ],
     classification: [bankOnly(0), bankOnly(1)],
     decisions: [
@@ -444,16 +471,16 @@ test("repeated merchant keys collapse to the last line's name and category", () 
   });
 
   assert.deepEqual(plan.nameMappings, [{ descriptionKey: "drogasil", name: "Remedios" }]);
-  assert.deepEqual(plan.categoryMappings, [{ descriptionKey: "drogasil", categoryId: "category-2" }]);
+  assert.deepEqual(plan.categoryMappings, [
+    { descriptionKey: "drogasil", categoryId: "category-2" },
+  ]);
 });
 
 test("a blank merchant name learns no name and no category", () => {
   const plan = planFor({
     lines: [line({ name: "   " })],
     classification: [bankOnly(0)],
-    decisions: [
-      { lineIndex: 0, action: "create", name: "Mercado", categoryId: "category-1" },
-    ],
+    decisions: [{ lineIndex: 0, action: "create", name: "Mercado", categoryId: "category-1" }],
   });
 
   assert.equal(plan.creations.length, 1);
@@ -465,14 +492,10 @@ test("an ignore decision records the trimmed reason against the line's external 
   const plan = planFor({
     lines: [line()],
     classification: [bankOnly(0)],
-    decisions: [
-      { lineIndex: 0, action: "ignore", ignoreReason: "  Pagamento de fatura  " },
-    ],
+    decisions: [{ lineIndex: 0, action: "ignore", ignoreReason: "  Pagamento de fatura  " }],
   });
 
-  assert.deepEqual(plan.ignores, [
-    { externalId: "ext-linha", reason: "Pagamento de fatura" },
-  ]);
+  assert.deepEqual(plan.ignores, [{ externalId: "ext-linha", reason: "Pagamento de fatura" }]);
 });
 
 test("create, link and skip on an identity-matched line release the old entry first", async (t) => {
@@ -513,7 +536,9 @@ test("keeping an identity-matched line neither releases nor stamps it again", ()
 
   assert.deepEqual(plan.releases, []);
   assert.deepEqual(plan.stamps, []);
-  assert.deepEqual(plan.categoryMappings, [{ descriptionKey: "loja teste", categoryId: "category-1" }]);
+  assert.deepEqual(plan.categoryMappings, [
+    { descriptionKey: "loja teste", categoryId: "category-1" },
+  ]);
 });
 
 test("a plan with nothing to write is rejected as nothing to apply", async (t) => {
@@ -666,7 +691,11 @@ test("linking an ambiguous line to one of its candidates stamps that entry", () 
 test("a mixed review writes keep, create, ignore and skip exactly as decided", () => {
   const plan = planFor({
     lines: [
-      line({ index: 0, identity: { sourceFingerprint: "source-a", externalId: "ext-0" }, name: "LOJA TESTE" }),
+      line({
+        index: 0,
+        identity: { sourceFingerprint: "source-a", externalId: "ext-0" },
+        name: "LOJA TESTE",
+      }),
       line({
         index: 1,
         identity: { sourceFingerprint: "source-a", externalId: "ext-1" },
@@ -708,9 +737,7 @@ test("a mixed review writes keep, create, ignore and skip exactly as decided", (
         externalId: "ext-1",
       },
     ],
-    stamps: [
-      { ref: { kind: "transaction", id: "tx-1" }, externalId: "ext-0", lineIndex: 0 },
-    ],
+    stamps: [{ ref: { kind: "transaction", id: "tx-1" }, externalId: "ext-0", lineIndex: 0 }],
     alignments: [],
     settlements: [],
     ignores: [{ externalId: "ext-2", reason: "Pagamento de fatura" }],

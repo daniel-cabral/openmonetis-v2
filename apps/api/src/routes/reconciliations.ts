@@ -9,9 +9,9 @@ import {
   ReconciliationFileBaseSchema,
   ReconciliationPreviewSchema,
 } from "@openmonetis/validators/reconciliations";
-import { ErrorResponseSchema as errorSchema, validationHook } from "../utils/openapi";
 import type { ReconciliationsService } from "../services/reconciliations.service";
 import type { ApiVariables } from "../types/context";
+import { ErrorResponseSchema as errorSchema, validationHook } from "../utils/openapi";
 
 export function createReconciliationsRoute(service: ReconciliationsService) {
   const reconciliationsRoute = new OpenAPIHono<{ Variables: ApiVariables }>({
@@ -49,10 +49,7 @@ export function createReconciliationsRoute(service: ReconciliationsService) {
       },
     }),
     async (c) =>
-      c.json(
-        ok(await service.detectReconciliation(c.req.valid("json"), c.get("userId"))),
-        200,
-      ),
+      c.json(ok(await service.detectReconciliation(c.req.valid("json"), c.get("userId"))), 200),
   );
 
   reconciliationsRoute.openapi(

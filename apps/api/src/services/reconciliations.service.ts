@@ -4,10 +4,10 @@ import { moneyToCents } from "@openmonetis/domain/installments";
 import {
   assignReconciliationBuckets,
   filterAppOnlyByScope,
-  matchAccountByIdentification,
-  matchReconciliationLines,
   type MatchContext,
   type MatchSuspicion,
+  matchAccountByIdentification,
+  matchReconciliationLines,
   type ReconciliationEntry,
   type ReconciliationLine,
   reclassifyPreviousInvoicePayments,
@@ -255,10 +255,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
     const paidPeriodSet = new Set(paidPeriods.map((paid) => paid.period));
 
     const occurrenceStates = new Map(
-      occurrenceRows.map((occurrence) => [
-        `${occurrence.seriesId}:${occurrence.date}`,
-        occurrence,
-      ]),
+      occurrenceRows.map((occurrence) => [`${occurrence.seriesId}:${occurrence.date}`, occurrence]),
     );
     const rulesById = new Map(rules.map((rule) => [rule.id, rule]));
     const expandedOccurrences = transactions.expandScheduledRecurringRules(
@@ -343,8 +340,7 @@ export function createReconciliationsService(dependencies: ReconciliationsServic
       const wanted = line.categoryName.trim().toLowerCase();
       return (
         categories.find(
-          (category) =>
-            category.type === lineType && category.name.trim().toLowerCase() === wanted,
+          (category) => category.type === lineType && category.name.trim().toLowerCase() === wanted,
         )?.id ?? null
       );
     }

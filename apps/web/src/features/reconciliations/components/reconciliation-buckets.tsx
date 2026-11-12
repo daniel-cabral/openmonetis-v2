@@ -8,7 +8,7 @@ import { ReconciliationAmbiguousRow } from "./reconciliation-ambiguous-row";
 import { ReconciliationBankOnlyRow } from "./reconciliation-bank-only-row";
 import { ReconciliationBucket } from "./reconciliation-bucket";
 import { ReconciliationMatchedRow } from "./reconciliation-matched-row";
-import { type UiDecisions, type UiLineDecision, consumedEntryKeys } from "./reconciliation-review";
+import { consumedEntryKeys, type UiDecisions, type UiLineDecision } from "./reconciliation-review";
 import { formatLineMeta, formatShortDate, formatSignedAmount } from "./reconciliation-row-fields";
 
 type Preview = ReconciliationPreview;

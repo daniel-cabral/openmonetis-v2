@@ -6,9 +6,9 @@ import { RowCategorySelect } from "@/features/transactions/components/transactio
 import { RowSelect as RowPersonSelect } from "@/features/transactions/components/transaction-import-person-select";
 import { linkOptions, type UiLineDecision } from "./reconciliation-review";
 import {
+  formatLineMeta,
   ReconciliationEntrySelect,
   type ReconciliationRowProps,
-  formatLineMeta,
 } from "./reconciliation-row-fields";
 
 type UiAction = UiLineDecision["action"];
