@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import test from "node:test";
 import { personConnectionConfirmationMaximumAttempts } from "@openmonetis/domain/person-connections";
+import type { ExternalExpensePageOutput } from "@openmonetis/validators/external-expenses";
 import type {
   ClaimedPersonConnectionInvitationOutput,
   CreatedPersonConnectionInvitationOutput,
@@ -191,6 +192,115 @@ test("connection persistence protects one-time credentials, expiration, attempts
         );
         await api.data(
           await api.request(`/person-connections/${connection.id}`, recipient, "DELETE"),
+        );
+      },
+    );
+    await t.test(
+      "an active connection gives the recipient read-only shared items and no write access to owner data",
+      async () => {
+        const connectionOwner = await api.register();
+        const connectionRecipient = await api.register();
+        const connectedPerson = await api.data<{ id: string }>(
+          await api.request("/people", connectionOwner, "POST", { name: "Shared guest" }),
+          201,
+        );
+        const item = await api.data<CreatedPersonConnectionInvitationOutput>(
+          await api.request("/person-connections/invitations", connectionOwner, "POST", {
+            personId: connectedPerson.id,
+          }),
+          201,
+        );
+        const claimed = await api.data<ClaimedPersonConnectionInvitationOutput>(
+          await api.request("/person-connections/invitations/claim", connectionRecipient, "POST", {
+            token: item.token,
+          }),
+        );
+        const connection = await api.data<PersonConnectionOutput>(
+          await api.request(
+            `/person-connections/invitations/${item.id}/confirm`,
+            connectionOwner,
+            "POST",
+            { confirmationCode: claimed.confirmationCode },
+          ),
+        );
+        assert.equal(connection.status, "active");
+        assert.equal("permission" in connection, false);
+        const sharedExpense = await api.expense(connectionOwner, { personId: connectedPerson.id });
+        await api.expense(connectionOwner, { personId: connectionOwner.personId });
+        const shared = await api.data<ExternalExpensePageOutput>(
+          await api.request("/external-expenses", connectionRecipient),
+        );
+        assert.deepEqual(
+          shared.items.map((row) => row.sourceTransactionId),
+          [sharedExpense.id],
+        );
+        const ownerAccount = await api.account(connectionOwner);
+        const recipientAccount = await api.account(connectionRecipient);
+        const card = await api.data<{ id: string }>(
+          await api.request("/cards", connectionOwner, "POST", {
+            accountId: ownerAccount.id,
+            name: "Shared card",
+            brand: "visa",
+            closingDay: 20,
+            dueDay: 25,
+            limit: 1000,
+          }),
+          201,
+        );
+        const ownerResources = [
+          { path: "/transactions", id: sharedExpense.id, patch: { name: "Stolen" } },
+          { path: "/people", id: connectedPerson.id, patch: { name: "Stolen" } },
+          { path: "/accounts", id: ownerAccount.id, patch: { name: "Stolen" } },
+          { path: "/cards", id: card.id, patch: { name: "Stolen" } },
+        ];
+        const ownerBefore: unknown[] = [];
+        for (const resource of ownerResources)
+          ownerBefore.push(
+            await api.data(await api.request(`${resource.path}/${resource.id}`, connectionOwner)),
+          );
+        for (const resource of ownerResources) {
+          const path = `${resource.path}/${resource.id}`;
+          await api.error(
+            await api.request(path, connectionRecipient, "PATCH", resource.patch),
+            404,
+          );
+          await api.error(await api.request(path, connectionRecipient, "DELETE", {}), 404);
+        }
+        for (const [index, resource] of ownerResources.entries())
+          assert.deepEqual(
+            await api.data(
+              await api.request(`${resource.path}/${resource.id}`, connectionOwner),
+            ),
+            ownerBefore[index],
+          );
+        for (const override of [
+          { accountId: ownerAccount.id },
+          { personId: connectionOwner.personId },
+        ])
+          await api.error(
+            await api.request("/transactions", connectionRecipient, "POST", {
+              type: "expense",
+              paymentMethod: "pix",
+              name: "Recipient purchase",
+              amount: 10.01,
+              purchaseDate: "2020-01-10",
+              personId: connectionRecipient.personId,
+              categoryId: connectionRecipient.expenseCategoryId,
+              accountId: recipientAccount.id,
+              ...override,
+            }),
+            404,
+          );
+        await api.data(
+          await api.request(`/person-connections/${connection.id}`, connectionRecipient, "DELETE"),
+        );
+        const laterExpense = await api.expense(connectionOwner, { personId: connectedPerson.id });
+        const afterRevoke = await api.data<ExternalExpensePageOutput>(
+          await api.request("/external-expenses", connectionRecipient),
+        );
+        assert.equal(
+          afterRevoke.items.some((row) => row.sourceTransactionId === laterExpense.id),
+          false,
         );
       },
     );
