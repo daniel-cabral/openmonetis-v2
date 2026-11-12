@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Table2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,10 +17,12 @@ export function TransactionsCreateActions({
   createTypes,
   createDefaults,
   openCreateDialog,
+  openMassAddDialog,
 }: {
   createTypes: readonly TransactionCreateType[];
   createDefaults: TransactionsScreenProps["createDefaults"];
   openCreateDialog: ReturnType<typeof useTransactionsDialogs>["openCreateDialog"];
+  openMassAddDialog: ReturnType<typeof useTransactionsDialogs>["openMassAddDialog"];
 }) {
   return (
     <DropdownMenu>
@@ -61,6 +63,10 @@ export function TransactionsCreateActions({
             </DropdownMenuItem>
           );
         })}
+        <DropdownMenuItem onClick={() => openMassAddDialog()}>
+          <Table2 aria-hidden="true" />
+          Adicionar em massa
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

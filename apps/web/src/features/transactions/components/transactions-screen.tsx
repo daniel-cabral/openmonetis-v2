@@ -89,8 +89,11 @@ export function TransactionsScreen({
     viewingTransaction,
     setViewingTransaction,
     openCreateDialog,
+    openMassAddDialog,
     openEditDialog,
     openCopyDialog,
+    isMassAddOpen,
+    setIsMassAddOpen,
   } = useTransactionsDialogs();
 
   const search = urlSearch.q ?? "";
@@ -262,6 +265,7 @@ export function TransactionsScreen({
               createTypes={createTypes}
               createDefaults={createDefaults}
               openCreateDialog={openCreateDialog}
+              openMassAddDialog={openMassAddDialog}
             />
           ) : null
         }
@@ -497,6 +501,8 @@ export function TransactionsScreen({
         createDefaults={createDefaults}
         isDialogOpen={isDialogOpen}
         setIsDialogOpen={setIsDialogOpen}
+        isMassAddOpen={isMassAddOpen}
+        setIsMassAddOpen={setIsMassAddOpen}
         editingTransaction={editingTransaction}
         setEditingTransaction={setEditingTransaction}
         dialogMode={dialogMode}
