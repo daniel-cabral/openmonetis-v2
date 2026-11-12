@@ -11,5 +11,7 @@ export const requireAuth = createMiddleware<{ Variables: ApiVariables }>(async (
   }
 
   context.set("userId", session.user.id);
+  context.set("sessionId", session.session.id);
+  context.set("sessionCreatedAt", session.session.createdAt);
   await next();
 });

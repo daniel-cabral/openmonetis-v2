@@ -7,15 +7,21 @@ import {
   type AuthenticatedUser,
   createAdminPersonDraft,
 } from "@openmonetis/domain/people";
-import { assertSettingsConfirmation } from "@openmonetis/domain/settings";
+import {
+  assertSettingsConfirmation,
+  isFreshSession,
+  isSameAccountEmail,
+} from "@openmonetis/domain/settings";
 import type {
+  ChangeAccountEmailInput,
+  ChangeAccountEmailOutput,
   DeleteSettingsAccountInput,
   DeleteSettingsAccountOutput,
   ResetSettingsInput,
   ResetSettingsOutput,
   SettingsSecurityOutput,
 } from "@openmonetis/validators/settings";
-import { notFound, serviceUnavailable } from "../utils/errors";
+import { badRequest, forbidden, notFound, serviceUnavailable } from "../utils/errors";
 import type { AttachmentStorage } from "../utils/storage";
 
 export type SettingsResetDraft = {
@@ -23,9 +29,27 @@ export type SettingsResetDraft = {
   categories: CategoryCreateDraft[];
 };
 
+export type AccountEmailState = { email: string; passwordHash: string | null };
+
+export type AccountEmailActor = { userId: string; sessionId: string; sessionCreatedAt: Date };
+
+export type SettingsEmailPorts = {
+  verifyPassword(input: { hash: string; password: string }): Promise<boolean>;
+  sendEmailVerification(email: string): Promise<boolean>;
+};
+
+// Without configured ports, password checks fail closed and no mail is sent.
+const unconfiguredEmailPorts: SettingsEmailPorts = {
+  verifyPassword: async () => false,
+  sendEmailVerification: async () => false,
+};
+
 export type SettingsRepository = {
   findUserById(userId: string): Promise<AuthenticatedUser | null>;
   hasPasswordCredentialForUser(userId: string): Promise<boolean>;
+  findAccountEmailStateForUser(userId: string): Promise<AccountEmailState | null>;
+  isEmailUsedByAnotherUser(email: string, userId: string): Promise<boolean>;
+  changeEmailForUser(userId: string, email: string, keepSessionId: string): Promise<boolean>;
   listAttachmentFileKeysByUser(userId: string): Promise<string[]>;
   resetForUser(userId: string, draft: SettingsResetDraft): Promise<boolean>;
   deleteForUser(userId: string): Promise<boolean>;
@@ -34,6 +58,7 @@ export type SettingsRepository = {
 export function createSettingsService(
   repository: SettingsRepository,
   storage: Pick<AttachmentStorage, "enabled" | "remove">,
+  emailPorts: SettingsEmailPorts = unconfiguredEmailPorts,
 ) {
   async function removeAttachmentObjects(userId: string) {
     const fileKeys = await repository.listAttachmentFileKeysByUser(userId);
@@ -55,6 +80,47 @@ export function createSettingsService(
       return {
         passwordChangeAvailable: await repository.hasPasswordCredentialForUser(userId),
       };
+    },
+
+    async changeEmail(
+      input: ChangeAccountEmailInput,
+      actor: AccountEmailActor,
+    ): Promise<ChangeAccountEmailOutput> {
+      const state = await repository.findAccountEmailStateForUser(actor.userId);
+      if (!state) throw notFound("User not found", "user_not_found");
+      if (isSameAccountEmail(state.email, input.newEmail)) {
+        throw badRequest("Email unchanged", "email_unchanged");
+      }
+
+      if (state.passwordHash) {
+        const passwordMatches =
+          input.currentPassword !== undefined &&
+          (await emailPorts.verifyPassword({
+            hash: state.passwordHash,
+            password: input.currentPassword,
+          }));
+        if (!passwordMatches) throw badRequest("Email change rejected", "email_change_rejected");
+      } else if (!isFreshSession(actor.sessionCreatedAt, new Date())) {
+        throw forbidden("Fresh session required", "fresh_session_required");
+      }
+
+      if (await repository.isEmailUsedByAnotherUser(input.newEmail, actor.userId)) {
+        throw badRequest("Email change rejected", "email_change_rejected");
+      }
+      const changed = await repository.changeEmailForUser(
+        actor.userId,
+        input.newEmail,
+        actor.sessionId,
+      );
+      if (!changed) throw badRequest("Email change rejected", "email_change_rejected");
+
+      let verificationEmailSent = false;
+      try {
+        verificationEmailSent = await emailPorts.sendEmailVerification(input.newEmail);
+      } catch {
+        console.error("[Settings] Failed to send email verification");
+      }
+      return { email: input.newEmail, verificationEmailSent };
     },
 
     async reset(input: ResetSettingsInput, userId: string): Promise<ResetSettingsOutput> {

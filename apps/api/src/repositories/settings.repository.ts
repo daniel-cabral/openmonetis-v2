@@ -46,8 +46,13 @@ import {
   userPreferences,
   verification,
 } from "@openmonetis/db";
-import { and, eq, inArray, isNotNull, notInArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
 import type { SettingsRepository, SettingsResetDraft } from "../services/settings.service";
+
+function isUniqueViolation(error: unknown) {
+  const cause = error as { code?: string; cause?: { code?: string } };
+  return cause.code === "23505" || cause.cause?.code === "23505";
+}
 
 type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -194,6 +199,53 @@ export const settingsRepository = {
       )
       .limit(1);
     return Boolean(credential);
+  },
+
+  async findAccountEmailStateForUser(userId) {
+    const [record] = await db
+      .select({ email: user.email, passwordHash: account.password })
+      .from(user)
+      .leftJoin(
+        account,
+        and(eq(account.userId, user.id), eq(account.providerId, "credential")),
+      )
+      .where(eq(user.id, userId))
+      .limit(1);
+    return record ?? null;
+  },
+
+  async isEmailUsedByAnotherUser(email, userId) {
+    const [match] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(eq(sql`lower(${user.email})`, email), ne(user.id, userId)))
+      .limit(1);
+    return Boolean(match);
+  },
+
+  async changeEmailForUser(userId, email, keepSessionId) {
+    try {
+      return await db.transaction(async (transaction) => {
+        const [updated] = await transaction
+          .update(user)
+          .set({ email, emailVerified: false, updatedAt: new Date() })
+          .where(eq(user.id, userId))
+          .returning({ id: user.id });
+        if (!updated) return false;
+
+        await transaction
+          .update(people)
+          .set({ email, updatedAt: new Date() })
+          .where(and(eq(people.userId, userId), eq(people.role, "admin")));
+        await transaction
+          .delete(session)
+          .where(and(eq(session.userId, userId), ne(session.id, keepSessionId)));
+        return true;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) return false;
+      throw error;
+    }
   },
 
   async findUserById(userId) {

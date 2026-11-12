@@ -3,9 +3,10 @@ import { aiDiagnosisTransactionsLimit } from "@openmonetis/domain/ai-data-sharin
 import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
 import { ok } from "@openmonetis/shared/api";
 import { ListTransactionsQuerySchema } from "@openmonetis/validators/transactions";
+import { verifyPassword } from "better-auth/crypto";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
-import { auth, authConfiguration } from "./auth";
+import { auth, authConfiguration, emailVerificationEnabled, webURL } from "./auth";
 import { requireAuth } from "./middlewares/auth";
 import { createRequireDeviceToken } from "./middlewares/device-auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errors";
@@ -221,11 +222,14 @@ const invoicesService = createInvoicesService(
   dueDateRulesRepository,
 );
 const invoicesRoute = createInvoicesRoute(invoicesService);
-const attachmentsService = createAttachmentsService(attachmentsRepository, attachmentStorage);
+const preferencesService = createPreferencesService(preferencesRepository);
+const attachmentsService = createAttachmentsService(attachmentsRepository, attachmentStorage, {
+  getAttachmentSizeLimitMb: async (userId) =>
+    (await preferencesService.get(userId)).attachmentMaxSizeMb,
+});
 const notesService = createNotesService(notesRepository, attachmentsService);
 const notesRoute = createNotesRoute(notesService);
 const attachmentsRoute = createAttachmentsRoute(attachmentsService);
-const preferencesService = createPreferencesService(preferencesRepository);
 const transactionsService = createTransactionsService(
   {
     ...transactionsRepository,
@@ -359,7 +363,16 @@ const establishmentsRoute = createEstablishmentsRoute(
 );
 
 const settingsRoute = createSettingsRoute(
-  createSettingsService(settingsRepository, attachmentStorage),
+  createSettingsService(settingsRepository, attachmentStorage, {
+    verifyPassword,
+    sendEmailVerification: async (email) => {
+      if (!emailVerificationEnabled) return false;
+      await auth.api.sendVerificationEmail({
+        body: { email, callbackURL: `${webURL}/settings?tab=profile` },
+      });
+      return true;
+    },
+  }),
 );
 const dueDateRulesService = createDueDateRulesService(
   dueDateRulesRepository,

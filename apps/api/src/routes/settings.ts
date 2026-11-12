@@ -1,6 +1,8 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { ok } from "@openmonetis/shared/api";
 import {
+  ChangeAccountEmailInputSchema,
+  ChangeAccountEmailOutputSchema,
   DeleteSettingsAccountInputSchema,
   DeleteSettingsAccountOutputSchema,
   ResetSettingsInputSchema,
@@ -82,6 +84,50 @@ export function createSettingsRoute(service: SettingsService) {
     }),
     async (context) =>
       context.json(ok(await service.reset(context.req.valid("json"), context.get("userId"))), 200),
+  );
+
+  route.openapi(
+    createRoute({
+      method: "post",
+      path: "/email",
+      tags: ["Settings"],
+      request: {
+        body: {
+          required: true,
+          content: { "application/json": { schema: ChangeAccountEmailInputSchema } },
+        },
+      },
+      responses: {
+        200: {
+          description: "Account email changed",
+          content: {
+            "application/json": {
+              schema: z.object({ data: ChangeAccountEmailOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        ...errorResponses,
+        400: {
+          description: "Invalid email or change rejected",
+          content: { "application/json": { schema: ErrorSchema } },
+        },
+        403: {
+          description: "Fresh session required",
+          content: { "application/json": { schema: ErrorSchema } },
+        },
+      },
+    }),
+    async (context) =>
+      context.json(
+        ok(
+          await service.changeEmail(context.req.valid("json"), {
+            userId: context.get("userId"),
+            sessionId: context.get("sessionId"),
+            sessionCreatedAt: context.get("sessionCreatedAt"),
+          }),
+        ),
+        200,
+      ),
   );
 
   route.openapi(
