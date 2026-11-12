@@ -865,9 +865,10 @@ function convertCategoryMappings(
       categoryId,
       updatedAt: mapping.updated_at,
     });
+    // V1 keys are unique per user only, and id_map has no user column in its primary key.
     c.written(
       T.categoryMappings,
-      v1Id,
+      `${x.user.id}:${v1Id}`,
       "",
       "import_category_mappings",
       `${refs.userId}:${descriptionKey}`,
@@ -904,7 +905,14 @@ function convertNameMappings(
       continue;
     }
     rows.push({ userId: refs.userId, descriptionKey, name, updatedAt: mapping.updated_at });
-    c.written(T.nameMappings, v1Id, "", "import_name_mappings", `${refs.userId}:${descriptionKey}`);
+    // V1 keys are unique per user only (see convertCategoryMappings).
+    c.written(
+      T.nameMappings,
+      `${x.user.id}:${v1Id}`,
+      "",
+      "import_name_mappings",
+      `${refs.userId}:${descriptionKey}`,
+    );
   }
   return rows;
 }
