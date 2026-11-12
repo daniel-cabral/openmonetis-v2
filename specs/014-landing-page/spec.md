@@ -151,7 +151,7 @@ Preview: temporary route `apps/web/src/routes/preview-landing.tsx` (`?v=a|b|c`, 
 - Option B (discarded): split hero with a terminal card; departs from V1's centered hero and duplicates the quick-start section.
 - Option C (discarded): single-column docs list; loses V1's card grid and section rhythm.
 - Mobile navigation: project `Sheet` behind a menu button below `md`; quick start: project `Tabs` ("Instalador" / "Desenvolvimento").
-- Header actions: "Entrar" (`/login`) and "Criar conta" (`/signup`, hidden when signup is disabled or the configuration fails); the theme follows the system and the existing theme toggle is reused.
+- Header actions: "Entrar" (`/login`) and "Criar conta" (`/signup`, hidden when signup is disabled or the configuration fails); the theme follows the system. Divergence: the landing header uses a local `LandingThemeToggle` that only calls `setTheme` (no `PATCH /preferences`), because the shared `ThemeToggle` needs a session and anonymous visitors would see its error toast and revert.
 - Brand icons: `lucide-react` no longer ships a GitHub icon; external links use a generic icon (no new icon dependency).
 
 Content decisions (FR-012, from V1 copy checked against V2):

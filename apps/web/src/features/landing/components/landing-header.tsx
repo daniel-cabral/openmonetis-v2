@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { OpenMonetisLogo } from "@/components/openmonetis-logo";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -38,7 +38,7 @@ export function LandingHeader({ signupEnabled }: LandingHeaderProps) {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <LandingThemeToggle />
           <div className="hidden items-center gap-2 md:flex">
             <AuthActions signupEnabled={signupEnabled} />
           </div>
@@ -87,6 +87,35 @@ type AuthActionsProps = {
   fullWidth?: boolean;
   onNavigate?: () => void;
 };
+
+function LandingThemeToggle() {
+  const { setTheme } = useTheme();
+
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.contains("dark");
+    setTheme(isDark ? "light" : "dark");
+  }
+
+  return (
+    <Button
+      aria-label="Alternar tema"
+      className="relative text-muted-foreground hover:bg-muted hover:text-foreground"
+      onClick={toggleTheme}
+      size="icon-sm"
+      type="button"
+      variant="ghost"
+    >
+      <Sun
+        aria-hidden="true"
+        className="absolute size-4.5 scale-100 rotate-0 transition-transform dark:scale-0 dark:-rotate-90"
+      />
+      <Moon
+        aria-hidden="true"
+        className="absolute size-4.5 scale-0 rotate-90 transition-transform dark:scale-100 dark:rotate-0"
+      />
+    </Button>
+  );
+}
 
 function AuthActions({ signupEnabled, fullWidth = false, onNavigate }: AuthActionsProps) {
   const className = fullWidth ? "w-full" : undefined;
