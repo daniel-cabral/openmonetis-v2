@@ -17,3 +17,19 @@ export function assertSettingsConfirmation(action: SettingsDangerousAction, conf
     throw new InvalidSettingsConfirmationError(action);
   }
 }
+
+export const freshSessionMaxAgeSeconds = 600;
+
+const millisecondsPerSecond = 1_000;
+
+export function isFreshSession(createdAt: Date, now: Date): boolean {
+  return now.getTime() - createdAt.getTime() <= freshSessionMaxAgeSeconds * millisecondsPerSecond;
+}
+
+export function normalizeAccountEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+export function isSameAccountEmail(a: string, b: string): boolean {
+  return normalizeAccountEmail(a) === normalizeAccountEmail(b);
+}
