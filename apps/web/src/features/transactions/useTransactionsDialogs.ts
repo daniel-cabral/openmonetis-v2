@@ -13,11 +13,15 @@ export function useTransactionsDialogs() {
   const [undoingAnticipation, setUndoingAnticipation] = useState<TransactionOutput | null>(null);
   const [refundingTransaction, setRefundingTransaction] = useState<TransactionOutput | null>(null);
   const [viewingTransaction, setViewingTransaction] = useState<TransactionOutput | null>(null);
+  const [isMassAddOpen, setIsMassAddOpen] = useState(false);
   function openCreateDialog(type: TransactionInput["type"]) {
     setCreateType(type);
     setDialogMode("create");
     setEditingTransaction(null);
     setIsDialogOpen(true);
+  }
+  function openMassAddDialog() {
+    setIsMassAddOpen(true);
   }
   function openEditDialog(transaction: TransactionOutput) {
     setEditingTransaction(transaction);
@@ -48,7 +52,10 @@ export function useTransactionsDialogs() {
     setRefundingTransaction,
     viewingTransaction,
     setViewingTransaction,
+    isMassAddOpen,
+    setIsMassAddOpen,
     openCreateDialog,
+    openMassAddDialog,
     openEditDialog,
     openCopyDialog,
   };

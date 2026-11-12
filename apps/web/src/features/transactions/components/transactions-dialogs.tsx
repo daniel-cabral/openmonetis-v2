@@ -4,6 +4,7 @@ import type { useTransactionsDialogs } from "../useTransactionsDialogs";
 
 import { TransactionDetailsSheet } from "./transaction-details-sheet";
 import { TransactionDialog } from "./transaction-dialog";
+import { TransactionMassAddDialog } from "./transaction-mass-add-dialog";
 import { TransactionRefundDialog } from "./transaction-refund-dialog";
 
 import type { TransactionsScreenProps } from "./transactions-screen.types";
@@ -23,6 +24,8 @@ export function TransactionsDialogs({
   createDefaults,
   isDialogOpen,
   setIsDialogOpen,
+  isMassAddOpen,
+  setIsMassAddOpen,
   editingTransaction,
   setEditingTransaction,
   dialogMode,
@@ -54,6 +57,8 @@ export function TransactionsDialogs({
   createDefaults: TransactionsScreenProps["createDefaults"];
   isDialogOpen: ReturnType<typeof useTransactionsDialogs>["isDialogOpen"];
   setIsDialogOpen: ReturnType<typeof useTransactionsDialogs>["setIsDialogOpen"];
+  isMassAddOpen: ReturnType<typeof useTransactionsDialogs>["isMassAddOpen"];
+  setIsMassAddOpen: ReturnType<typeof useTransactionsDialogs>["setIsMassAddOpen"];
   editingTransaction: ReturnType<typeof useTransactionsDialogs>["editingTransaction"];
   setEditingTransaction: ReturnType<typeof useTransactionsDialogs>["setEditingTransaction"];
   dialogMode: ReturnType<typeof useTransactionsDialogs>["dialogMode"];
@@ -102,6 +107,18 @@ export function TransactionsDialogs({
         mode={dialogMode}
         transaction={editingTransaction}
       />
+      {isMassAddOpen ? (
+        <TransactionMassAddDialog
+          accounts={accounts}
+          cards={cards}
+          categories={categories}
+          defaultInvoicePeriod={period}
+          lockedCardId={createDefaults?.cardId}
+          onOpenChange={setIsMassAddOpen}
+          open
+          people={people}
+        />
+      ) : null}
       <TransactionDetailsSheet
         key={`details-${viewingTransaction?.id ?? "closed"}`}
         mobileActions={

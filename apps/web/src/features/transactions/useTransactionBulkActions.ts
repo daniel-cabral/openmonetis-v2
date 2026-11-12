@@ -4,7 +4,10 @@ import {
   canApplyBulkTransactionAction,
   canAssignBulkCategory,
 } from "@openmonetis/domain/transactions";
-import type { TransactionOutput } from "@openmonetis/validators/transactions";
+import type {
+  BulkUpdateTransactionsInput,
+  TransactionOutput,
+} from "@openmonetis/validators/transactions";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -14,16 +17,21 @@ import {
   useSetTransactionsTripMutation,
   useSettleTransactionsMutation,
   useTagTransactionsMutation,
+  useUpdateTransactionsBulkMutation,
 } from "./transactions.mutations";
 import {
   type BulkTransactionActionKey,
   type BulkTransactionSelection,
   formatBulkTransactionResult,
+  formatBulkUpdateSuccess,
+  getBulkUpdateErrorMessage,
   getTransactionMutationErrorMessage,
   selectBulkTransactionIds,
 } from "./transactions.presentation";
 
 type BulkResult = Parameters<typeof formatBulkTransactionResult>[0];
+
+const maxBulkEditRecords = 500;
 
 export function useTransactionBulkActions(transactions: readonly TransactionOutput[]) {
   const categorizeMutation = useCategorizeTransactionsMutation();
@@ -32,6 +40,7 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
   const deleteMutation = useDeleteTransactionsMutation();
   const settleMutation = useSettleTransactionsMutation();
   const tripMutation = useSetTransactionsTripMutation();
+  const updateMutation = useUpdateTransactionsBulkMutation();
   const [activeAction, setActiveAction] = useState<BulkTransactionActionKey | null>(null);
   const select = (accepts: (target: BulkTransactionTarget) => boolean) =>
     selectBulkTransactionIds(transactions, accepts);
@@ -72,6 +81,33 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
     }
   }
 
+  // Bulk edit reaches every selected record, so a recurring occurrence (no record) blocks it.
+  async function update(input: Pick<BulkUpdateTransactionsInput, "scope" | "changes">) {
+    const recordIds = new Set<string>();
+    for (const transaction of transactions) {
+      if (!transaction.recordId) {
+        toast.info("Lançamentos recorrentes devem ser editados individualmente.");
+        return false;
+      }
+      recordIds.add(transaction.recordId);
+    }
+    if (recordIds.size > maxBulkEditRecords) {
+      toast.info("Selecione no máximo 500 lançamentos para editar em massa.");
+      return false;
+    }
+    setActiveAction("update");
+    try {
+      const result = await updateMutation.mutateAsync({ ids: [...recordIds], ...input });
+      toast.success(formatBulkUpdateSuccess(result.ids.length));
+      return true;
+    } catch (error) {
+      toast.error(getBulkUpdateErrorMessage(error));
+      return false;
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   return {
     activeAction,
     pending: activeAction !== null,
@@ -84,6 +120,7 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
       trip: reach(tripSelection),
       rename: reach(renameSelection),
       delete: reach(deleteSelection),
+      update: { count: transactions.length, total: transactions.length },
     } satisfies Record<BulkTransactionActionKey, { count: number; total: number }>,
     canCategorize: (category: BulkCategoryCandidate) =>
       select((target) => canAssignBulkCategory(target, category)).ids.length > 0,
@@ -114,5 +151,6 @@ export function useTransactionBulkActions(transactions: readonly TransactionOutp
       ),
     remove: () =>
       run("delete", "deleted", deleteSelection, (ids) => deleteMutation.mutateAsync({ ids })),
+    update,
   };
 }

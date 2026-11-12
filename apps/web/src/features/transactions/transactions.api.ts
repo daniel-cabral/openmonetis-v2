@@ -1,10 +1,12 @@
 import type {
   BulkCategorizeTransactionsInput,
+  BulkCreateTransactionsInput,
   BulkDeleteTransactionsInput,
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
   BulkTransactionsOutput,
   BulkTripTransactionsInput,
+  BulkUpdateTransactionsInput,
   CreateTransactionRefundInput,
   ExportTransactionsQuery,
   ImportTransactionsInput,
@@ -270,6 +272,16 @@ export const setTransactionsTrip = (input: BulkTripTransactionsInput) =>
 export const deleteTransactions = (input: BulkDeleteTransactionsInput) =>
   request<BulkTransactionsOutput>("/transactions/bulk/delete", {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+export const createTransactionsBulk = (input: BulkCreateTransactionsInput) =>
+  request<BulkTransactionsOutput>("/transactions/bulk/create", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+export const updateTransactionsBulk = (input: BulkUpdateTransactionsInput) =>
+  request<BulkTransactionsOutput>("/transactions/bulk/update", {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 export const settleRecurringOccurrence = (input: {

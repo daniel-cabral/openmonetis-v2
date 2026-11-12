@@ -1875,6 +1875,17 @@ export function listBulkTransactionTargetsForUser(ids: string[], userId: string)
       paymentMethod: transactions.paymentMethod,
       cardId: transactions.cardId,
       isSettled: transactions.isSettled,
+      condition: transactions.condition,
+      seriesId: transactions.seriesId,
+      currentInstallment: transactions.currentInstallment,
+      recurringRuleId: transactions.recurringRuleId,
+      settledDate: transactions.settledDate,
+      purchaseDate: transactions.purchaseDate,
+      period: transactions.period,
+      dueDate: transactions.dueDate,
+      personId: transactions.personId,
+      accountId: transactions.accountId,
+      plannedAmount: transactions.amount,
       refundedAmount: transactionColumns.refundedAmount,
       tagIds: transactionColumns.tagIds,
     })
@@ -2056,6 +2067,12 @@ export async function findInstallmentSeriesByIdForUser(id: string, userId: strin
   return series;
 }
 
+export class TransactionTargetMissingError extends Error {
+  constructor() {
+    super("TRANSACTION_TARGET_MISSING");
+  }
+}
+
 export async function updateTransactionSeriesRangeWithSplitsForUser(
   userId: string,
   updates: Array<{
@@ -2073,6 +2090,7 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
       .where(and(eq(transactions.userId, userId), inArray(transactions.id, requestedIds)))
       .orderBy(asc(transactions.id))
       .for("update");
+    if (lockedRows.length < new Set(requestedIds).size) throw new TransactionTargetMissingError();
     const financialKeys = [
       "amount",
       "type",
@@ -2113,7 +2131,7 @@ export async function updateTransactionSeriesRangeWithSplitsForUser(
         .set({ ...withoutTagIds(update.data), updatedAt: new Date() })
         .where(and(eq(transactions.id, update.id), eq(transactions.userId, userId)))
         .returning({ id: transactions.id });
-      if (!row) continue;
+      if (!row) throw new TransactionTargetMissingError();
       updatedIds.push(row.id);
       if (update.data.tagIds !== undefined)
         await replaceTransactionTags(transaction, row.id, userId, update.data.tagIds);

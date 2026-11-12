@@ -28,15 +28,20 @@ import {
 } from "@openmonetis/domain/recurring-transactions";
 import { getOccurrenceAmount, SettlementError } from "@openmonetis/domain/settlements";
 import { canAddTransactionTags, matchesTransactionTags } from "@openmonetis/domain/tags";
-import type { ImportedStatement, ImportedTransaction } from "@openmonetis/domain/transactions";
+import type {
+  ImportedStatement,
+  ImportedTransaction,
+  InstallmentSeriesValues,
+  PaymentMethod,
+} from "@openmonetis/domain/transactions";
 import {
-  addMonthsToDate,
   addMonthsToPeriod,
   allocateAmountProportionally,
   allocateInstallmentShares,
   allocateRefundByResponsibility,
   buildTrackedInstallmentSchedule,
   buildTransferPostings,
+  bulkTransactionUpdateFields,
   calculateInstallmentEndPeriod,
   calculateRecurrenceEndDate,
   calculateRefund,
@@ -48,6 +53,7 @@ import {
   deriveTransactionPeriod,
   deriveTransactionPostingDate,
   deriveTransactionPostingPeriod,
+  getBulkTransactionUpdateRejection,
   getImportedDescriptionKey,
   getPeriodEndDate,
   getPeriodFromDate,
@@ -61,6 +67,9 @@ import {
   previewInstallmentOptions,
   projectTransactionAllocations,
   resolveEditedTransactionPeriod,
+  selectBulkSeriesAnchors,
+  settlementLockedTransactionFields,
+  shiftInstallmentSeriesValues,
   splitAmountIntoInstallments,
   toDisplayAmount,
 } from "@openmonetis/domain/transactions";
@@ -68,10 +77,12 @@ import { isTripLinkable, planTripLinkChange } from "@openmonetis/domain/trips";
 import { getCurrentDateInBrazil, getCurrentPeriodInBrazil } from "@openmonetis/shared/date-time";
 import type {
   BulkCategorizeTransactionsInput,
+  BulkCreateTransactionsInput,
   BulkDeleteTransactionsInput,
   BulkRenameTransactionsInput,
   BulkTagTransactionsInput,
   BulkTripTransactionsInput,
+  BulkUpdateTransactionsInput,
   CreateTransactionRefundInput,
   DetectTransactionImportInput,
   ExportTransactionsQuery,
@@ -96,6 +107,7 @@ import type {
   TransactionUpdateRecord,
   TransactionWithRelations,
 } from "../repositories/transactions.repository";
+import { TransactionTargetMissingError } from "../repositories/transactions.repository";
 import { badRequest, conflict, notFound } from "../utils/errors";
 import { createTransactionsExport } from "../utils/transactions-export";
 import type { AttachmentsService } from "./attachments.service";
@@ -227,6 +239,16 @@ function normalizeNullableText(value: string | null | undefined) {
   return normalized ? normalized : null;
 }
 
+function isCategoryUsableForType(
+  category: { name: string; type: string; isSystem: boolean | null },
+  type: TransactionInput["type"],
+) {
+  return (
+    category.type === type &&
+    !(category.name === invoicePaymentCategoryName && category.isSystem !== false)
+  );
+}
+
 function assertBoletoPaymentDateIsNotFuture(data: TransactionInput) {
   if (data.boletoPaymentDate && data.boletoPaymentDate > getCurrentDateInBrazil()) {
     throw badRequest("Boleto payment date cannot be in the future", "BOLETO_PAYMENT_DATE_FUTURE");
@@ -278,6 +300,20 @@ function createRecentEstablishmentsService(
     },
   };
 }
+
+const bulkUpdateRejectionErrors = {
+  protected: ["Bulk action is not supported", "BULK_ACTION_UNSUPPORTED"],
+  recurring: ["Recurring transactions must be edited one by one", "BULK_UPDATE_RECURRING"],
+  notApplicable: [
+    "Field does not apply to a selected transaction",
+    "BULK_UPDATE_FIELD_NOT_APPLICABLE",
+  ],
+  splitPersonChange: [
+    "Split transactions cannot change person in bulk",
+    "BULK_UPDATE_SPLIT_PERSON",
+  ],
+  settled: ["Undo settlement before changing financial fields", "SETTLEMENT_REQUIRES_UNDO"],
+} as const;
 
 function subtractUtcMonths(date: Date, months: number) {
   const result = new Date(date);
@@ -619,12 +655,7 @@ export function createTransactionsService(
         ? await findSystemCategoryByNameForUser(internalTransferCategoryName, userId)
         : await findCategoryByIdForUser(data.categoryId as string, userId);
 
-    if (
-      !category ||
-      (data.type !== "transfer" &&
-        (category.type !== data.type ||
-          (category.name === invoicePaymentCategoryName && category.isSystem !== false)))
-    ) {
+    if (!category || (data.type !== "transfer" && !isCategoryUsableForType(category, data.type))) {
       throw notFound("Category not found", "CATEGORY_NOT_FOUND");
     }
 
@@ -674,7 +705,7 @@ export function createTransactionsService(
 
   function buildBaseRecord(
     data: TransactionInput & { userId: string },
-    context: OwnershipContext,
+    context: Omit<OwnershipContext, "person"> & { person: Pick<OwnershipContext["person"], "id"> },
   ): Omit<
     TransactionCreateRecord,
     "purchaseDate" | "period" | "amount" | "seriesId" | "installmentCount" | "currentInstallment"
@@ -715,7 +746,11 @@ export function createTransactionsService(
     };
   }
 
-  function derivePeriod(data: TransactionInput, context: OwnershipContext, purchaseDate: string) {
+  function derivePeriod(
+    data: Pick<TransactionInput, "paymentMethod" | "invoicePeriod" | "dueDate">,
+    context: Pick<OwnershipContext, "card">,
+    purchaseDate: string,
+  ) {
     if (data.paymentMethod === "credit_card" && data.invoicePeriod) return data.invoicePeriod;
     return deriveTransactionPeriod({
       paymentMethod: data.paymentMethod,
@@ -2167,21 +2202,7 @@ export function createTransactionsService(
     if (
       current.settledDate &&
       ((data.isSettled !== undefined && data.isSettled !== current.isSettled) ||
-        [
-          "amount",
-          "type",
-          "paymentMethod",
-          "purchaseDate",
-          "personId",
-          "accountId",
-          "cardId",
-          "splitShares",
-          "settledDate",
-          "boletoPaymentDate",
-          "dueDate",
-          "condition",
-          "invoicePeriod",
-        ].some((key) => key in data))
+        settlementLockedTransactionFields.some((key) => key in data))
     )
       throw badRequest(
         "Undo settlement before changing financial fields",
@@ -2395,6 +2416,15 @@ export function createTransactionsService(
                   splitShares.map((share) => share.amount),
                 )
               : [];
+            const shifted = shiftInstallmentSeriesValues(
+              {
+                purchaseDate: validatedMerged.purchaseDate,
+                dueDate: validatedMerged.dueDate ?? null,
+                boletoPaymentDate: validatedMerged.boletoPaymentDate ?? null,
+                period: anchorPeriod,
+              },
+              offset,
+            );
             return {
               id: target.id,
               tripChange,
@@ -2408,17 +2438,17 @@ export function createTransactionsService(
                         validatedMerged.amount,
                       ).toFixed(2),
                 purchaseDate: rebuildPurchaseDates
-                  ? toDate(addMonthsToDate(validatedMerged.purchaseDate, offset))
+                  ? toDate(shifted.purchaseDate as string)
                   : target.purchaseDate,
-                period: rebuildPeriods ? addMonthsToPeriod(anchorPeriod, offset) : target.period,
+                period: rebuildPeriods ? (shifted.period as string) : target.period,
                 dueDate: rebuildDueDates
-                  ? validatedMerged.dueDate
-                    ? toDate(addMonthsToDate(validatedMerged.dueDate, offset))
+                  ? shifted.dueDate
+                    ? toDate(shifted.dueDate)
                     : null
                   : target.dueDate,
                 boletoPaymentDate: rebuildBoletoPaymentDates
-                  ? validatedMerged.boletoPaymentDate
-                    ? toDate(addMonthsToDate(validatedMerged.boletoPaymentDate, offset))
+                  ? shifted.boletoPaymentDate
+                    ? toDate(shifted.boletoPaymentDate)
                     : null
                   : target.boletoPaymentDate,
                 currentInstallment: target.currentInstallment,
@@ -2438,7 +2468,11 @@ export function createTransactionsService(
             };
           }),
         ),
-      );
+      ).catch((error: unknown) => {
+        if (error instanceof TransactionTargetMissingError)
+          throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+        throw error;
+      });
       if (!updated.includes(id)) {
         throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
       }
@@ -2557,6 +2591,313 @@ export function createTransactionsService(
     if (targets.length !== uniqueIds.length)
       throw notFound("One or more transactions were not found", "TRANSACTION_NOT_FOUND");
     return targets.map((target) => ({ ...target, refundedAmount: Number(target.refundedAmount) }));
+  }
+
+  async function createTransactions(input: BulkCreateTransactionsInput, userId: string) {
+    const account = input.accountId ? await findAccountByIdForUser(input.accountId, userId) : null;
+    if (input.accountId && (!account || account.isArchived))
+      throw notFound("Account not found", "ACCOUNT_NOT_FOUND");
+    const card = input.cardId ? await findCardByIdForUser(input.cardId, userId) : null;
+    if (input.cardId && (!card || card.status === "inactive"))
+      throw notFound("Card not found", "CARD_NOT_FOUND");
+
+    const [ownedCategories, ownedPeople] = await Promise.all([
+      listCategoriesByIdsForUser([...new Set(input.rows.map((row) => row.categoryId))], userId),
+      listPeopleByIdsForUser([...new Set(input.rows.map((row) => row.personId))], userId),
+    ]);
+    const categoriesById = new Map(ownedCategories.map((category) => [category.id, category]));
+    const peopleById = new Map(ownedPeople.map((person) => [person.id, person]));
+    if (
+      input.rows.some((row) => {
+        const category = categoriesById.get(row.categoryId);
+        return !category || !isCategoryUsableForType(category, input.type);
+      })
+    )
+      throw notFound("Category not found", "CATEGORY_NOT_FOUND");
+    if (input.rows.some((row) => peopleById.get(row.personId)?.status !== "active"))
+      throw notFound("Person not found", "PERSON_NOT_FOUND");
+
+    const records: TransactionCreateRecord[] = input.rows.map((row) => {
+      const data: TransactionInput & { userId: string } = {
+        userId,
+        type: input.type,
+        paymentMethod: input.paymentMethod,
+        condition: "single",
+        name: row.name,
+        amount: row.amount,
+        purchaseDate: row.purchaseDate,
+        invoicePeriod: input.invoicePeriod,
+        personId: row.personId,
+        accountId: input.accountId,
+        cardId: input.cardId,
+        categoryId: row.categoryId,
+        isSettled: false,
+      };
+      const context = {
+        person: { id: row.personId },
+        category: { id: row.categoryId, type: input.type },
+        card,
+      };
+      return {
+        ...buildBaseRecord(data, context),
+        amount: normalizeTransactionAmount(input.type, row.amount).toFixed(2),
+        purchaseDate: toDate(row.purchaseDate),
+        period: derivePeriod(data, context, row.purchaseDate),
+        installmentCount: null,
+        currentInstallment: null,
+        seriesId: null,
+      };
+    });
+
+    if (card) {
+      const periods = [...new Set(records.map((record) => record.period))];
+      const paidPeriods = await listPaidInvoicePeriodsForUser(card.id, periods, userId);
+      if (paidPeriods.length)
+        throw badRequest("Paid invoices cannot receive transactions", "INVOICE_ALREADY_PAID");
+      if (input.type === "expense") {
+        const used = await getCardExpenseTotalForUser(card.id, userId);
+        const total = input.rows.reduce((sum, row) => sum + row.amount, 0);
+        if (used + total > Number(card.limit))
+          throw badRequest("Card limit exceeded", "CARD_LIMIT_EXCEEDED");
+      }
+    }
+
+    const inserted = await insertTransactionsWithSplits(records, []);
+    return { ids: inserted.map((row) => row.id) };
+  }
+
+  async function updateTransactions(input: BulkUpdateTransactionsInput, userId: string) {
+    type BulkRow = Awaited<ReturnType<typeof listBulkTargets>>[number];
+    type ScopedRow = BulkRow & { seriesId: string; currentInstallment: number };
+    type BulkSplit = Awaited<ReturnType<typeof listTransactionSplitsForUser>>[number];
+    type PlannedUpdate = {
+      row: BulkRow;
+      data: TransactionUpdateRecord;
+      splits?: Array<{ personId: string; amount: string }>;
+    };
+    const { changes, scope } = input;
+    const fields = bulkTransactionUpdateFields.filter((field) => changes[field] !== undefined);
+    const rebuildsPeriod = fields.some((field) =>
+      ["purchaseDate", "dueDate", "invoicePeriod", "cardId"].includes(field),
+    );
+    const touchesInvoice = fields.some((field) =>
+      ["cardId", "invoicePeriod", "purchaseDate", "amount"].includes(field),
+    );
+
+    const targets = await listBulkTargets(input.ids, userId);
+    const selectedIds = new Set(targets.map((row) => row.id));
+    const splitsByTransaction = new Map<string, BulkSplit[]>();
+    async function indexSplits(transactionIds: string[]) {
+      for (const split of await listTransactionSplitsForUser(transactionIds, userId)) {
+        splitsByTransaction.set(split.transactionId, [
+          ...(splitsByTransaction.get(split.transactionId) ?? []),
+          split,
+        ]);
+      }
+    }
+    await indexSplits([...selectedIds]);
+
+    if (changes.personId !== undefined) {
+      const [person] = await listPeopleByIdsForUser([changes.personId], userId);
+      if (person?.status !== "active") throw notFound("Person not found", "PERSON_NOT_FOUND");
+    }
+    const category =
+      changes.categoryId === undefined
+        ? undefined
+        : (await listCategoriesByIdsForUser([changes.categoryId], userId))[0];
+    if (changes.categoryId !== undefined && !category)
+      throw notFound("Category not found", "CATEGORY_NOT_FOUND");
+    if (changes.accountId !== undefined) {
+      const account = await findAccountByIdForUser(changes.accountId, userId);
+      if (!account || account.isArchived) throw notFound("Account not found", "ACCOUNT_NOT_FOUND");
+    }
+    const cardIds =
+      changes.cardId !== undefined
+        ? [changes.cardId]
+        : targets.flatMap((row) => (row.cardId ? [row.cardId] : []));
+    const cardsById = new Map(
+      (
+        await Promise.all([...new Set(cardIds)].map((id) => findCardByIdForUser(id, userId)))
+      ).flatMap((card) => (card ? [[card.id, card] as const] : [])),
+    );
+    if (changes.cardId !== undefined) {
+      const card = cardsById.get(changes.cardId);
+      if (!card || card.status === "inactive") throw notFound("Card not found", "CARD_NOT_FOUND");
+    }
+
+    const assertBulkRowAllowed = (row: BulkRow) => {
+      const rejection = getBulkTransactionUpdateRejection(
+        {
+          ...row,
+          isRecurring: row.recurringRuleId !== null,
+          isSplit: splitsByTransaction.has(row.id),
+          isSettledLocked: row.settledDate !== null,
+        },
+        fields,
+      );
+      if (rejection) {
+        const [message, code] = bulkUpdateRejectionErrors[rejection];
+        throw badRequest(message, code);
+      }
+    };
+    const assertCategoryFits = (row: BulkRow) => {
+      if (category && !canAssignBulkCategory(row, category))
+        throw badRequest(
+          "Category is not compatible with every transaction",
+          "BULK_CATEGORY_INCOMPATIBLE",
+        );
+    };
+    for (const row of targets) assertBulkRowAllowed(row);
+    for (const row of targets) assertCategoryFits(row);
+
+    const nextSchedule = (row: BulkRow) => ({
+      purchaseDate: changes.purchaseDate ?? toDateString(row.purchaseDate),
+      dueDate:
+        changes.dueDate !== undefined
+          ? changes.dueDate
+          : row.dueDate
+            ? toDateString(row.dueDate)
+            : null,
+      cardId: changes.cardId ?? row.cardId,
+    });
+    const resolveRowPeriod = (row: BulkRow) => {
+      const next = nextSchedule(row);
+      // Protected rows (null payment method) were rejected above.
+      const paymentMethod = row.paymentMethod as PaymentMethod;
+      // Only an explicit invoice period pins the period; a moved purchase date re-derives it.
+      const invoicePeriod = paymentMethod === "credit_card" ? changes.invoicePeriod : undefined;
+      const card = next.cardId ? (cardsById.get(next.cardId) ?? null) : null;
+      return resolveEditedTransactionPeriod({
+        current: {
+          condition: row.condition,
+          paymentMethod,
+          period: row.period,
+          purchaseDate: toDateString(row.purchaseDate),
+          dueDate: row.dueDate ? toDateString(row.dueDate) : null,
+          cardId: row.cardId,
+        },
+        updated: {
+          condition: row.condition,
+          paymentMethod,
+          purchaseDate: next.purchaseDate,
+          dueDate: next.dueDate,
+          cardId: next.cardId,
+        },
+        invoicePeriod,
+        derivedPeriod: derivePeriod(
+          { paymentMethod, invoicePeriod, dueDate: next.dueDate },
+          { card },
+          next.purchaseDate,
+        ),
+      });
+    };
+    const datesFor = (row: BulkRow): InstallmentSeriesValues => ({
+      purchaseDate: changes.purchaseDate,
+      dueDate: changes.dueDate,
+      period: rebuildsPeriod ? resolveRowPeriod(row) : undefined,
+    });
+
+    const scopedRows = targets.filter(
+      (row): row is ScopedRow =>
+        scope !== "single" &&
+        row.condition === "installment" &&
+        row.seriesId !== null &&
+        row.currentInstallment !== null,
+    );
+    const anchors = selectBulkSeriesAnchors(scopedRows);
+    const scopeById = new Map<
+      string,
+      { anchor: ScopedRow; dates: InstallmentSeriesValues; installment: number }
+    >();
+    for (const anchor of anchors) {
+      const dates = datesFor(anchor);
+      for (const member of await listTransactionSeriesForUser(anchor.seriesId, userId)) {
+        if (member.currentInstallment === null) continue;
+        if (scope !== "series" && member.currentInstallment < anchor.currentInstallment) continue;
+        scopeById.set(member.id, { anchor, dates, installment: member.currentInstallment });
+      }
+    }
+    const memberIds = [...scopeById.keys()];
+    await indexSplits(memberIds.filter((id) => !selectedIds.has(id)));
+    const memberRows = await listBulkTargets(memberIds, userId);
+
+    const buildUpdate = (row: BulkRow, dates: InstallmentSeriesValues): PlannedUpdate => {
+      const data: TransactionUpdateRecord = {};
+      if (dates.purchaseDate !== undefined) data.purchaseDate = toDate(dates.purchaseDate);
+      if (dates.dueDate !== undefined) data.dueDate = dates.dueDate ? toDate(dates.dueDate) : null;
+      if (dates.period !== undefined) data.period = dates.period;
+      if (changes.personId !== undefined) data.personId = changes.personId;
+      if (changes.accountId !== undefined) data.accountId = changes.accountId;
+      if (changes.cardId !== undefined) data.cardId = changes.cardId;
+      if (changes.categoryId !== undefined) data.categoryId = changes.categoryId;
+      if (changes.note !== undefined) data.note = normalizeNullableText(changes.note);
+      if (changes.amount === undefined) return { row, data };
+      data.amount = normalizeTransactionAmount(row.type, changes.amount).toFixed(2);
+      const rowSplits = splitsByTransaction.get(row.id);
+      if (!rowSplits) return { row, data };
+      const shares = allocateAmountProportionally(
+        changes.amount,
+        rowSplits.map((split) => Math.abs(Number(split.plannedAmount ?? split.amount))),
+      );
+      return {
+        row,
+        data,
+        splits: rowSplits.map((split, index) => ({
+          personId: split.personId,
+          amount: normalizeTransactionAmount(row.type, shares[index] as number).toFixed(2),
+        })),
+      };
+    };
+
+    const planned: PlannedUpdate[] = [];
+    for (const row of targets) {
+      if (!scopeById.has(row.id)) planned.push(buildUpdate(row, datesFor(row)));
+    }
+    for (const row of memberRows) {
+      const member = scopeById.get(row.id);
+      if (!member) continue;
+      assertBulkRowAllowed(row);
+      assertCategoryFits(row);
+      planned.push(
+        buildUpdate(
+          row,
+          shiftInstallmentSeriesValues(
+            member.dates,
+            member.installment - member.anchor.currentInstallment,
+          ),
+        ),
+      );
+    }
+
+    if (touchesInvoice) {
+      const periodsByCard = new Map<string, Set<string>>();
+      const addPeriod = (cardId: string | null, period: string) => {
+        if (cardId === null) return;
+        periodsByCard.set(cardId, (periodsByCard.get(cardId) ?? new Set<string>()).add(period));
+      };
+      for (const { row, data } of planned) {
+        if (row.paymentMethod !== "credit_card") continue;
+        addPeriod(row.cardId, row.period);
+        addPeriod(changes.cardId ?? row.cardId, data.period ?? row.period);
+      }
+      for (const [cardId, periods] of periodsByCard) {
+        const paidPeriods = await listPaidInvoicePeriodsForUser(cardId, [...periods], userId);
+        if (paidPeriods.length)
+          throw badRequest("Paid invoices cannot change transactions", "INVOICE_ALREADY_PAID");
+      }
+    }
+
+    const updatedIds = await translateTransferBalanceError(() =>
+      updateTransactionSeriesRangeWithSplitsForUser(
+        userId,
+        planned.map(({ row, data, splits }) => ({ id: row.id, data, splits })),
+      ),
+    ).catch((error: unknown) => {
+      if (error instanceof TransactionTargetMissingError)
+        throw notFound("Transaction not found", "TRANSACTION_NOT_FOUND");
+      throw error;
+    });
+    return { ids: updatedIds };
   }
 
   async function categorizeTransactions(input: BulkCategorizeTransactionsInput, userId: string) {
@@ -3087,6 +3428,8 @@ export function createTransactionsService(
     }),
     applyRecurringRuleAction,
     categorizeTransactions,
+    createTransactions,
+    updateTransactions,
     copyRecurringRule,
     copyTransaction,
     createTransaction,
