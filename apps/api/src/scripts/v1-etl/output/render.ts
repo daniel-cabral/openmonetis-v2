@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  ExpectedDifference,
+  Figure,
   LoadReport,
   OutputHeader,
   ReconciliationReport,
@@ -88,21 +90,73 @@ export function renderReconcileText(report: ReconciliationReport): string {
   const { global } = report;
   return [
     ...headerLines(report.header),
-    `global: ${global.passed}/${global.users} users passed, rehearsal ready: ${global.rehearsalReady ? "yes" : "no"}`,
+    "",
+    global.rehearsalReady ? "Rehearsal ready" : "Rehearsal not ready",
+    `global: ${global.passed}/${global.users} users passed`,
     ...sortedEntries(global.totals).map(([key, value]) => `  ${key}: ${value}`),
+    "",
+    "failing figures:",
+    ...listOrNone(describeFailingFigures(report)),
     ...report.users.flatMap((user) => [
       "",
       `user ${user.v1UserId}: ${user.pass ? "PASS" : "FAIL"}`,
-      ...user.figures.map(
-        (figure) =>
-          `  [${figure.pass ? "pass" : "FAIL"}] ${figure.kind} ${formatKey(figure.key)}: v1 ${figure.v1}, v2 ${figure.v2}, difference ${figure.difference}`,
+      ...describeFigureKinds(user.figures),
+      "  expected differences:",
+      ...listOrNone(
+        user.expectedDifferences.flatMap(describeExpectedDifference).map((line) => `    ${line}`),
+        "    ",
       ),
-      ...user.expectedDifferences.map(
-        (difference) => `  expected: ${difference.reason} on ${difference.kind}`,
+      "  informational:",
+      ...listOrNone(
+        user.informational.map((item) => `    ${item.reason}: ${item.rows} rows`),
+        "    ",
       ),
-      ...user.informational.map((item) => `  info: ${item.reason} (${item.rows} rows)`),
     ]),
   ].join("\n");
+}
+
+function describeFailingFigures(report: ReconciliationReport): string[] {
+  return report.users.flatMap((user) =>
+    user.figures
+      .filter((figure) => !figure.pass)
+      .map((figure) => describeFailingFigure(user.v1UserId, figure)),
+  );
+}
+
+function describeFailingFigure(v1UserId: string, figure: Figure): string {
+  return `  user ${v1UserId} ${figure.kind} ${formatKey(figure.key)}: v1 ${figure.v1}, v2 ${figure.v2}, difference ${figure.difference}`;
+}
+
+function describeFigureKinds(figures: Figure[]): string[] {
+  const byKind = new Map<string, Figure[]>();
+  for (const figure of figures) {
+    byKind.set(figure.kind, [...(byKind.get(figure.kind) ?? []), figure]);
+  }
+  return [...byKind]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([kind, items]) => {
+      const passed = items.filter((figure) => figure.pass).length;
+      const status = passed === items.length ? "PASS" : "FAIL";
+      return `  ${kind}: ${status} (${passed}/${items.length} figures pass)`;
+    });
+}
+
+function describeExpectedDifference(difference: ExpectedDifference): string[] {
+  switch (difference.reason) {
+    case "zero-recurrence-skip":
+    case "split-group":
+      return [`${difference.reason} on ${difference.kind}: ${difference.count}`];
+    case "period-date-resolved":
+      return difference.rows.map(
+        (row) =>
+          `${difference.reason} on ${difference.kind}: ${row.v1Id} ${row.resolution} ${row.period}`,
+      );
+    case "boleto-posting-month":
+      return difference.rows.map(
+        (row) =>
+          `${difference.reason} on ${difference.kind}: ${row.v1Id} ${row.period} paid ${row.paymentMonth}, amount ${row.amount}, raw V1 ${row.differenceVsRawV1.periodEnd} ${row.differenceVsRawV1.value}`,
+      );
+  }
 }
 
 function headerLines(header: OutputHeader): string[] {
