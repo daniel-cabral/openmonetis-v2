@@ -2380,6 +2380,32 @@ export const noteItems = pgTable(
   ],
 );
 
+export const noteAttachments = pgTable(
+  "note_attachments",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id").notNull(),
+    attachmentId: uuid("attachment_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.noteId, table.attachmentId] }),
+    uniqueIndex("note_attachments_attachment_id_unique").on(table.attachmentId),
+    index("note_attachments_user_id_idx").on(table.userId),
+    foreignKey({
+      name: "note_attachments_note_user_fk",
+      columns: [table.noteId, table.userId],
+      foreignColumns: [notes.id, notes.userId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "note_attachments_attachment_user_fk",
+      columns: [table.attachmentId, table.userId],
+      foreignColumns: [attachments.id, attachments.userId],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   authAccounts: many(account),
