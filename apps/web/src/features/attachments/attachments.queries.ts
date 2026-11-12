@@ -1,11 +1,17 @@
 import type { ListAttachmentsQuery } from "@openmonetis/validators/attachments";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
-import { getAttachments, getAttachmentUrl, getTransactionAttachments } from "./attachments.api";
+import {
+  fetchAttachmentsSummary,
+  getAttachments,
+  getAttachmentUrl,
+  getTransactionAttachments,
+} from "./attachments.api";
 
 export const attachmentKeys = {
   all: ["attachments"] as const,
   lists: () => [...attachmentKeys.all, "list"] as const,
   list: (query: ListAttachmentsQuery) => [...attachmentKeys.lists(), query] as const,
+  summary: (period: string) => [...attachmentKeys.all, "summary", period] as const,
   transaction: (id: string) => [...attachmentKeys.all, "transaction", id] as const,
   url: (id: string, disposition: "inline" | "attachment") =>
     [...attachmentKeys.all, "url", id, disposition] as const,
@@ -16,6 +22,12 @@ export const attachmentsQueryOptions = (query: ListAttachmentsQuery) =>
     queryKey: attachmentKeys.list(query),
     queryFn: () => getAttachments(query),
     placeholderData: keepPreviousData,
+  });
+
+export const attachmentsSummaryQueryOptions = (period: string) =>
+  queryOptions({
+    queryKey: attachmentKeys.summary(period),
+    queryFn: () => fetchAttachmentsSummary(period),
   });
 
 export const transactionAttachmentsQueryOptions = (id: string) =>

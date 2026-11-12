@@ -48,8 +48,17 @@ export function formatFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+export function formatAttachmentCount(count: number) {
+  if (count === 1) return "1 anexo";
+  return `${Intl.NumberFormat("pt-BR").format(count)} anexos`;
+}
+
 export function formatAttachmentDate(value: string) {
   return formatDateInBrazil(dateOnlyToSafeInstant(value), {});
+}
+
+export function formatAttachmentDay(value: string) {
+  return formatDateInBrazil(dateOnlyToSafeInstant(value), { day: "2-digit", month: "2-digit" });
 }
 
 export function attachmentTypeLabel(mimeType: string) {

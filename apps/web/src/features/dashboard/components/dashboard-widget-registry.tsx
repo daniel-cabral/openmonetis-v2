@@ -14,6 +14,7 @@ import {
   HandCoins,
   Landmark,
   type LucideIcon,
+  Paperclip,
   PieChart,
   ReceiptText,
   RefreshCcw,
@@ -25,6 +26,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { AttachmentsWidget } from "@/features/attachments/components/attachments-widget";
 import { BillsWidget } from "@/features/bills/components/bills-widget";
 import { BudgetsWidget } from "@/features/budgets/components/budgets-widget";
 import { CategoryHistoryWidget } from "@/features/category-trends/components/category-history-widget";
@@ -257,6 +259,14 @@ export const dashboardWidgetRegistry: readonly DashboardWidgetDefinition[] = [
     description: "Anotações ativas mais recentes",
     icon: BookOpenText,
     render: () => <NotesWidget />,
+  },
+  {
+    id: "attachments",
+    section: "planning",
+    title: "Anexos",
+    description: "Comprovantes do período",
+    icon: Paperclip,
+    render: (period) => <AttachmentsWidget period={period} />,
   },
 ] as const;
 
