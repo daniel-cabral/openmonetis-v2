@@ -1295,6 +1295,53 @@ export const importCategoryMappings = pgTable(
   ],
 );
 
+export const reconciliationIgnores = pgTable(
+  "reconciliation_ignores",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sourceFingerprint: varchar("source_fingerprint", { length: 64 }).notNull(),
+    externalId: varchar("external_id", { length: 255 }).notNull(),
+    reason: varchar("reason", { length: 160 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.sourceFingerprint, table.externalId] })],
+);
+
+export const importNameMappings = pgTable(
+  "import_name_mappings",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    descriptionKey: varchar("description_key", { length: 160 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    updatedAt: timestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.descriptionKey] })],
+);
+
+export const reconciliationBatches = pgTable(
+  "reconciliation_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetType: varchar("target_type", { length: 16 }).notNull(),
+    targetId: uuid("target_id").notNull(),
+    undo: jsonb("undo").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("reconciliation_batches_user_created_at_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const transactionSplits = pgTable(
   "transaction_splits",
   {
@@ -1780,6 +1827,8 @@ export const recurringTransactionOccurrences = pgTable(
       onDelete: "restrict",
     }),
     boletoPaymentDate: date("boleto_payment_date", { mode: "date" }),
+    importSourceFingerprint: varchar("import_source_fingerprint", { length: 64 }),
+    importExternalId: varchar("import_external_id", { length: 255 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -1802,6 +1851,9 @@ export const recurringTransactionOccurrences = pgTable(
       table.recurringSeriesId,
       table.purchaseDate,
     ),
+    uniqueIndex("recurring_transaction_occurrences_import_external_unique")
+      .on(table.userId, table.importSourceFingerprint, table.importExternalId)
+      .where(sql`${table.importExternalId} IS NOT NULL`),
     foreignKey({
       name: "recurring_transaction_occurrences_rule_user_fk",
       columns: [table.recurringRuleId, table.userId],

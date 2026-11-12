@@ -43,6 +43,7 @@ import { Route as ReportsInstallmentsRouteImport } from './routes/reports/instal
 import { Route as ReportsRecurringExpensesRouteImport } from './routes/reports/recurring-expenses'
 import { Route as ReportsRecurringTransactionsRouteImport } from './routes/reports/recurring-transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions_.import'
+import { Route as TransactionsReconciliationRouteImport } from './routes/transactions_.reconciliation'
 import { Route as TripsTripIdRouteImport } from './routes/trips_.$tripId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -218,6 +219,12 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
   path: '/transactions/import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TransactionsReconciliationRoute =
+  TransactionsReconciliationRouteImport.update({
+    id: '/transactions_/reconciliation',
+    path: '/transactions/reconciliation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TripsTripIdRoute = TripsTripIdRouteImport.update({
   id: '/trips_/$tripId',
   path: '/trips/$tripId',
@@ -259,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/transactions/reconciliation': typeof TransactionsReconciliationRoute
   '/trips/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRoutesByTo {
@@ -296,6 +304,7 @@ export interface FileRoutesByTo {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions/import': typeof TransactionsImportRoute
+  '/transactions/reconciliation': typeof TransactionsReconciliationRoute
   '/trips/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRoutesById {
@@ -334,6 +343,7 @@ export interface FileRoutesById {
   '/reports/recurring-expenses': typeof ReportsRecurringExpensesRoute
   '/reports/recurring-transactions': typeof ReportsRecurringTransactionsRoute
   '/transactions_/import': typeof TransactionsImportRoute
+  '/transactions_/reconciliation': typeof TransactionsReconciliationRoute
   '/trips_/$tripId': typeof TripsTripIdRoute
 }
 export interface FileRouteTypes {
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/transactions/reconciliation'
     | '/trips/$tripId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions/import'
+    | '/transactions/reconciliation'
     | '/trips/$tripId'
   id:
     | '__root__'
@@ -447,6 +459,7 @@ export interface FileRouteTypes {
     | '/reports/recurring-expenses'
     | '/reports/recurring-transactions'
     | '/transactions_/import'
+    | '/transactions_/reconciliation'
     | '/trips_/$tripId'
   fileRoutesById: FileRoutesById
 }
@@ -485,6 +498,7 @@ export interface RootRouteChildren {
   ReportsRecurringExpensesRoute: typeof ReportsRecurringExpensesRoute
   ReportsRecurringTransactionsRoute: typeof ReportsRecurringTransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
+  TransactionsReconciliationRoute: typeof TransactionsReconciliationRoute
   TripsTripIdRoute: typeof TripsTripIdRoute
 }
 
@@ -728,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/transactions_/reconciliation': {
+      id: '/transactions_/reconciliation'
+      path: '/transactions/reconciliation'
+      fullPath: '/transactions/reconciliation'
+      preLoaderRoute: typeof TransactionsReconciliationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/trips_/$tripId': {
       id: '/trips_/$tripId'
       path: '/trips/$tripId'
@@ -773,6 +794,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRecurringExpensesRoute: ReportsRecurringExpensesRoute,
   ReportsRecurringTransactionsRoute: ReportsRecurringTransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,
+  TransactionsReconciliationRoute: TransactionsReconciliationRoute,
   TripsTripIdRoute: TripsTripIdRoute,
 }
 export const routeTree = rootRouteImport

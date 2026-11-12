@@ -27,6 +27,7 @@
     "./goals": "./src/goals.ts",
     "./notes": "./src/notes.ts",
     "./notifications": "./src/notifications.ts",
+    "./reconciliations": "./src/reconciliations.ts",
     "./recurring-expenses": "./src/recurring-expenses.ts",
     "./releases": "./src/releases.ts",
     "./establishments": "./src/establishments.ts",

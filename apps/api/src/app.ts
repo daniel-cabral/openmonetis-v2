@@ -57,6 +57,7 @@ import {
 } from "./repositories/person-reports.repository";
 import { personSettlementsRepository } from "./repositories/person-settlements.repository";
 import { preferencesRepository } from "./repositories/preferences.repository";
+import * as reconciliationsRepository from "./repositories/reconciliations.repository";
 import { recurringExpensesRepository } from "./repositories/recurring-expenses.repository";
 import {
   recurringTransactionsRepository,
@@ -100,6 +101,7 @@ import { createPersonConnectionsRoute } from "./routes/person-connections";
 import { createPersonReportsRoute } from "./routes/person-reports";
 import { createPersonSettlementsRoute } from "./routes/person-settlements";
 import { createPreferencesRoute } from "./routes/preferences";
+import { createReconciliationsRoute } from "./routes/reconciliations";
 import { createRecurringExpensesRoute } from "./routes/recurring-expenses";
 import { createRecurringTransactionsRoute } from "./routes/recurring-transactions";
 import { createReleasesRoute } from "./routes/releases";
@@ -148,6 +150,7 @@ import { createPersonConnectionsService } from "./services/person-connections.se
 import { createPersonReportsService } from "./services/person-reports.service";
 import { createPersonSettlementsService } from "./services/person-settlements.service";
 import { createPreferencesService } from "./services/preferences.service";
+import { createReconciliationsService } from "./services/reconciliations.service";
 import { createRecurringExpensesService } from "./services/recurring-expenses.service";
 import { createRecurringTransactionsService } from "./services/recurring-transactions.service";
 import { createReleasesService } from "./services/releases.service";
@@ -238,6 +241,20 @@ const transactionsService = createTransactionsService(
   },
 );
 const transactionsRoute = createTransactionsRoute(transactionsService);
+const reconciliationsRoute = createReconciliationsRoute(
+  createReconciliationsService({
+    repository: reconciliationsRepository,
+    transactions: transactionsService,
+    listImportCategoryMappingsForUser: transactionsRepository.listImportCategoryMappingsForUser,
+    listPaidInvoicePeriodsForUser: transactionsRepository.listPaidInvoicePeriodsForUser,
+    listPeopleByIdsForUser,
+    findAdminPersonByUserId,
+    listCategoriesByIdsForUser,
+    findCardByIdForUser,
+    listAccountsForUser: (userId) => accountsRepository.listByUser(userId),
+    listCategoriesForUser: (userId) => categoriesRepository.listByUser(userId),
+  }),
+);
 const tagsRoute = createTagsRoute(
   createTagsService(tagsRepository, async (userId, period) => {
     const query = ListTransactionsQuerySchema.parse({ period, pageSize: 100 });
@@ -581,6 +598,10 @@ app.use("/transactions", privateCache);
 app.use("/transactions/*", privateCache);
 app.use("/transactions", requireAuth);
 app.use("/transactions/*", requireAuth);
+app.use("/reconciliations", privateCache);
+app.use("/reconciliations/*", privateCache);
+app.use("/reconciliations", requireAuth);
+app.use("/reconciliations/*", requireAuth);
 app.use(
   "/transactions/bulk/*",
   createMutationRateLimit({
@@ -843,6 +864,7 @@ app.route("/notes", notesRoute);
 app.route("/recurring-transactions", recurringTransactionsRoute);
 app.route("/recurring-expenses", recurringExpensesRoute);
 app.route("/transactions", transactionsRoute);
+app.route("/reconciliations", reconciliationsRoute);
 app.route("/dashboard/spending-overview", spendingOverviewRoute);
 app.route("/dashboard", dashboardRoute);
 app.route("/ai-providers", aiProvidersRoute);

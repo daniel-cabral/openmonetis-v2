@@ -4,13 +4,14 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { withIntegrationDatabase } from "./test-support/integration-database";
 
 test("upgrading the previous release preserves financial data and incrementally migrates due-date rules", {
   skip: process.env.MIGRATIONS_INTEGRATION_TEST !== "1",
 }, async (t) => {
-  const source = new URL("../../../packages/db/drizzle", import.meta.url).pathname;
+  const source = fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url));
   const temporary = mkdtempSync(join(tmpdir(), "openmonetis-migrations-"));
   const journal = JSON.parse(readFileSync(join(source, "meta/_journal.json"), "utf8"));
   function history(last: number) {
