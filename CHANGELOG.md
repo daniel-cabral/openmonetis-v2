@@ -44,6 +44,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   endpoints `GET /dashboard/spending-overview` e `GET /attachments/summary`, e testes de regressão
   para marcar como não lida, arquivar e restaurar notificações. Detalhes em
   `docs/dashboard-widgets.md`.
+- Calendário mensal com lançamentos, parcelas, boletos e faturas por dia, detalhe do dia e criação
+  rápida.
 
 ## [0.16.0] - 2026-11-07
 
