@@ -9,8 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ResolvedCardUsageReportSearch } from "../card-usage-report.presentation";
 import { cardUsageReportQueryOptions } from "../card-usage-report.queries";
+import { CardUsageCategories } from "./card-usage-categories";
+import { CardUsageHistoryChart } from "./card-usage-history-chart";
+import { CardUsageInvoices } from "./card-usage-invoices";
 import { CardUsageList } from "./card-usage-list";
 import { CardUsageSummary } from "./card-usage-summary";
+import { CardUsageTopExpenses } from "./card-usage-top-expenses";
 
 type CardUsageReportPageProps = {
   filters: ResolvedCardUsageReportSearch;
@@ -22,6 +26,7 @@ export function CardUsageReportPage({ filters, onFiltersChange }: CardUsageRepor
     cardUsageReportQueryOptions({ period: filters.period, cardId: filters.card }),
   );
   const report = reportQuery.data;
+  const selectedCard = report?.cards.find((card) => card.id === report.selectedCardId);
 
   return (
     <ProtectedRoute>
@@ -81,7 +86,24 @@ export function CardUsageReportPage({ filters, onFiltersChange }: CardUsageRepor
                       selectedCardId={report.selectedCardId}
                     />
                   </div>
-                  <div className="min-w-0 lg:col-span-2" />
+                  <div className="grid min-w-0 gap-4 lg:col-span-2">
+                    {report.detail && selectedCard ? (
+                      <>
+                        <CardUsageHistoryChart
+                          cardId={report.detail.cardId}
+                          cardName={selectedCard.name}
+                          history={report.detail.history}
+                          limit={selectedCard.limit}
+                          period={report.period}
+                        />
+                        <CardUsageInvoices invoices={report.detail.invoices} />
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <CardUsageCategories categories={report.detail.categories} />
+                          <CardUsageTopExpenses expenses={report.detail.topExpenses} />
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : (
