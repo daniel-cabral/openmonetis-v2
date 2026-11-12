@@ -44,9 +44,7 @@ export function CategoryTransactionsPage({
   const categoriesQuery = useQuery(categoriesQueryOptions());
   const period = search.period ?? getCurrentPeriodInBrazil();
   const selectedPersonScope = search.personScope ?? "admin";
-  const subcategories = (categoriesQuery.data ?? []).filter(
-    (item) => item.parentId === categoryId,
-  );
+  const subcategories = (categoriesQuery.data ?? []).filter((item) => item.parentId === categoryId);
   const activeSubcategory = resolveActiveSubcategory(search.subcategory, subcategories);
 
   return (

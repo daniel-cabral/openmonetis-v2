@@ -9,8 +9,8 @@ import {
   formatDateInBrazil,
 } from "@openmonetis/shared/date-time";
 import type { DashboardInvoice } from "@openmonetis/validators/invoices";
-import { formatRecordedPaymentDate } from "../../lib/payment-presentation";
 import { formatCurrency, parseCurrencyInput } from "../../lib/money-presentation";
+import { formatRecordedPaymentDate } from "../../lib/payment-presentation";
 
 export type InvoicePaymentMode = "invoice" | "person" | "manual";
 

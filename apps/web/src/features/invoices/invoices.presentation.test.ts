@@ -106,7 +106,11 @@ test("the announced amount matches the allocations sent for every payment mode",
       item.amount,
     );
     assert.deepEqual(allocations, item.allocations, item.name);
-    assert.equal(getInvoicePaymentAnnouncement(invoice, item.mode, allocations), item.sentence, item.name);
+    assert.equal(
+      getInvoicePaymentAnnouncement(invoice, item.mode, allocations),
+      item.sentence,
+      item.name,
+    );
   }
 });
 

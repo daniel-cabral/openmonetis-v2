@@ -268,9 +268,7 @@ test("connection persistence protects one-time credentials, expiration, attempts
         }
         for (const [index, resource] of ownerResources.entries())
           assert.deepEqual(
-            await api.data(
-              await api.request(`${resource.path}/${resource.id}`, connectionOwner),
-            ),
+            await api.data(await api.request(`${resource.path}/${resource.id}`, connectionOwner)),
             ownerBefore[index],
           );
         for (const override of [
