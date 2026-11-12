@@ -160,9 +160,18 @@ export function TransactionsContainer({
                 exportMutation.mutate(
                   { search: transactionsSearch, format, fileLabel: scope?.export?.fileLabel },
                   {
-                    onSuccess: () => toast.success("Lançamentos exportados"),
+                    onSuccess: () =>
+                      toast.success(
+                        format === "pdf"
+                          ? "Lançamentos exportados em PDF com sucesso!"
+                          : "Lançamentos exportados",
+                      ),
                     onError: () =>
-                      toast.error("Não foi possível exportar os lançamentos. Tente novamente."),
+                      toast.error(
+                        format === "pdf"
+                          ? "Erro ao exportar lançamentos em PDF"
+                          : "Não foi possível exportar os lançamentos. Tente novamente.",
+                      ),
                   },
                 )
             : undefined

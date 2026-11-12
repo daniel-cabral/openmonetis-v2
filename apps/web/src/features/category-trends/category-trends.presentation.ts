@@ -1,7 +1,13 @@
+import type { CategoryTrendType } from "@openmonetis/domain/category-trends";
 import { addMonthsToPeriod } from "@openmonetis/domain/transactions";
 import { getCurrentPeriodInBrazil, periodToSafeInstant } from "@openmonetis/shared/date-time";
 import type { CategoryTrendsOutput } from "@openmonetis/validators/category-trends";
 import { csvCell } from "../../lib/csv";
+import type { ExportBranding } from "../../lib/export-branding";
+import { formatCurrency } from "../../lib/money-presentation";
+import type { BrandedPdfTable } from "../../lib/pdf-export";
+import { formatPeriod } from "../../lib/period-presentation";
+import type { XlsxCell, XlsxColumn } from "../../lib/xlsx-export";
 import { getCategoryLabel } from "../categories/categories.presentation";
 
 type CategoryTrendsSearch = {
@@ -198,6 +204,176 @@ export function downloadCategoryTrendsCsv(report: CategoryTrendsOutput) {
   anchor.download = `tendencias-${report.periods[0]?.period ?? "inicio"}-${report.periods.at(-1)?.period ?? "fim"}.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+type CategoryTrendValue = CategoryTrendsOutput["categories"][number]["values"][number];
+
+type CategoryTrendsExportCell = {
+  amount: number;
+  variation: string | null;
+  trend: "up" | "down" | null;
+};
+
+type CategoryTrendsExportRow = {
+  label: string;
+  type: CategoryTrendType;
+  emphasis: boolean;
+  cells: CategoryTrendsExportCell[];
+  total: number;
+};
+
+type CategoryTrendsExportTable = {
+  periodLabel: string;
+  columns: string[];
+  rows: CategoryTrendsExportRow[];
+};
+
+const categoryTrendsBrlNumFmt = '"R$" #,##0.00';
+
+/**
+ * Top-level categories per type, each type closed by its "Total Geral" row. Amounts, totals and
+ * variations come from the response; nothing is summed on the client.
+ */
+export function buildCategoryTrendsExportTable(
+  report: CategoryTrendsOutput,
+): CategoryTrendsExportTable {
+  const columns = [
+    "Categoria",
+    ...report.periods.map(({ period }) => formatPeriod(period, true)),
+    "Total",
+  ];
+  const rows = (["expense", "income"] as const).flatMap((type) => {
+    const categories = report.categories.filter((category) => category.type === type);
+    if (categories.length === 0) return [];
+
+    const isExpense = type === "expense";
+    const categoryRows = categories.map((category) => ({
+      label: category.name,
+      type,
+      emphasis: false,
+      cells: report.periods.map(({ period }, index) =>
+        toCategoryTrendsExportCell(
+          category.values.find((value) => value.period === period),
+          index === 0,
+        ),
+      ),
+      total: category.totalAmount,
+    }));
+    const totalRow: CategoryTrendsExportRow = {
+      label: isExpense ? "Total Geral - Despesas" : "Total Geral - Receitas",
+      type,
+      emphasis: true,
+      cells: report.periods.map((period) => ({
+        amount: isExpense ? period.expenseAmount : period.incomeAmount,
+        variation: null,
+        trend: null,
+      })),
+      total: isExpense ? report.summary.expenseAmount : report.summary.incomeAmount,
+    };
+    return [...categoryRows, totalRow];
+  });
+
+  return { periodLabel: getCategoryTrendsExportPeriodLabel(report), columns, rows };
+}
+
+export function getCategoryTrendsExportPeriodLabel(report: CategoryTrendsOutput) {
+  const months = report.periods.map(({ period }) => formatPeriod(period).replace(" de ", " "));
+  return `${months[0]} - ${months.at(-1)}`;
+}
+
+export function getCategoryTrendsExportFileName(
+  report: CategoryTrendsOutput,
+  extension: "pdf" | "xlsx",
+) {
+  const start = report.periods[0]?.period ?? "inicio";
+  const end = report.periods.at(-1)?.period ?? "fim";
+  return `relatorio-categorias-${start}-${end}.${extension}`;
+}
+
+/** One sheet: amounts stay numeric, each month also carries its variation text with an arrow. */
+export function toCategoryTrendsXlsxSheet(table: CategoryTrendsExportTable): {
+  sheetName: string;
+  columns: XlsxColumn[];
+  rows: XlsxCell[][];
+} {
+  const months = table.columns.slice(1, -1);
+  return {
+    sheetName: "Relatório de Categorias",
+    columns: [
+      { header: "Categoria", width: 30 },
+      { header: "Tipo", width: 12 },
+      ...months.flatMap((month) => [
+        { header: month, width: 14, numFmt: categoryTrendsBrlNumFmt },
+        { header: `${month} var.`, width: 16 },
+      ]),
+      { header: "Total", width: 14, numFmt: categoryTrendsBrlNumFmt },
+    ],
+    rows: table.rows.map((row) => [
+      row.label,
+      row.type === "expense" ? "Despesa" : "Receita",
+      ...row.cells.flatMap((cell) => [cell.amount, toXlsxVariation(cell)]),
+      row.total,
+    ]),
+  };
+}
+
+/** Amount line plus variation line; the trend triangle is drawn by the PDF builder. */
+export function toCategoryTrendsPdfTable(
+  table: CategoryTrendsExportTable,
+  branding: ExportBranding,
+  generatedAt: string,
+): BrandedPdfTable {
+  return {
+    title: "Relatório de Categorias por Período",
+    periodLabel: table.periodLabel,
+    generatedAt,
+    branding,
+    columns: table.columns.map((header, index) => ({
+      header,
+      align: index === 0 ? "left" : "right",
+    })),
+    rows: table.rows.map((row) => ({
+      emphasis: row.emphasis,
+      cells: [
+        { text: row.label },
+        ...row.cells.map((cell) => toCategoryTrendsPdfCell(cell, row.type)),
+        { text: formatCurrency(row.total), tone: row.type },
+      ],
+    })),
+  };
+}
+
+function toCategoryTrendsExportCell(
+  value: CategoryTrendValue | undefined,
+  isFirstPeriod: boolean,
+): CategoryTrendsExportCell {
+  const amount = value?.totalAmount ?? 0;
+  if (!value || isFirstPeriod) return { amount, variation: null, trend: null };
+  return {
+    amount,
+    variation: formatTrendPercentage(value.changePercentage, value.changeKind),
+    trend: toTrendDirection(value),
+  };
+}
+
+/** "Novo" and "Sem base" have no direction, so they get no arrow. */
+function toTrendDirection({ changeAmount, changePercentage, changeKind }: CategoryTrendValue) {
+  if (changePercentage === null || changeKind === "started" || changeAmount === 0) return null;
+  return changeAmount > 0 ? "up" : "down";
+}
+
+function toXlsxVariation({ variation, trend }: CategoryTrendsExportCell) {
+  if (variation === null || trend === null) return variation;
+  return `${trend === "up" ? "↑" : "↓"} ${variation.replace(/^[+-]/, "")}`;
+}
+
+function toCategoryTrendsPdfCell(cell: CategoryTrendsExportCell, tone: CategoryTrendType) {
+  const amount = formatCurrency(cell.amount);
+  return {
+    text: cell.variation === null ? amount : `${amount}\n${cell.variation}`,
+    tone,
+    trend: cell.trend,
+  };
 }
 
 function validPeriod(value: unknown) {

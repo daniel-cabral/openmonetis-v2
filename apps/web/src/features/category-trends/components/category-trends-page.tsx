@@ -1,6 +1,7 @@
 import type { ListCategoryTrendsQuery } from "@openmonetis/validators/category-trends";
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileChartColumn, LineChart, RefreshCw, Table2, Tags } from "lucide-react";
+import { FileChartColumn, LineChart, RefreshCw, Table2, Tags } from "lucide-react";
+import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Navbar } from "@/components/navigation/navbar";
 import { PageHeader } from "@/components/page-header";
@@ -9,12 +10,21 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useExportCategoryTrendsMutation } from "../category-trends.mutations";
+import {
+  type CategoryTrendsExportFormat,
+  useExportCategoryTrendsMutation,
+} from "../category-trends.mutations";
 import { categoryTrendsQueryOptions } from "../category-trends.queries";
 import { CategoryTrendsChart } from "./category-trends-chart";
+import { CategoryTrendsExportMenu } from "./category-trends-export-menu";
 import { CategoryTrendsFilters } from "./category-trends-filters";
 import { CategoryTrendsList } from "./category-trends-list";
 import { CategoryTrendsSummary } from "./category-trends-summary";
+
+const exportSuccessMessages = {
+  xlsx: "Relatório exportado em Excel com sucesso!",
+  pdf: "Relatório exportado em PDF com sucesso!",
+} as const;
 
 type CategoryTrendsPageProps = {
   filters: ListCategoryTrendsQuery;
@@ -27,6 +37,19 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
   const report = reportQuery.data;
   const isMobile = useIsMobile();
   const defaultView = isMobile === true ? "chart" : "table";
+
+  const handleExport = (format: CategoryTrendsExportFormat) => {
+    if (!report) return;
+    exportMutation.mutate(
+      { report, format },
+      {
+        onSuccess: () => {
+          if (format !== "csv") toast.success(exportSuccessMessages[format]);
+        },
+        onError: () => toast.error("Erro ao exportar o relatório"),
+      },
+    );
+  };
 
   return (
     <ProtectedRoute>
@@ -47,15 +70,11 @@ export function CategoryTrendsPage({ filters, onFiltersChange }: CategoryTrendsP
           {report ? (
             <CategoryTrendsFilters
               actions={
-                <Button
-                  disabled={exportMutation.isPending || reportQuery.isFetching}
-                  onClick={() => exportMutation.mutate(report)}
-                  type="button"
-                  variant="outline"
-                >
-                  <Download aria-hidden="true" />
-                  {exportMutation.isPending ? "Exportando..." : "Exportar CSV"}
-                </Button>
+                <CategoryTrendsExportMenu
+                  disabled={reportQuery.isFetching || report.categories.length === 0}
+                  onExport={handleExport}
+                  pending={exportMutation.isPending}
+                />
               }
               categories={report.availableCategories}
               filters={filters}

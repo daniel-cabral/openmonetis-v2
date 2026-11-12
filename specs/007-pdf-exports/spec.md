@@ -8,6 +8,56 @@
 
 **Input**: User description: "Port the V1 branded PDF export for the transactions list and for reports to V2, which today exports transactions only as CSV/XLSX and the category trends report only as CSV."
 
+## Clarifications
+
+### Session 2026-11-12 (autonomous, per roadmap worker workflow)
+
+- Q: Where is the PDF built? -> A: On the user's device, with `jspdf` + `jspdf-autotable`
+  loaded by dynamic `import()` only when the user exports (FR-015). Rationale: matches V1 output
+  (real download with the exact file name in 2 clicks, SC-001), reads the brand color from the live
+  theme (`--primary`) and the logos from `apps/web/public/images`, and sends no data to third
+  parties. The browser-print precedent (`print-document.ts`) was rejected because it needs the
+  print dialog and cannot guarantee the file name. Both packages are mature and widely used; they
+  were evaluated per AGENTS.md section 7.
+- Q: Where do the PDF rows come from? -> A: A new read endpoint `GET /transactions/export/items`
+  accepts the same query as the list (minus pagination) and returns every matching
+  `TransactionOutput` via the same `listTransactions(userId, query, false)` call used by the CSV/XLSX
+  export, so filtering, ownership and visibility are identical (FR-002, FR-014, SC-002).
+- Q: Where is the category report Excel built? -> A: On the device, from the already-loaded
+  `CategoryTrendsOutput` (amounts and `changePercentage` come from the API; the web only formats),
+  with `exceljs` (already in the lockfile via the API) loaded by dynamic `import()`.
+- Q: How are the "↑ / ↓" arrows rendered, given the PDF standard fonts lack them? -> A: Drawn as
+  small vector triangles next to the percentage text in the cell hook, so no font file is embedded;
+  accents and "R$" are covered by the standard WinAnsi font.
+- Q: Logo format? -> A: The SVG mark and wordmark are rasterized to PNG on a canvas at export time;
+  if loading fails the PDF is produced without the logo.
+- Q: Category report menu? -> A: The single "Exportar CSV" button becomes an "Exportar" dropdown
+  with CSV, Excel (.xlsx) and PDF, same pattern as `transactions-export-menu.tsx`. The category CSV
+  file name keeps its current `tendencias-<início>-<fim>.csv` (FR-008, SC-006); the new files use
+  `relatorio-categorias-<início>-<fim>.(pdf|xlsx)`.
+- Q: Mockup? -> A: Skipped by decision: the only UI change is adding items to an existing shadcn
+  `DropdownMenu` (and reusing it on the category report). The PDF layout itself is fixed by the
+  acceptance scenarios (V1 parity).
+- Q: Transactions PDF period label and file name? -> A: Computed in
+  `transactions.presentation.ts` from the active search (month or date range), per FR-006/FR-007.
+- Q: Mobile actions menu? -> A: Gets the same "Exportar como PDF" item (FR-001: every screen that
+  offers the export).
+
+- Q: What is the category report "Total Geral" when the report mixes expenses and income? -> A:
+  The export follows the screen, which shows two sections (Despesas, Receitas) each with its own
+  "Total mensal" row from the API (`periods[].expenseAmount` / `incomeAmount`, summary
+  `expenseAmount` / `incomeAmount`). Files list expense categories, then "Total Geral - Despesas",
+  then income categories, then "Total Geral - Receitas"; no client-side sum or net is computed
+  (AGENTS.md section 12, SC-003). Only top-level categories are exported (the screen's collapsed
+  default). Variation per month comes from `changePercentage` / `changeKind`; the arrow points up
+  when `changeAmount > 0` and down when `< 0`; "Novo" and "Sem base" follow
+  `formatTrendPercentage`.
+- Q: Are Excel cells neutralized? -> A: exceljs writes JS strings as string cells, never as
+  formulas, so text like `=HYPERLINK(...)` is stored and shown literally without an apostrophe
+  (FR-013 satisfied; asserted by reading the workbook back). CSV keeps `csvCell`.
+- Q: Transfer account column in the PDF? -> A: "<origem> para <destino>" (the standard PDF font
+  has no arrow glyph).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Export the transactions list as a branded PDF (Priority: P1)
@@ -41,7 +91,7 @@ A user analysing the category trends report wants to export it. V2 offers only C
 
 **Acceptance Scenarios**:
 
-1. **Given** a category report for a period range, **When** the user chooses "Exportar como PDF", **Then** a landscape PDF downloads with the branded header, the title "Relatório de Categorias por Período", "Período: <primeiro mês> - <último mês>", the generated-at date, a column per month plus "Total", one row per category and a final "Total Geral" row.
+1. **Given** a category report for a period range, **When** the user chooses "Exportar como PDF", **Then** a landscape PDF downloads with the branded header, the title "Relatório de Categorias por Período", "Período: <primeiro mês> - <último mês>", the generated-at date, a column per month plus "Total", one row per top-level category and a "Total Geral" row per type ("Total Geral - Despesas", "Total Geral - Receitas", see Clarifications).
 2. **Given** a category with a prior month, **When** rendered, **Then** each month cell shows the amount and, on a second line, the variation versus the previous month with an arrow and percentage ("↑ / ↓"), and the first month has no variation.
 3. **Given** expense and income categories, **When** rendered, **Then** the values are colored red and green respectively and the totals row is bold with a light background.
 4. **Given** the same report, **When** the user chooses "Exportar como Excel (.xlsx)", **Then** a workbook downloads with the sheet "Relatório de Categorias", the same rows, month columns, variation text, and totals as the screen.
@@ -89,7 +139,7 @@ A user exports from several places and expects uniform file names, language and 
 - **FR-006**: The file name MUST be `lancamentos-<período>.pdf`, where the period is the selected month, or `<início>-<fim>` for a date range, with "inicio" and "hoje" for open ends.
 - **FR-007**: The period label MUST read "<mês ano>" for a month and "<início> até <fim>" for a range ("Início" or "hoje" when open).
 - **FR-008**: The category report MUST offer "Exportar como PDF" and "Exportar como Excel (.xlsx)" in addition to the existing CSV.
-- **FR-009**: The category report PDF MUST be landscape with the same branding, the title "Relatório de Categorias por Período", the range line, a column per month plus Total, a row per category, month-over-month variation with arrow and percentage, color by category type, and a "Total Geral" row.
+- **FR-009**: The category report PDF MUST be landscape with the same branding, the title "Relatório de Categorias por Período", the range line, a column per month plus Total, a row per category, month-over-month variation with arrow and percentage, color by category type, and a "Total Geral" row per category type with the API totals (see Clarifications).
 - **FR-010**: The category report Excel file MUST contain the sheet "Relatório de Categorias" with the same content and variation text as the screen.
 - **FR-011**: The export options MUST be disabled while an export is running and when there is nothing to export, and failures MUST show a short PT-BR message without producing a partial file.
 - **FR-012**: Success MUST be confirmed with a brief message ("Lançamentos exportados em PDF com sucesso!" and "Relatório exportado em PDF com sucesso!" or the Excel equivalent).

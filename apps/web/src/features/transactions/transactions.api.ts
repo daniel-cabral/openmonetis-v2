@@ -17,6 +17,7 @@ import type {
   RecurrenceEndDateQuery,
   RecurringOccurrenceActionInput,
   TransactionActionScope,
+  TransactionExportItemsOutput,
   TransactionExportOutput,
   TransactionImportDetection,
   TransactionImportPreview,
@@ -104,6 +105,11 @@ export function exportTransactions(
   const params = transactionsSearchParams({ ...search, page: undefined, pageSize: undefined });
   params.set("format", format);
   return request<TransactionExportOutput>(`/transactions/export?${params}`);
+}
+
+export function getTransactionExportItems(search: TransactionsApiSearch) {
+  const params = transactionsSearchParams({ ...search, page: undefined, pageSize: undefined });
+  return request<TransactionExportItemsOutput>(`/transactions/export/items?${params}`);
 }
 
 export function getInstallmentOptions(amount: number) {

@@ -4,11 +4,15 @@ import type { CategoryTrendsOutput } from "@openmonetis/validators/category-tren
 import {
   addCategoryToHistory,
   buildCategoryHistorySeries,
+  buildCategoryTrendsExportTable,
   categoryHistoryWindow,
   categoryTrendsCsv,
+  getCategoryTrendsExportFileName,
   parseCategoryHistorySelection,
   pruneCategoryHistory,
   resolveCategoryTrendsSearch,
+  toCategoryTrendsPdfTable,
+  toCategoryTrendsXlsxSheet,
   validateCategoryTrendsSearch,
 } from "./category-trends.presentation";
 
@@ -132,4 +136,214 @@ test("category history prune drops categories that left the catalog", () => {
 
   assert.deepEqual(pruneCategoryHistory(selected, ["a"]), ["a"]);
   assert.equal(pruneCategoryHistory(selected, ["a", "b", "c"]), selected);
+});
+
+test("export table lists expense then income categories with API totals and variations", () => {
+  const expenseId = "10000000-0000-4000-8000-000000000001";
+  const incomeId = "10000000-0000-4000-8000-000000000002";
+  const transportId = "10000000-0000-4000-8000-000000000004";
+  const trends = {
+    periods: [
+      {
+        period: "2026-01",
+        incomeAmount: 500,
+        expenseAmount: 300,
+        netAmount: 200,
+        actualAmount: 300,
+        recurringAmount: 0,
+      },
+      {
+        period: "2026-02",
+        incomeAmount: 400,
+        expenseAmount: 340,
+        netAmount: 60,
+        actualAmount: 340,
+        recurringAmount: 0,
+      },
+    ],
+    categories: [
+      {
+        categoryId: expenseId,
+        name: "Mercado",
+        icon: null,
+        type: "expense",
+        totalAmount: 235,
+        averageAmount: 117.5,
+        values: [
+          {
+            period: "2026-01",
+            actualAmount: 100,
+            recurringAmount: 0,
+            totalAmount: 100,
+            previousAmount: 0,
+            changeAmount: 0,
+            changePercentage: null,
+            changeKind: "stable",
+          },
+          {
+            period: "2026-02",
+            actualAmount: 135,
+            recurringAmount: 0,
+            totalAmount: 135,
+            previousAmount: 120,
+            changeAmount: 15,
+            changePercentage: 12.5,
+            changeKind: "increase",
+          },
+        ],
+      },
+      {
+        categoryId: transportId,
+        name: "Transporte",
+        icon: null,
+        type: "expense",
+        totalAmount: 140,
+        averageAmount: 70,
+        values: [
+          {
+            period: "2026-01",
+            actualAmount: 80,
+            recurringAmount: 0,
+            totalAmount: 80,
+            previousAmount: 0,
+            changeAmount: 0,
+            changePercentage: null,
+            changeKind: "stable",
+          },
+          {
+            period: "2026-02",
+            actualAmount: 60,
+            recurringAmount: 0,
+            totalAmount: 60,
+            previousAmount: 80,
+            changeAmount: -20,
+            changePercentage: -25,
+            changeKind: "decrease",
+          },
+        ],
+      },
+      {
+        categoryId: incomeId,
+        name: "Freelance",
+        icon: null,
+        type: "income",
+        totalAmount: 200,
+        averageAmount: 100,
+        values: [
+          {
+            period: "2026-01",
+            actualAmount: 0,
+            recurringAmount: 0,
+            totalAmount: 0,
+            previousAmount: 0,
+            changeAmount: 0,
+            changePercentage: null,
+            changeKind: "stable",
+          },
+          {
+            period: "2026-02",
+            actualAmount: 200,
+            recurringAmount: 0,
+            totalAmount: 200,
+            previousAmount: 0,
+            changeAmount: 200,
+            changePercentage: null,
+            changeKind: "started",
+          },
+        ],
+      },
+    ],
+    availableCategories: [],
+    summary: { incomeAmount: 900, expenseAmount: 400 } as CategoryTrendsOutput["summary"],
+  } as CategoryTrendsOutput;
+
+  const table = buildCategoryTrendsExportTable(trends);
+  assert.deepEqual(table, {
+    periodLabel: "Janeiro 2026 - Fevereiro 2026",
+    columns: ["Categoria", "Jan 2026", "Fev 2026", "Total"],
+    rows: [
+      {
+        label: "Mercado",
+        type: "expense",
+        emphasis: false,
+        cells: [
+          { amount: 100, variation: null, trend: null },
+          { amount: 135, variation: "+12,5%", trend: "up" },
+        ],
+        total: 235,
+      },
+      {
+        label: "Transporte",
+        type: "expense",
+        emphasis: false,
+        cells: [
+          { amount: 80, variation: null, trend: null },
+          { amount: 60, variation: "-25%", trend: "down" },
+        ],
+        total: 140,
+      },
+      {
+        label: "Total Geral - Despesas",
+        type: "expense",
+        emphasis: true,
+        cells: [
+          { amount: 300, variation: null, trend: null },
+          { amount: 340, variation: null, trend: null },
+        ],
+        total: 400,
+      },
+      {
+        label: "Freelance",
+        type: "income",
+        emphasis: false,
+        cells: [
+          { amount: 0, variation: null, trend: null },
+          { amount: 200, variation: "Novo", trend: null },
+        ],
+        total: 200,
+      },
+      {
+        label: "Total Geral - Receitas",
+        type: "income",
+        emphasis: true,
+        cells: [
+          { amount: 500, variation: null, trend: null },
+          { amount: 400, variation: null, trend: null },
+        ],
+        total: 900,
+      },
+    ],
+  });
+
+  const sheet = toCategoryTrendsXlsxSheet(table);
+  assert.deepEqual(
+    sheet.columns.map((column) => column.header),
+    ["Categoria", "Tipo", "Jan 2026", "Jan 2026 var.", "Fev 2026", "Fev 2026 var.", "Total"],
+  );
+  assert.deepEqual(sheet.rows, [
+    ["Mercado", "Despesa", 100, null, 135, "↑ 12,5%", 235],
+    ["Transporte", "Despesa", 80, null, 60, "↓ 25%", 140],
+    ["Total Geral - Despesas", "Despesa", 300, null, 340, null, 400],
+    ["Freelance", "Receita", 0, null, 200, "Novo", 200],
+    ["Total Geral - Receitas", "Receita", 500, null, 400, null, 900],
+  ]);
+  assert.equal(
+    getCategoryTrendsExportFileName(trends, "pdf"),
+    "relatorio-categorias-2026-01-2026-02.pdf",
+  );
+
+  const pdf = toCategoryTrendsPdfTable(table, { color: [201, 106, 58], logos: null }, "12/11/2026");
+  const transportCell = pdf.rows[1]?.cells[2];
+  assert.equal(transportCell?.tone, "expense");
+  assert.equal(transportCell?.trend, "down");
+  assert.match(transportCell?.text ?? "", /\n-25%$/);
+
+  const expenseOnly = {
+    ...trends,
+    categories: trends.categories.filter((category) => category.type === "expense"),
+  };
+  assert.deepEqual(
+    buildCategoryTrendsExportTable(expenseOnly).rows.map((row) => row.label),
+    ["Mercado", "Transporte", "Total Geral - Despesas"],
+  );
 });
