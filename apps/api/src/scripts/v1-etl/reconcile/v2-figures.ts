@@ -121,7 +121,11 @@ async function invoiceFigures(s: Services, userId: string, periods: string[]): P
   return figures;
 }
 
-async function categoryFigures(s: Services, userId: string, periods: string[]): Promise<V2Figure[]> {
+async function categoryFigures(
+  s: Services,
+  userId: string,
+  periods: string[],
+): Promise<V2Figure[]> {
   const report = await s.categoryTrends.list(userId, {
     startPeriod: periods[0] as string,
     endPeriod: periods.at(-1) as string,
@@ -202,10 +206,7 @@ async function countFigures(userId: string, periods: string[]): Promise<V2Figure
       cardDueDay: cards.dueDay,
     })
     .from(recurringTransactionRules)
-    .leftJoin(
-      cards,
-      and(eq(recurringTransactionRules.cardId, cards.id), eq(cards.userId, userId)),
-    )
+    .leftJoin(cards, and(eq(recurringTransactionRules.cardId, cards.id), eq(cards.userId, userId)))
     .where(eq(recurringTransactionRules.userId, userId));
   for (const rule of rules) {
     if (rule.status !== "active") continue;
