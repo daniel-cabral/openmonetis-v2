@@ -52,7 +52,9 @@ export const CONDITION_MAP: Record<string, TransactionCondition> = {
 
 export function toTypedAmount(
   valor: string,
-): { ok: true; type: "income" | "expense"; amountCents: number } | { ok: false; reason: "zero" | "precision" } {
+):
+  | { ok: true; type: "income" | "expense"; amountCents: number }
+  | { ok: false; reason: "zero" | "precision" } {
   const value = Number(valor);
   if (value === 0) return { ok: false, reason: "zero" };
 

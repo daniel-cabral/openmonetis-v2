@@ -1,6 +1,6 @@
 import { fromCents } from "@openmonetis/domain/money";
-import { getEffectiveRecurringEndDate } from "@openmonetis/domain/recurring-transactions";
 import { resolveRecurringDueDate } from "@openmonetis/domain/recurring-expenses";
+import { getEffectiveRecurringEndDate } from "@openmonetis/domain/recurring-transactions";
 import {
   addMonthsToPeriod,
   deriveTransactionPeriod,

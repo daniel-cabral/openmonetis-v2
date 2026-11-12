@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import * as schema from "@openmonetis/db/schema";
 import { getTableColumns, is } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { getTableConfig, PgTable, type PgColumn } from "drizzle-orm/pg-core";
+import { getTableConfig, type PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { Pool, type PoolClient } from "pg";
 import type { UserPlan, WriteResult } from "../types";
 

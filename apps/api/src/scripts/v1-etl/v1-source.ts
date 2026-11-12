@@ -1,13 +1,7 @@
 // Read-only access to the restored V1 dump. No statement in this file writes.
 import { createHash } from "node:crypto";
 import { Pool, type PoolClient, types } from "pg";
-import type {
-  ExtractedUser,
-  V1Index,
-  V1Payer,
-  V1PayerShare,
-  V1Preferences,
-} from "./types";
+import type { ExtractedUser, V1Index, V1Payer, V1PayerShare, V1Preferences } from "./types";
 import { V1_SCHEMA_MANIFEST, type V1TableName } from "./v1-schema-manifest";
 
 const PG_DATE_OID = 1082;
@@ -155,41 +149,129 @@ export async function listV1Users(client: PoolClient): Promise<V1Index> {
 
 // Selected columns per V1 row type (types.ts). Never token hashes, prefixes or IPs.
 const USER_COLUMNS = ["id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt"];
-const ACCOUNT_COLUMNS = ["id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt"];
-const PASSKEY_COLUMNS = [
-  "id", "name", "publicKey", "userId", "credentialID", "counter", "deviceType", "backedUp",
-  "transports", "aaguid", "createdAt",
+const ACCOUNT_COLUMNS = [
+  "id",
+  "accountId",
+  "providerId",
+  "userId",
+  "password",
+  "createdAt",
+  "updatedAt",
 ];
-const PAYER_COLUMNS = ["id", "nome", "email", "avatar_url", "status", "anotacao", "role", "created_at", "user_id"];
+const PASSKEY_COLUMNS = [
+  "id",
+  "name",
+  "publicKey",
+  "userId",
+  "credentialID",
+  "counter",
+  "deviceType",
+  "backedUp",
+  "transports",
+  "aaguid",
+  "createdAt",
+];
+const PAYER_COLUMNS = [
+  "id",
+  "nome",
+  "email",
+  "avatar_url",
+  "status",
+  "anotacao",
+  "role",
+  "created_at",
+  "user_id",
+];
 const CATEGORY_COLUMNS = ["id", "nome", "tipo", "icone", "created_at", "user_id"];
 const SUBCATEGORY_COLUMNS = ["id", "nome", "categoria_id", "created_at", "user_id"];
 const FINANCIAL_ACCOUNT_COLUMNS = [
-  "id", "nome", "tipo_conta", "anotacao", "status", "logo", "saldo_inicial", "excluir_do_saldo",
-  "excluir_saldo_inicial_receitas", "created_at", "user_id",
+  "id",
+  "nome",
+  "tipo_conta",
+  "anotacao",
+  "status",
+  "logo",
+  "saldo_inicial",
+  "excluir_do_saldo",
+  "excluir_saldo_inicial_receitas",
+  "created_at",
+  "user_id",
 ];
 const CARD_COLUMNS = [
-  "id", "nome", "dt_fechamento", "dt_vencimento", "anotacao", "limite", "bandeira", "logo", "status",
-  "created_at", "user_id", "conta_id",
+  "id",
+  "nome",
+  "dt_fechamento",
+  "dt_vencimento",
+  "anotacao",
+  "limite",
+  "bandeira",
+  "logo",
+  "status",
+  "created_at",
+  "user_id",
+  "conta_id",
 ];
 const INVOICE_COLUMNS = ["id", "status_pagamento", "periodo", "created_at", "user_id", "cartao_id"];
 const TRANSACTION_COLUMNS = V1_SCHEMA_MANIFEST.lancamentos.columns;
 const ANTICIPATION_COLUMNS = V1_SCHEMA_MANIFEST.antecipacoes_parcelas.columns;
 const TRIP_COLUMNS = ["id", "user_id", "nome", "data_inicio", "data_fim", "anotacao", "created_at"];
-const NOTE_COLUMNS = ["id", "titulo", "descricao", "tipo", "tasks", "arquivada", "created_at", "user_id"];
-const ATTACHMENT_COLUMNS = ["id", "user_id", "chave_arquivo", "nome_arquivo", "tamanho_bytes", "mime_type", "created_at"];
+const NOTE_COLUMNS = [
+  "id",
+  "titulo",
+  "descricao",
+  "tipo",
+  "tasks",
+  "arquivada",
+  "created_at",
+  "user_id",
+];
+const ATTACHMENT_COLUMNS = [
+  "id",
+  "user_id",
+  "chave_arquivo",
+  "nome_arquivo",
+  "tamanho_bytes",
+  "mime_type",
+  "created_at",
+];
 const BUDGET_COLUMNS = ["id", "valor", "periodo", "created_at", "user_id", "categoria_id"];
 const INBOX_COLUMNS = V1_SCHEMA_MANIFEST.pre_lancamentos.columns;
 const PREFERENCES_COLUMNS = [
-  "user_id", "extrato_note_as_column", "lancamentos_column_order", "attachment_max_size_mb",
-  "dashboard_widgets", "mostrar_resumo_lancamento", "agrupar_lancamentos_por_data",
+  "user_id",
+  "extrato_note_as_column",
+  "lancamentos_column_order",
+  "attachment_max_size_mb",
+  "dashboard_widgets",
+  "mostrar_resumo_lancamento",
+  "agrupar_lancamentos_por_data",
   "ocultar_parcelas_antecipadas",
 ];
-const NOTIFICATION_STATE_COLUMNS = ["user_id", "notification_key", "fingerprint", "read_at", "archived_at", "created_at", "updated_at"];
+const NOTIFICATION_STATE_COLUMNS = [
+  "user_id",
+  "notification_key",
+  "fingerprint",
+  "read_at",
+  "archived_at",
+  "created_at",
+  "updated_at",
+];
 const LOGO_COLUMNS = ["user_id", "name_key", "domain", "updated_at"];
-const CATEGORY_MAPPING_COLUMNS = ["user_id", "description_key", "category_id", "subcategory_id", "updated_at"];
+const CATEGORY_MAPPING_COLUMNS = [
+  "user_id",
+  "description_key",
+  "category_id",
+  "subcategory_id",
+  "updated_at",
+];
 const NAME_MAPPING_COLUMNS = ["user_id", "description_key", "name", "updated_at"];
 const API_TOKEN_COLUMNS = ["id", "user_id", "name", "created_at"];
-const PAYER_SHARE_COLUMNS = ["id", "pagador_id", "shared_with_user_id", "permission", "created_by_user_id"];
+const PAYER_SHARE_COLUMNS = [
+  "id",
+  "pagador_id",
+  "shared_with_user_id",
+  "permission",
+  "created_by_user_id",
+];
 
 async function selectOwned<Row>(
   client: PoolClient,
@@ -217,7 +299,13 @@ export async function extractUser(
   const owned = <Row>(table: V1TableName, columns: readonly string[]) =>
     selectOwned<Row>(client, table, columns, "user_id", v1UserId);
 
-  const users = await selectOwned<ExtractedUser["user"]>(client, "user", USER_COLUMNS, "id", v1UserId);
+  const users = await selectOwned<ExtractedUser["user"]>(
+    client,
+    "user",
+    USER_COLUMNS,
+    "id",
+    v1UserId,
+  );
   const user = users[0];
   if (!user) throw new Error(`V1 user not found: ${v1UserId}`);
 

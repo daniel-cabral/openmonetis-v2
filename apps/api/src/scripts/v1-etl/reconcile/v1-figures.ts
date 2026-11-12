@@ -140,7 +140,11 @@ function useDateRows(r: Resolutions | null): string[] {
     .map(([key]) => key.slice(prefix.length));
 }
 
-function addTo(totals: Map<string, { key: FigureKey; cents: number }>, key: FigureKey, cents: number) {
+function addTo(
+  totals: Map<string, { key: FigureKey; cents: number }>,
+  key: FigureKey,
+  cents: number,
+) {
   const id = JSON.stringify(key);
   const current = totals.get(id);
   if (current) current.cents += cents;
@@ -161,10 +165,12 @@ export async function computeV1Figures(
   const params = [...txParams, adminPayerId];
   const figures: V1Figure[] = [];
 
-  const balances = await c.query<{ account: string; period: string; v1: string; v1_v2_posting: string }>(
-    BALANCE_SQL,
-    params,
-  );
+  const balances = await c.query<{
+    account: string;
+    period: string;
+    v1: string;
+    v1_v2_posting: string;
+  }>(BALANCE_SQL, params);
   for (const row of balances.rows) {
     figures.push({
       kind: "accountBalance",
@@ -174,10 +180,13 @@ export async function computeV1Figures(
     });
   }
 
-  const invoices = await c.query<{ card: string; period: string; total: string; status: string | null; paid_at: string | null }>(
-    INVOICE_SQL,
-    [v1UserId],
-  );
+  const invoices = await c.query<{
+    card: string;
+    period: string;
+    total: string;
+    status: string | null;
+    paid_at: string | null;
+  }>(INVOICE_SQL, [v1UserId]);
   for (const row of invoices.rows) {
     const paid = row.status === INVOICE_PAID_STATUS;
     figures.push({
@@ -190,10 +199,12 @@ export async function computeV1Figures(
   }
 
   const categoryTotals = new Map<string, { key: FigureKey; cents: number }>();
-  const categories = await c.query<{ category: string; period: string; category_type: string; total: string }>(
-    CATEGORY_SQL,
-    params,
-  );
+  const categories = await c.query<{
+    category: string;
+    period: string;
+    category_type: string;
+    total: string;
+  }>(CATEGORY_SQL, params);
   for (const row of categories.rows) {
     const rootCategory = refs.categoryByV1.get(row.category);
     if (rootCategory === undefined) throw new Error("v1-etl: unmapped category");
@@ -206,7 +217,10 @@ export async function computeV1Figures(
   }
 
   const personTotals = new Map<string, { key: FigureKey; cents: number }>();
-  const people = await c.query<{ payer: string | null; period: string; total: string }>(PERSON_SQL, txParams);
+  const people = await c.query<{ payer: string | null; period: string; total: string }>(
+    PERSON_SQL,
+    txParams,
+  );
   for (const row of people.rows) {
     const person = row.payer === null ? refs.adminPersonId : v2Id("pagadores", row.payer);
     addTo(personTotals, { person, period: row.period }, Number(row.total));
@@ -218,7 +232,11 @@ export async function computeV1Figures(
 
   const counts = await c.query<{ period: string; type: string; rows: number }>(COUNT_SQL, txParams);
   for (const row of counts.rows) {
-    figures.push({ kind: "transactionCount", key: { period: row.period, type: row.type }, value: row.rows });
+    figures.push({
+      kind: "transactionCount",
+      key: { period: row.period, type: row.type },
+      value: row.rows,
+    });
   }
 
   return figures;

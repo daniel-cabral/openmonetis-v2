@@ -11,10 +11,14 @@ const refs: CatalogRefs = {
   categoryByV1: new Map(),
   childBySubcategory: new Map(),
   accountByV1: new Map([["v1-account", "00000000-0000-4000-8000-000000000003"]]),
-  cardByV1: new Map([["v1-card", { id: "00000000-0000-4000-8000-000000000004", closingDay: 8, dueDay: 15 }]]),
+  cardByV1: new Map([
+    ["v1-card", { id: "00000000-0000-4000-8000-000000000004", closingDay: 8, dueDay: 15 }],
+  ]),
   tripByV1: new Map(),
   systemCategory: (name, type) =>
-    name === "Pagamentos" && type === "expense" ? "00000000-0000-4000-8000-000000000005" : "unexpected",
+    name === "Pagamentos" && type === "expense"
+      ? "00000000-0000-4000-8000-000000000005"
+      : "unexpected",
 };
 
 function paymentRow(id: string, note: string, valor: string): V1Transaction {
@@ -54,7 +58,11 @@ function paymentRow(id: string, note: string, valor: string): V1Transaction {
   };
 }
 
-function expectedPayment(ids: { tx: string; payment: string; allocation: string }, v1Id: string, amount: string) {
+function expectedPayment(
+  ids: { tx: string; payment: string; allocation: string },
+  v1Id: string,
+  amount: string,
+) {
   return {
     batches: [
       {
@@ -121,8 +129,22 @@ function expectedPayment(ids: { tx: string; payment: string; allocation: string 
       },
     ],
     idMap: [
-      { v1Table: "lancamentos", v1Id, role: "", v2Table: "transactions", v2Id: ids.tx, v1UserId: "v1-user" },
-      { v1Table: "lancamentos", v1Id, role: "payment", v2Table: "invoicePayments", v2Id: ids.payment, v1UserId: "v1-user" },
+      {
+        v1Table: "lancamentos",
+        v1Id,
+        role: "",
+        v2Table: "transactions",
+        v2Id: ids.tx,
+        v1UserId: "v1-user",
+      },
+      {
+        v1Table: "lancamentos",
+        v1Id,
+        role: "payment",
+        v2Table: "invoicePayments",
+        v2Id: ids.payment,
+        v1UserId: "v1-user",
+      },
       {
         v1Table: "lancamentos",
         v1Id,
@@ -138,7 +160,13 @@ function expectedPayment(ids: { tx: string; payment: string; allocation: string 
 test("parseMarker recognises V1 markers and buildInvoicePayment builds the V2 payment records", () => {
   const cases: Array<
     | { note: string; marker: Marker | null; payment?: undefined }
-    | { note: string; marker: Marker | null; payment: ReturnType<typeof expectedPayment>; v1Id: string; valor: string }
+    | {
+        note: string;
+        marker: Marker | null;
+        payment: ReturnType<typeof expectedPayment>;
+        v1Id: string;
+        valor: string;
+      }
   > = [
     {
       note: "AUTO_FATURA:v1-card:2025-02",
@@ -157,7 +185,12 @@ test("parseMarker recognises V1 markers and buildInvoicePayment builds the V2 pa
     },
     {
       note: "AUTO_FATURA:v1-card:2025-02:v1-partial-1",
-      marker: { kind: "invoicePayment", cardId: "v1-card", period: "2025-02", partialId: "v1-partial-1" },
+      marker: {
+        kind: "invoicePayment",
+        cardId: "v1-card",
+        period: "2025-02",
+        partialId: "v1-partial-1",
+      },
       payment: expectedPayment(
         {
           tx: "525b033c-dec7-5935-9ca8-f3ddececc02a",
@@ -182,7 +215,11 @@ test("parseMarker recognises V1 markers and buildInvoicePayment builds the V2 pa
     const marker = parseMarker(c.note);
     assert.deepEqual<Marker | null>(marker, c.marker, c.note);
     if (c.payment && marker?.kind === "invoicePayment") {
-      assert.deepEqual(buildInvoicePayment(paymentRow(c.v1Id, c.note, c.valor), marker, refs), c.payment, c.note);
+      assert.deepEqual(
+        buildInvoicePayment(paymentRow(c.v1Id, c.note, c.valor), marker, refs),
+        c.payment,
+        c.note,
+      );
     }
   }
 });

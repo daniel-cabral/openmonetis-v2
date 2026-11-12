@@ -76,10 +76,9 @@ async function hasPendingMigrations(c: PoolClient): Promise<boolean> {
 
 async function hasRunWithOtherFingerprint(c: PoolClient, fingerprint: string): Promise<boolean> {
   if (!(await tableExists(c, "v1_etl.runs"))) return false;
-  const result = await c.query(
-    "SELECT 1 FROM v1_etl.runs WHERE dump_fingerprint <> $1 LIMIT 1",
-    [fingerprint],
-  );
+  const result = await c.query("SELECT 1 FROM v1_etl.runs WHERE dump_fingerprint <> $1 LIMIT 1", [
+    fingerprint,
+  ]);
   return (result.rowCount ?? 0) > 0;
 }
 
