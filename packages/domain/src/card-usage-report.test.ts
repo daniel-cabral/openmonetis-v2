@@ -4,10 +4,12 @@ import {
   type CardUsageCard,
   type CardUsageEntry,
   type CardUsageRecurringRule,
+  calculateCardUsageDetail,
   calculateCardUsageOverview,
   calculateUsagePercentage,
   calculateUsageTrend,
   resolveCardUsageInvoiceState,
+  type CountedCardRow,
   resolveUsageTone,
 } from "./card-usage-report";
 
@@ -254,4 +256,115 @@ test("only own card spending counts: payments, transfers, balance moves and refu
     });
     assert.equal(overview.cards[0]?.usedCents, usedCents, label);
   }
+});
+
+function countedRow(overrides: Partial<CountedCardRow>): CountedCardRow {
+  return {
+    cardId: "card-1",
+    name: "Compra",
+    period: "2026-11",
+    purchaseDate: "2026-11-05",
+    categoryId: null,
+    categoryName: null,
+    categoryIcon: null,
+    impactCents: 0,
+    ...overrides,
+  };
+}
+
+test("card detail gives 12 months of history, top categories and top expenses of the month", () => {
+  const card = usageCard("card-1", "Nubank", 10000);
+  const detailFor = (countedRows: CountedCardRow[]) =>
+    calculateCardUsageDetail({ period: "2026-11", card, countedRows });
+
+  const historyDetail = detailFor([
+    countedRow({ period: "2026-03", purchaseDate: "2026-03-10", impactCents: 40000 }),
+  ]);
+  assert.deepEqual(
+    historyDetail.history.map((item) => [item.period, item.usedCents]),
+    [
+      ["2025-12", 0],
+      ["2026-01", 0],
+      ["2026-02", 0],
+      ["2026-03", 40000],
+      ["2026-04", 0],
+      ["2026-05", 0],
+      ["2026-06", 0],
+      ["2026-07", 0],
+      ["2026-08", 0],
+      ["2026-09", 0],
+      ["2026-10", 0],
+      ["2026-11", 0],
+    ],
+  );
+  assert.equal(historyDetail.history.find((item) => item.period === "2026-03")?.usagePercentage, 4);
+
+  const categoryDetail = detailFor([
+    ...Array.from({ length: 9 }, (_, index) =>
+      countedRow({
+        categoryId: `cat-${index + 1}`,
+        categoryName: `Categoria ${index + 1}`,
+        impactCents: (index + 1) * 10000,
+      }),
+    ),
+    countedRow({ impactCents: 25000 }),
+    countedRow({ categoryId: "mercado", categoryName: "Mercado", impactCents: 31500 }),
+    countedRow({ categoryId: "mercado", categoryName: "Mercado", impactCents: -5000 }),
+    countedRow({ categoryId: "zerado", categoryName: "Zerado", impactCents: 1000 }),
+    countedRow({ categoryId: "zerado", categoryName: "Zerado", impactCents: -1000 }),
+  ]);
+  assert.deepEqual(
+    categoryDetail.categories.map((item) => [item.categoryId, item.amountCents]),
+    [
+      ["cat-9", 90000],
+      ["cat-8", 80000],
+      ["cat-7", 70000],
+      ["cat-6", 60000],
+      ["cat-5", 50000],
+      ["cat-4", 40000],
+      ["cat-3", 30000],
+      ["mercado", 26500],
+      [null, 25000],
+      ["cat-2", 20000],
+    ],
+  );
+  const categoryPercentages = Object.fromEntries(
+    categoryDetail.categories.map((item) => [item.categoryId, item.percentage]),
+  );
+  assert.equal(categoryPercentages["cat-9"], 17.95);
+  assert.equal(categoryPercentages.mercado, 5.28);
+  assert.equal(categoryPercentages.null, 4.99);
+
+  const expenseDetail = detailFor([
+    ...Array.from({ length: 11 }, (_, index) =>
+      countedRow({
+        name: `Compra ${index + 1}`,
+        purchaseDate: "2026-11-05",
+        impactCents: (index + 1) * 1000,
+      }),
+    ),
+    countedRow({ name: "Compra 7 antiga", purchaseDate: "2026-11-01", impactCents: 7000 }),
+    countedRow({ name: "Estorno", purchaseDate: "2026-11-10", impactCents: -20000 }),
+  ]);
+  assert.deepEqual(
+    expenseDetail.topExpenses.map((item) => item.name),
+    [
+      "Compra 11",
+      "Compra 10",
+      "Compra 9",
+      "Compra 8",
+      "Compra 7",
+      "Compra 7 antiga",
+      "Compra 6",
+      "Compra 5",
+      "Compra 4",
+      "Compra 3",
+    ],
+  );
+
+  const emptyDetail = detailFor([]);
+  assert.deepEqual(emptyDetail.categories, []);
+  assert.deepEqual(emptyDetail.topExpenses, []);
+  assert.equal(emptyDetail.history.length, 12);
+  assert.ok(emptyDetail.history.every((item) => item.usedCents === 0));
 });

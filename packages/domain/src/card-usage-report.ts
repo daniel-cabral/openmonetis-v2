@@ -273,3 +273,103 @@ function compareOverviewCards(a: CardUsageOverviewCard, b: CardUsageOverviewCard
     a.id.localeCompare(b.id)
   );
 }
+
+export type CardUsageHistoryItem = {
+  period: string;
+  usedCents: number;
+  usagePercentage: number;
+};
+
+export type CardUsageCategory = {
+  categoryId: string | null;
+  name: string | null;
+  icon: string | null;
+  amountCents: number;
+  percentage: number;
+};
+
+export type CardUsageTopExpense = {
+  name: string;
+  purchaseDate: string;
+  categoryName: string | null;
+  amountCents: number;
+};
+
+export type CardUsageDetail = {
+  cardId: string;
+  history: CardUsageHistoryItem[];
+  categories: CardUsageCategory[];
+  topExpenses: CardUsageTopExpense[];
+};
+
+export function calculateCardUsageDetail(input: {
+  period: string;
+  card: CardUsageCard;
+  countedRows: readonly CountedCardRow[];
+}): CardUsageDetail {
+  const limitCents = toCents(Number(input.card.limit));
+  const cardRows = input.countedRows.filter((row) => row.cardId === input.card.id);
+  const rowsInPeriod = (period: string) => cardRows.filter((row) => row.period === period);
+  const usedCentsIn = (period: string) =>
+    Math.max(
+      0,
+      rowsInPeriod(period).reduce((sum, row) => sum + row.impactCents, 0),
+    );
+  const monthRows = rowsInPeriod(input.period);
+  const monthUsedCents = usedCentsIn(input.period);
+
+  const history = Array.from({ length: cardUsageHistoryMonths }, (_, index): CardUsageHistoryItem => {
+    const period = addMonthsToPeriod(input.period, index - (cardUsageHistoryMonths - 1));
+    const usedCents = usedCentsIn(period);
+    return {
+      period,
+      usedCents,
+      usagePercentage: calculateUsagePercentage(usedCents, limitCents),
+    };
+  });
+
+  const categoryGroups = new Map<string, Omit<CardUsageCategory, "percentage">>();
+  for (const row of monthRows) {
+    const key = row.categoryId ?? "uncategorized";
+    const group = categoryGroups.get(key) ?? {
+      categoryId: row.categoryId,
+      name: row.categoryName,
+      icon: row.categoryIcon,
+      amountCents: 0,
+    };
+    group.amountCents += row.impactCents;
+    categoryGroups.set(key, group);
+  }
+  const categories = [...categoryGroups.values()]
+    .filter((group) => group.amountCents > 0)
+    .sort((a, b) => b.amountCents - a.amountCents || compareNullableNames(a.name, b.name))
+    .slice(0, cardUsageCategoryLimit)
+    .map((group) => ({
+      ...group,
+      percentage: calculateUsagePercentage(group.amountCents, monthUsedCents),
+    }));
+
+  const topExpenses = monthRows
+    .filter((row) => row.impactCents > 0)
+    .sort(
+      (a, b) =>
+        b.impactCents - a.impactCents ||
+        b.purchaseDate.localeCompare(a.purchaseDate) ||
+        a.name.localeCompare(b.name, "pt-BR"),
+    )
+    .slice(0, cardUsageTopExpenseLimit)
+    .map((row) => ({
+      name: row.name,
+      purchaseDate: row.purchaseDate,
+      categoryName: row.categoryName,
+      amountCents: row.impactCents,
+    }));
+
+  return { cardId: input.card.id, history, categories, topExpenses };
+}
+
+function compareNullableNames(a: string | null, b: string | null) {
+  if (a === null) return b === null ? 0 : 1;
+  if (b === null) return -1;
+  return a.localeCompare(b, "pt-BR");
+}
