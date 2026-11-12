@@ -63,6 +63,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   categoria, que ganha **Excel** e **PDF** além do CSV. Novo endpoint `GET /transactions/export/items`
   (lista filtrada sem paginação). Novas dependências no web: `jspdf`, `jspdf-autotable` e `exceljs`,
   carregadas só ao exportar. Detalhes em `docs/exports.md`.
+- Relatório **Uso de cartões** em Relatórios: compara o limite usado de todos os cartões ativos no mês (parte própria, estornos descontados, recorrências só até hoje), com tendência contra o mês anterior, e detalha o cartão escolhido com 12 meses de uso, situação das faturas, categorias e maiores gastos. Novo endpoint `GET /reports/card-usage`. Detalhes em `docs/card-usage-report.md`.
 
 ## [0.16.0] - 2026-11-07
 
