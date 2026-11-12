@@ -65,6 +65,7 @@ export const DashboardInvoiceSchema = z.object({
   logo: z.string().nullable(),
   period: periodSchema,
   amount: z.number().nonnegative(),
+  creditAmount: z.number().nonnegative(),
   paidAmount: z.number().nonnegative(),
   remainingAmount: z.number().nonnegative(),
   status: z.enum(cardInvoiceStatuses),

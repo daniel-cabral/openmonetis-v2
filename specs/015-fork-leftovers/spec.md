@@ -10,6 +10,16 @@
 
 **Fork-only flag**: the settle announcement and the subcategory block are small fork additions that could be offered upstream as separate PRs; the people-sharing item is documentation and a regression guard only.
 
+## Clarifications
+
+### Session 2026-11-12
+
+- Q: How does the server guarantee the recorded amount equals the announced one (FR-003)? → A: The client already sends explicit per-person allocation amounts; the server keeps recomputing the open balance and rejects any allocation above it (stale announcement), returning a typed error; the web then refetches the invoice and shows the refreshed announcement. No new "expected amount" field.
+- Q: Where is the subcategory breakdown computed? → A: On the server: a pure domain function over integer cents (breakdown rows, percent to one decimal) fed by the same data set as the page's month total, exposed by the category-trends/category API; the web only renders it.
+- Q: What URL value represents "Sem subcategoria"? → A: Search param `subcategory`: a child category uuid, or the literal `none`; anything else (unknown uuid or invalid value) is ignored.
+- Q: What happens on a fully covered invoice? → A: The payment action stays visible but the dialog shows only the "already covered" message with confirmation disabled; the server rejects a zero/no-balance payment and creates no transaction.
+- Q: Which recipient mutation paths does the regression guard cover (FR-012)? → A: Integration test: with an active connection, the recipient calls update/delete on the owner's transaction, person, account and card by id and gets 404; recipient listing of shared expenses stays read-only.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Know what a payment will record before confirming (Priority: P1)
@@ -27,7 +37,7 @@ Before confirming an invoice payment, the dialog tells the user the invoice valu
 3. **Given** the "Valor parcial" mode with an amount typed, **When** the amount changes, **Then** the announcement updates to that amount and shows the amount that would remain after it.
 4. **Given** the "Registrar parte da pessoa" mode, **When** a person is chosen, **Then** the announcement reflects that person's amount and whether it moves an account or is an external person's payment without account movement.
 5. **Given** an invoice already fully covered, **When** the user reaches the payment action, **Then** the screen says the invoice is already covered and that nothing will be recorded, and confirming (if reachable) creates no transaction.
-6. **Given** the announcement is shown, **When** the user confirms, **Then** the recorded amount equals the announced amount to the cent; when the invoice changed in between, the announcement refreshes and the user must confirm again.
+6. **Given** the announcement is shown, **When** the user confirms, **Then** the recorded amount equals the announced amount to the cent; when the invoice changed in between so that the announced amount no longer fits the open balance, nothing is recorded, the announcement refreshes and the user must confirm again.
 7. **Given** an amount above the open balance, **When** the user tries to confirm, **Then** it is rejected (existing server rule is kept) with a clear PT-BR message.
 
 ---
@@ -86,14 +96,14 @@ Document and guard that a person connection gives the recipient no edit rights o
 
 - **FR-001**: The invoice payment dialog MUST announce, before confirmation: the invoice value, the amount already covered (payments and credit lines), and the amount the confirmation will record, per selected payment mode.
 - **FR-002**: When nothing remains to pay, the UI MUST state that the invoice is already covered and that nothing will be recorded; no transaction is created in that case.
-- **FR-003**: The announced amount MUST equal the amount recorded; if the server balance differs at confirmation time, the payment MUST be refused with the refreshed numbers shown, and nothing is recorded.
+- **FR-003**: The announced amount MUST equal the amount recorded. The client sends explicit allocation amounts (no extra "expected amount" field); when an allocation exceeds the person's current open balance on the server (stale announcement, e.g. paid in another tab) or a concurrent payment changes the paid total, the payment MUST be refused with a typed error, nothing is recorded, and the dialog shows the refreshed numbers. An allocation still within the current balance is recorded exactly as announced.
 - **FR-004**: The server MUST keep rejecting payments that are zero, negative or above the open balance, using calculations done on the server.
 - **FR-005**: Announcement copy MUST be in PT-BR and use the V1 phrasing as reference: "Fatura de {valor}, {abatido} já abatidos. Confirmar vai registrar {pagamento}." and "Os pagamentos e créditos do período já cobrem esta fatura. Nada será lançado."
 - **FR-006**: The category page MUST show a "Por subcategoria" block for the selected period when the category has child categories: one row per child with transactions in the period (name, proportional bar, amount, percent), ordered by amount descending, plus "Sem subcategoria" last when the parent has direct transactions.
 - **FR-007**: The block amounts MUST sum to the month total shown on the page for the same person scope, and use the same data set (including recurring projections, if the page total includes them).
-- **FR-008**: Clicking a block row MUST filter the page's transaction list by that subcategory (or by "no subcategory"); clicking again MUST clear it; the filter MUST live in the URL and ignore unknown identifiers.
+- **FR-008**: Clicking a block row MUST filter the page's transaction list by that subcategory (or by "no subcategory"); clicking again MUST clear it; the filter MUST live in the URL as `subcategory=<child uuid>|none` and ignore unknown or invalid values.
 - **FR-009**: The block MUST NOT appear for categories without children or on a child category page.
-- **FR-010**: Percentages MUST be computed from integer cents, rounded to one decimal, and be zero when the total is zero.
+- **FR-010**: The breakdown MUST be computed on the server in a pure domain function. Percentages MUST be computed from integer cents, rounded to one decimal, and be zero when the total is zero.
 - **FR-011**: The system MUST NOT introduce a permission level (read-only versus edit) into person connections; the recipient's access remains limited to read-only shared items and importing them into their own records.
 - **FR-012**: Cross-user isolation tests MUST assert that a connection recipient cannot mutate any owner data (regression guard for the V1 `permission` question).
 - **FR-013**: The decision "V1 payer shares map to V2 connections; shares are recreated, not migrated" MUST remain documented for the ETL (016) in this spec's Source section.
@@ -135,3 +145,12 @@ V1 evidence (`D:\Repos\daniel-cabral\openmonetis`): `openspec/changes/allow-invo
 V2 code extended: `apps/web/src/features/invoices/components/invoice-payment-dialog.tsx`, `apps/api/src/services/invoices.service.ts`, `apps/web/src/features/cards/components/card-invoices-page.tsx`, `apps/web/src/features/categories/components/category-transactions-page.tsx`, `apps/web/src/routes/categories_.$categoryId.tsx`, `apps/web/src/features/category-trends/components/category-trends-list.tsx`, `apps/api/src/routes/person-connections.ts`, `apps/api/src/services/person-connections.service.ts`, `apps/api/src/routes/external-expenses.ts`.
 
 Inventory rows covered: "Settle announcement on invoice payment" (partial, port); "Category page 'By subcategory' block with filter" (partial, port); "Payer sharing (code, join, leave, regenerate)" (remodelled, accept V2 if it has read-only vs edit rights, else adapt: resolved as accept V2); data mapping row `compartilhamentos_pagador` (recreate shares instead of migrating).
+
+## UI decisions
+
+Previews (temporary, not committed): `previews/015/payment-dialog-{a,b}.html`, `previews/015/category-subcategories-{a,b}.html`, compiled from the real `apps/web/src/styles/app.css`. Chosen autonomously (closest to V1 within V2 patterns).
+
+- **Payment dialog: option A (inline callout).** A `rounded-md bg-muted px-3 py-2 text-sm` paragraph above the dialog footer (same pattern as the existing "não movimenta suas contas" notice) carrying the V1 sentence of FR-005; partial mode appends "Restará {valor}."; person mode states whether an account is debited. Fully covered: callout shows the "já cobrem esta fatura. Nada será lançado." message and confirm is disabled. Loading: skeleton in place of the callout, confirm disabled; error: short PT-BR message with a "Tentar novamente" button.
+- **Discarded:** option B (summary `dl` with 4 lines) duplicates numbers already shown by the dialog header and departs from the V1 single-sentence announcement.
+- **Subcategory block: option A (inside the header card).** Rendered through the `details` slot of `FinancialSummaryHeader`, under the metrics: title "Por subcategoria", rows as `button` with `aria-pressed` (name, `Progress` bar, amount, percent), active row highlighted, click again clears. Empty month: short note "Sem lançamentos no período." Loading: `Skeleton` rows.
+- **Discarded:** option B (separate `Card` between header and list) adds a third vertical block; the spec and V1 place it under the header statistics.

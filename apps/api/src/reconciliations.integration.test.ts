@@ -514,6 +514,7 @@ async function invoiceCreditWorkflow(api: TestApi) {
       items: Array<{
         cardId: string;
         amount: number;
+        creditAmount: number;
         paidAmount: number;
         remainingAmount: number;
         status: string;
@@ -525,6 +526,7 @@ async function invoiceCreditWorkflow(api: TestApi) {
   }
   const open = await cardInvoice();
   assert.equal(open.amount, 12164.1);
+  assert.equal(open.creditAmount, 7320.62);
   assert.equal(open.remainingAmount, 12164.1);
 
   const payment = await api.data<{ id: string; amount: number; status: string }>(

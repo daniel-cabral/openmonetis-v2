@@ -37,5 +37,10 @@ function validateCategoryTransactionsSearch(
   const { categories, type, ...categorySearch } = validateTransactionsSearch(search);
 
   const scope = z.union([z.literal("all"), z.uuid()]).safeParse(search.personScope);
-  return { ...categorySearch, personScope: scope.success ? scope.data : undefined };
+  const subcategory = z.union([z.literal("none"), z.uuid()]).safeParse(search.subcategory);
+  return {
+    ...categorySearch,
+    personScope: scope.success ? scope.data : undefined,
+    subcategory: subcategory.success ? subcategory.data : undefined,
+  };
 }

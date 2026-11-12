@@ -1524,7 +1524,7 @@ export function createTransactionsService(
   }
 
   async function listTransactions(userId: string, query: ListTransactionsQuery, paginate = true) {
-    if (query.categoryIds.length)
+    if (query.categoryIds.length && query.categoryMatch !== "exact")
       query = {
         ...query,
         categoryIds: await listCategoryFamilyIdsForUser(query.categoryIds, userId),

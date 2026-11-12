@@ -493,6 +493,47 @@ test("financial mutations preserve cents, occurrence history and ownership", {
     );
 
     await t.test(
+      "a repeated full payment on a covered invoice is refused as a balance change and writes nothing",
+      async () => {
+        const account = await api.account(owner);
+        const card = await api.data<{ id: string }>(
+          await api.request("/cards", owner, "POST", {
+            accountId: account.id,
+            name: "Covered card",
+            brand: "visa",
+            closingDay: 20,
+            dueDay: 25,
+            limit: 1000,
+          }),
+          201,
+        );
+        await api.expense(owner, {
+          paymentMethod: "credit_card",
+          cardId: card.id,
+          accountId: null,
+          amount: 50.01,
+          invoicePeriod: "2020-01",
+        });
+        const path = `/invoices/${card.id}/2020-01`;
+        const payment = {
+          accountId: account.id,
+          paidAt: "2020-01-20",
+          allocations: [{ personId: owner.personId, amount: 50.01 }],
+        };
+        await api.data(await api.request(`${path}/payments`, owner, "POST", payment), 201);
+        const before = await (await api.request("/invoices?period=2020-01", owner)).text();
+        const financialBefore = await snapshot();
+        await api.error(
+          await api.request(`${path}/payments`, owner, "POST", payment),
+          409,
+          "invoice_payment_balance_changed",
+        );
+        assert.equal(await (await api.request("/invoices?period=2020-01", owner)).text(), before);
+        assert.deepEqual(await snapshot(), financialBefore);
+      },
+    );
+
+    await t.test(
       "copying a split expense preserves tags and responsibilities without changing the original",
       async () => {
         const tag = await api.data<{ id: string }>(
