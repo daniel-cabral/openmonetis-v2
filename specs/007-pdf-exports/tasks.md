@@ -24,7 +24,7 @@ report PDF and Excel, US3 consistent and safe files.
 
 ## Phase 1: Setup
 
-- [ ] T001 Dependencies (plan.md "Technical Context", research.md R1). From the worktree root:
+- [x] T001 Dependencies (plan.md "Technical Context", research.md R1). From the worktree root:
   `pnpm --filter @openmonetis/web add jspdf@^4 jspdf-autotable@^5 exceljs@^4.4.0`. Only
   `apps/web/package.json` and `pnpm-lock.yaml` change; exceljs must resolve to the version already
   locked for `apps/api` (no second exceljs entry). Test: none, because no behavior change.
