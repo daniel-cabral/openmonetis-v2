@@ -110,6 +110,11 @@ test("financial mutations preserve cents, occurrence history and ownership", {
             Buffer.from(exported.contentBase64, "base64").toString().includes(foreign.name),
             false,
           );
+          const exportedItems = await api.data<{ items: TransactionOutput[]; rowCount: number }>(
+            await api.request(`/transactions/export/items?period=2020-01&${filter}`, owner),
+          );
+          assert.deepEqual(exportedItems.items, []);
+          assert.equal(exportedItems.rowCount, 0);
         }
       },
     );

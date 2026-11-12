@@ -35,7 +35,7 @@ report PDF and Excel, US3 consistent and safe files.
 
 ## Phase 2: Foundational (contract, endpoint, generic builders)
 
-- [ ] T002 [US1] Items contract and endpoint (contracts/transactions-export-items-api.md, plan.md
+- [x] T002 [US1] Items contract and endpoint (contracts/transactions-export-items-api.md, plan.md
   "Design > Validators/API", research.md R2). `packages/validators/src/transactions.ts`: add
   `TransactionExportItemsOutputSchema` = `z.object({ items: z.array(TransactionOutputSchema),
   rowCount: z.number().int().nonnegative() }).openapi("TransactionExportItems")` and type
@@ -52,7 +52,7 @@ report PDF and Excel, US3 consistent and safe files.
   here, because locked by T003. **Done check**: `pnpm --filter @openmonetis/validators typecheck`
   and `pnpm --filter @openmonetis/api typecheck` pass.
 
-- [ ] T003 [US1] [US3] Integration tests for the items endpoint.
+- [x] T003 [US1] [US3] Integration tests for the items endpoint.
   (a) `apps/api/src/transactions.integration.test.ts`. Test: new, because distinct contract (new
   endpoint) - add one `t.test("export items return every filtered transaction beyond one page,
   matching the CSV export", ...)` inside the existing top-level test, one fixture: 35 expenses in

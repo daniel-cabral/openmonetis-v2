@@ -28,6 +28,7 @@ import {
   SettleTransactionsInputSchema,
   TransactionActionInputSchema,
   TransactionActionQuerySchema,
+  TransactionExportItemsOutputSchema,
   TransactionExportOutputSchema,
   TransactionImportBatchParamsSchema,
   TransactionImportDetectionSchema,
@@ -168,6 +169,38 @@ export function createTransactionsRoute(service: TransactionsService) {
     }),
     async (c) =>
       c.json(ok(await service.exportTransactions(c.get("userId"), c.req.valid("query"))), 200),
+  );
+
+  transactionsRoute.openapi(
+    createRoute({
+      method: "get",
+      path: "/export/items",
+      tags: ["Transactions"],
+      request: { query: ListTransactionsQuerySchema },
+      responses: {
+        200: {
+          description: "Every transaction matching the list filters, without pagination",
+          content: {
+            "application/json": {
+              schema: z.object({ data: TransactionExportItemsOutputSchema, error: z.null() }),
+            },
+          },
+        },
+        400: {
+          description: "Invalid list filters",
+          content: { "application/json": { schema: errorSchema } },
+        },
+        401: {
+          description: "Authentication required",
+          content: { "application/json": { schema: errorSchema } },
+        },
+      },
+    }),
+    async (c) =>
+      c.json(
+        ok(await service.listTransactionsForExport(c.get("userId"), c.req.valid("query"))),
+        200,
+      ),
   );
 
   transactionsRoute.openapi(
