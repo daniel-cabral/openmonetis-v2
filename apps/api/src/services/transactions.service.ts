@@ -30,7 +30,6 @@ import { getOccurrenceAmount, SettlementError } from "@openmonetis/domain/settle
 import { canAddTransactionTags, matchesTransactionTags } from "@openmonetis/domain/tags";
 import type { ImportedStatement, ImportedTransaction } from "@openmonetis/domain/transactions";
 import {
-  addMonthsToDate,
   addMonthsToPeriod,
   allocateAmountProportionally,
   allocateInstallmentShares,
@@ -61,6 +60,8 @@ import {
   previewInstallmentOptions,
   projectTransactionAllocations,
   resolveEditedTransactionPeriod,
+  settlementLockedTransactionFields,
+  shiftInstallmentSeriesValues,
   splitAmountIntoInstallments,
   toDisplayAmount,
 } from "@openmonetis/domain/transactions";
@@ -2167,21 +2168,7 @@ export function createTransactionsService(
     if (
       current.settledDate &&
       ((data.isSettled !== undefined && data.isSettled !== current.isSettled) ||
-        [
-          "amount",
-          "type",
-          "paymentMethod",
-          "purchaseDate",
-          "personId",
-          "accountId",
-          "cardId",
-          "splitShares",
-          "settledDate",
-          "boletoPaymentDate",
-          "dueDate",
-          "condition",
-          "invoicePeriod",
-        ].some((key) => key in data))
+        settlementLockedTransactionFields.some((key) => key in data))
     )
       throw badRequest(
         "Undo settlement before changing financial fields",
@@ -2395,6 +2382,15 @@ export function createTransactionsService(
                   splitShares.map((share) => share.amount),
                 )
               : [];
+            const shifted = shiftInstallmentSeriesValues(
+              {
+                purchaseDate: validatedMerged.purchaseDate,
+                dueDate: validatedMerged.dueDate ?? null,
+                boletoPaymentDate: validatedMerged.boletoPaymentDate ?? null,
+                period: anchorPeriod,
+              },
+              offset,
+            );
             return {
               id: target.id,
               tripChange,
@@ -2408,17 +2404,17 @@ export function createTransactionsService(
                         validatedMerged.amount,
                       ).toFixed(2),
                 purchaseDate: rebuildPurchaseDates
-                  ? toDate(addMonthsToDate(validatedMerged.purchaseDate, offset))
+                  ? toDate(shifted.purchaseDate as string)
                   : target.purchaseDate,
-                period: rebuildPeriods ? addMonthsToPeriod(anchorPeriod, offset) : target.period,
+                period: rebuildPeriods ? (shifted.period as string) : target.period,
                 dueDate: rebuildDueDates
-                  ? validatedMerged.dueDate
-                    ? toDate(addMonthsToDate(validatedMerged.dueDate, offset))
+                  ? shifted.dueDate
+                    ? toDate(shifted.dueDate)
                     : null
                   : target.dueDate,
                 boletoPaymentDate: rebuildBoletoPaymentDates
-                  ? validatedMerged.boletoPaymentDate
-                    ? toDate(addMonthsToDate(validatedMerged.boletoPaymentDate, offset))
+                  ? shifted.boletoPaymentDate
+                    ? toDate(shifted.boletoPaymentDate)
                     : null
                   : target.boletoPaymentDate,
                 currentInstallment: target.currentInstallment,

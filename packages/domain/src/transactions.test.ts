@@ -5,6 +5,8 @@ import {
   allocateRefundByResponsibility,
   assertTransferWithinAvailableBalance,
   type BulkTransactionTarget,
+  type BulkTransactionUpdateField,
+  type BulkTransactionUpdateTarget,
   buildTrackedInstallmentSchedule,
   buildTransferPostings,
   calculateRecurrenceEndDate,
@@ -14,6 +16,7 @@ import {
   canDeleteTransactionOrigin,
   canEditTransactionOrigin,
   deriveTransactionPostingDate,
+  getBulkTransactionUpdateRejection,
   getImportedDescriptionKey,
   getPeriodEndDate,
   InsufficientTransferBalanceError,
@@ -24,7 +27,9 @@ import {
   rebalanceTwoAmountShares,
   rebalanceTwoPercentageShares,
   resolveEditedTransactionPeriod,
+  selectBulkSeriesAnchors,
   selectRecurringRuleVersionsToUpdate,
+  shiftInstallmentSeriesValues,
   splitAmountEqually,
   splitAmountIntoInstallments,
   summarizeTransactionSelection,
@@ -629,6 +634,74 @@ test("bulk categorization requires a matching user category", () => {
     ),
     false,
   );
+});
+
+test("bulk update rejection follows protected, recurring, applicability, split and settlement precedence", () => {
+  const pix = {
+    origin: "regular",
+    type: "expense",
+    paymentMethod: "pix",
+    cardId: null,
+    isSettled: false,
+    refundedAmount: 0,
+    condition: "single",
+    isRecurring: false,
+    isSplit: false,
+    isSettledLocked: false,
+  } satisfies BulkTransactionUpdateTarget;
+  const cases = [
+    [{ ...pix, origin: "refund", type: "income" }, ["categoryId"], "protected"],
+    [{ ...pix, type: "transfer" }, ["note"], "protected"],
+    [
+      { ...pix, origin: "refund", type: "income", condition: "recurring" },
+      ["accountId"],
+      "protected",
+    ],
+    [{ ...pix, condition: "recurring" }, ["note"], "recurring"],
+    [{ ...pix, isRecurring: true }, ["note"], "recurring"],
+    [{ ...pix, condition: "recurring" }, ["cardId"], "recurring"],
+    [{ ...pix, paymentMethod: "credit_card", cardId: "card" }, ["accountId"], "notApplicable"],
+    [{ ...pix }, ["cardId"], "notApplicable"],
+    [{ ...pix, type: "income" }, ["dueDate"], "notApplicable"],
+    [{ ...pix, isSplit: true }, ["personId"], "splitPersonChange"],
+    [{ ...pix, isSplit: true, isSettledLocked: true }, ["personId", "amount"], "splitPersonChange"],
+    [{ ...pix, isSettledLocked: true }, ["amount"], "settled"],
+    [{ ...pix, isSettledLocked: true }, ["categoryId", "note"], null],
+    [{ ...pix }, ["personId", "purchaseDate"], null],
+  ] as const satisfies ReadonlyArray<
+    readonly [BulkTransactionUpdateTarget, readonly BulkTransactionUpdateField[], string | null]
+  >;
+
+  for (const [target, fields, expected] of cases) {
+    assert.equal(getBulkTransactionUpdateRejection(target, fields), expected);
+  }
+});
+
+test("series anchors keep the lowest selected installment per series", () => {
+  const items = [
+    { id: "a5", seriesId: "a", currentInstallment: 5 },
+    { id: "a3", seriesId: "a", currentInstallment: 3 },
+    { id: "b2", seriesId: "b", currentInstallment: 2 },
+    { id: "single", seriesId: null, currentInstallment: null },
+  ];
+
+  assert.deepEqual(
+    selectBulkSeriesAnchors(items).map((item) => item.id),
+    ["a3", "b2", "single"],
+  );
+});
+
+test("installment shift moves dates and periods by month offset with month-end clamp", () => {
+  assert.deepEqual(shiftInstallmentSeriesValues({ purchaseDate: "2026-01-31" }, 1), {
+    purchaseDate: "2026-02-28",
+  });
+  assert.deepEqual(shiftInstallmentSeriesValues({ purchaseDate: "2026-01-31" }, 2), {
+    purchaseDate: "2026-03-31",
+  });
+  assert.deepEqual(shiftInstallmentSeriesValues({ period: "2026-12", dueDate: null }, 2), {
+    period: "2027-02",
+    dueDate: null,
+  });
 });
 
 test("merchant key drops acquirer prefixes, place suffixes and store numbers", () => {
