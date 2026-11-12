@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseC6InvoiceCsv, parseC6StatementCsv } from "./import-c6";
 import {
+  amountKeptReason,
   assignReconciliationBuckets,
   detectMatchSuspicions,
   filterAppOnlyByScope,
@@ -11,6 +12,7 @@ import {
   findIdentityCandidates,
   findInstallmentCandidates,
   findNamePeriodCandidates,
+  isPaidButUnreconciled,
   type LineClassification,
   type MatchContext,
   type MatchSuspicion,
@@ -746,12 +748,14 @@ test("matchReconciliationLines decides each line by rule order, one-to-one", asy
       },
     },
     {
-      name: "a credit line never consumes an app entry of the same value",
+      name: "a credit line matches an app entry of the same value",
       lines: [line({ lineKind: "credit", signedCents: 10000 })],
       entries: [entry({ entryKey: "t:tx-estorno", signedCents: 10000 })],
       expected: {
-        lines: [{ lineIndex: 0, status: "bank-only" }],
-        appOnlyKeys: ["t:tx-estorno"],
+        lines: [
+          { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-estorno", divergence: null },
+        ],
+        appOnlyKeys: [],
       },
     },
   ];
@@ -1031,6 +1035,56 @@ test("resolveAmountAlignment aligns to the file value unless the entry must keep
         }),
         c.expected,
       );
+      assert.equal(
+        amountKeptReason(entry(c.entry), c.targetType),
+        c.expected.kind === "kept" ? c.expected.reason : null,
+      );
+    });
+  }
+});
+
+test("isPaidButUnreconciled flags settled rows without identity from the first reconciled date on", async (t) => {
+  const cases: {
+    name: string;
+    entry: { isSettled: boolean | null; hasIdentity: boolean; date: string };
+    firstReconciledDate: string | null;
+    expected: boolean;
+  }[] = [
+    {
+      name: "settled after the first reconciliation without identity is paid but unreconciled",
+      entry: { isSettled: true, hasIdentity: false, date: "2026-11-22" },
+      firstReconciledDate: "2026-09-01",
+      expected: true,
+    },
+    {
+      name: "a row with identity is reconciled",
+      entry: { isSettled: true, hasIdentity: true, date: "2026-11-22" },
+      firstReconciledDate: "2026-09-01",
+      expected: false,
+    },
+    {
+      name: "a row not settled is not paid",
+      entry: { isSettled: false, hasIdentity: false, date: "2026-11-22" },
+      firstReconciledDate: "2026-09-01",
+      expected: false,
+    },
+    {
+      name: "a row settled before the first reconciled date is out of the window",
+      entry: { isSettled: true, hasIdentity: false, date: "2026-08-31" },
+      firstReconciledDate: "2026-09-01",
+      expected: false,
+    },
+    {
+      name: "an account with no reconciled row flags nothing",
+      entry: { isSettled: true, hasIdentity: false, date: "2026-11-22" },
+      firstReconciledDate: null,
+      expected: false,
+    },
+  ];
+
+  for (const c of cases) {
+    await t.test(c.name, () => {
+      assert.equal(isPaidButUnreconciled(c.entry, c.firstReconciledDate), c.expected);
     });
   }
 });
@@ -1057,7 +1111,7 @@ test("assignReconciliationBuckets puts every c6 statement line in bank-only when
   assert.deepEqual(countBuckets(buckets), { "bank-only": 113 });
 });
 
-test("assignReconciliationBuckets keeps invoice credits informational and an ignored line out of bank-only", () => {
+test("assignReconciliationBuckets keeps previous-invoice payments informational, leaves credits in bank-only and an ignored line out of it", () => {
   const invoice = parseC6InvoiceCsv(invoiceFixture());
   const lines = invoice.transactions.map(toLine);
   const ignoredLine = lines.find((candidate) => candidate.name === "LOJA ESPACO TESTE");
@@ -1079,9 +1133,9 @@ test("assignReconciliationBuckets keeps invoice credits informational and an ign
   });
 
   assert.deepEqual(countBuckets(buckets), {
-    "bank-only": 95,
+    "bank-only": 96,
     ignored: 1,
-    informational: 2,
+    informational: 1,
   });
   assert.deepEqual(
     buckets.find((bucket) => bucket.bucket === "ignored"),
@@ -1153,13 +1207,20 @@ test("assignReconciliationBuckets buckets each classified line by its outcome", 
       expected: { bucket: "matched", suspicions: [], ignoredReason: null },
     },
     {
-      name: "credit line stays informational even when classified as matched",
+      name: "credit line classified as matched lands in matched",
       lines: [line({ lineKind: "credit", signedCents: 10000 })],
       entries: [entry({ entryKey: "t:tx-1", date: "2026-07-10", signedCents: 10000 })],
       classification: [
         { lineIndex: 0, status: "matched", rule: "exact", entryKey: "t:tx-1", divergence: null },
       ],
       fileStartDate: "2026-07-01",
+      expected: { bucket: "matched", suspicions: [], ignoredReason: null },
+    },
+    {
+      name: "invoice-payment line stays informational",
+      lines: [line({ lineKind: "invoice-payment", signedCents: 10000 })],
+      entries: [],
+      classification: [{ lineIndex: 0, status: "bank-only" }],
       expected: { bucket: "informational", suspicions: [], ignoredReason: null },
     },
   ];
