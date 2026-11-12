@@ -655,10 +655,7 @@ export function createTransactionsService(
         ? await findSystemCategoryByNameForUser(internalTransferCategoryName, userId)
         : await findCategoryByIdForUser(data.categoryId as string, userId);
 
-    if (
-      !category ||
-      (data.type !== "transfer" && !isCategoryUsableForType(category, data.type))
-    ) {
+    if (!category || (data.type !== "transfer" && !isCategoryUsableForType(category, data.type))) {
       throw notFound("Category not found", "CATEGORY_NOT_FOUND");
     }
 
@@ -2719,9 +2716,9 @@ export function createTransactionsService(
         ? [changes.cardId]
         : targets.flatMap((row) => (row.cardId ? [row.cardId] : []));
     const cardsById = new Map(
-      (await Promise.all([...new Set(cardIds)].map((id) => findCardByIdForUser(id, userId)))).flatMap(
-        (card) => (card ? [[card.id, card] as const] : []),
-      ),
+      (
+        await Promise.all([...new Set(cardIds)].map((id) => findCardByIdForUser(id, userId)))
+      ).flatMap((card) => (card ? [[card.id, card] as const] : [])),
     );
     if (changes.cardId !== undefined) {
       const card = cardsById.get(changes.cardId);
