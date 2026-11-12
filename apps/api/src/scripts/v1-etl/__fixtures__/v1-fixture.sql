@@ -14,7 +14,10 @@ INSERT INTO public."user" (id, name, email, "emailVerified", image, "createdAt",
 INSERT INTO public.account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES
   ('v1-account-a', 'v1-user-a', 'credential', 'v1-user-a',
    'c41b0ec2d293555d0b9089ef0f5cc82f:28685a86ad6b70db750e48597c2911f0463e86539cdaf30f5cdaafe314e3718d9e37a781e879188110adb9d197ddf934aab0d0882278c195fd0f1d4a13ac8797',
-   '2026-01-01T10:00:00Z', '2026-01-01T10:00:00Z');
+   '2026-01-01T10:00:00Z', '2026-01-01T10:00:00Z'),
+-- User B: a hash V2 cannot verify (fixable, password reset) and a Google sign-in.
+  ('v1-account-b', 'v1-user-b', 'credential', 'v1-user-b', 'not-a-scrypt-hash', '2026-01-01T11:00:00Z', '2026-01-01T11:00:00Z'),
+  ('v1-account-b-google', 'google-subject-b', 'google', 'v1-user-b', NULL, '2026-01-01T11:00:00Z', '2026-01-01T11:00:00Z');
 
 INSERT INTO public.passkey (id, name, "publicKey", "userId", "credentialID", counter, "deviceType", "backedUp", transports, aaguid, "createdAt") VALUES
   ('v1-passkey-a', 'Fixture laptop', 'synthetic-public-key', 'v1-user-a', 'synthetic-credential-id', 0, 'singleDevice', false, 'internal', NULL, '2026-01-01T10:05:00Z');

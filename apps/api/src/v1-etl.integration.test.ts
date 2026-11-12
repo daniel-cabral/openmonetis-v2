@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -108,14 +108,16 @@ function runCli(args: string[], env: NodeJS.ProcessEnv = {}): Promise<CliRun> {
   });
 }
 
-async function runValidate(v1Url: string) {
+async function runValidate(v1Url: string, flags: string[] = []) {
   const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
   try {
-    const run = await runCli(["validate", "--v1-url", v1Url, "--out", out]);
+    const run = await runCli(["validate", "--v1-url", v1Url, ...flags, "--out", out]);
     const report =
       run.code === 0 || run.code === 1
         ? (JSON.parse(readFileSync(join(out, "validate.json"), "utf8")) as {
+            header: { dumpFingerprint: string };
             findings: ReportedFinding[];
+            resolutionTemplate: Record<string, string>;
           })
         : null;
     return { ...run, report };
@@ -160,6 +162,31 @@ async function runReconcile(v1Url: string, targetUrl: string) {
         ? (JSON.parse(readFileSync(join(out, "reconcile.json"), "utf8")) as ReconciliationReport)
         : null;
     return { ...run, report };
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+}
+
+// validate -> load -> reconcile in one process, as the operator runs it on the real dump.
+async function runRehearse(v1Url: string, targetUrl: string, flags: string[]) {
+  const out = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
+  try {
+    const run = await runCli(
+      ["rehearse", "--v1-url", v1Url, "--target-url", targetUrl, ...flags, "--out", out],
+      {
+        DATABASE_URL: targetUrl,
+        EXTERNAL_DATABASE_URL: targetUrl,
+        WEB_URL: "http://localhost:7002",
+      },
+    );
+    const read = (command: string) =>
+      JSON.parse(readFileSync(join(out, `${command}.json`), "utf8"));
+    return {
+      ...run,
+      validate: read("validate") as { findings: ReportedFinding[] },
+      load: read("load") as LoadReport,
+      reconcile: read("reconcile") as ReconciliationReport,
+    };
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
@@ -250,9 +277,8 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
     await t.test(
       "validator reports exactly the seeded findings and none on the clean fixture",
       async () => {
-        const violations = await runValidate(
-          await createV1Fixture(["v1-schema.sql", "v1-violations.sql"]),
-        );
+        const violationsUrl = await createV1Fixture(["v1-schema.sql", "v1-violations.sql"]);
+        const violations = await runValidate(violationsUrl);
         assert.equal(violations.code, 1, violations.stderr);
         assert.deepEqual(findingSet(violations.report?.findings ?? []), [
           "account.unknown-type | contas | 20000000-0000-4000-8000-000000000002",
@@ -291,6 +317,39 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           "user.email-case-duplicate | user | v1-user-b",
         ]);
 
+        // A chosen resolution closes its blocker while the others stay open; a resolution the
+        // load cannot apply is refused before anything runs.
+        const resolutionDir = mkdtempSync(join(tmpdir(), "openmonetis-v1-etl-"));
+        try {
+          const periodKey =
+            "transaction.period-date-mismatch:lancamentos:60000000-0000-4000-8000-000000000004";
+          const resolutionFile = (resolutions: Record<string, string>) => {
+            const path = join(resolutionDir, `${randomUUID()}.json`);
+            const dumpFingerprint = violations.report?.header.dumpFingerprint;
+            writeFileSync(path, JSON.stringify({ dumpFingerprint, resolutions }));
+            return path;
+          };
+          assert.equal(violations.report?.resolutionTemplate[periodKey], "use-date | use-period");
+          const resolved = await runValidate(violationsUrl, [
+            "--resolutions",
+            resolutionFile({ [periodKey]: "use-period" }),
+          ]);
+          assert.equal(resolved.code, 1, resolved.stderr);
+          assert.equal(resolved.report?.resolutionTemplate[periodKey], "use-period");
+
+          const unappliable = await runValidate(violationsUrl, [
+            "--resolutions",
+            resolutionFile({
+              "marker.missing-target:lancamentos:60000000-0000-4000-8000-000000000006":
+                "as-regular",
+            }),
+          ]);
+          assert.equal(unappliable.code, 3, unappliable.stderr);
+          assert.match(unappliable.stderr, /must be one of: none/);
+        } finally {
+          rmSync(resolutionDir, { recursive: true, force: true });
+        }
+
         // SC-001: no blocker on the clean fixture; its designed fixable findings stay reported.
         const clean = await runValidate(await createV1Fixture(["v1-schema.sql", "v1-fixture.sql"]));
         assert.equal(clean.code, 0, clean.stderr);
@@ -303,6 +362,7 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           "category.name-collision | categorias | 40000000-0000-4000-8000-000000000004",
           "category.name-collision | categorias | 40000000-0000-4000-8000-000000000005",
           "category.name-collision | categorias | 40000000-0000-4000-8000-000000000006",
+          "credential.incompatible-hash | account | v1-account-b",
           "installment.gap | lancamentos | 61000000-0000-4000-8000-000000000002",
           "note.task-description-as-item | anotacoes | 80000000-0000-4000-8000-000000000002",
           "recurrence.duplicate-occurrence | lancamentos | 60000000-0000-4000-8000-000000000173",
@@ -626,6 +686,46 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
             ["padaria sol centro | Padaria Sol"],
           );
 
+          // US4.13: transaction and note attachments keep their stored file key and link.
+          assert.deepEqual(
+            await select(`
+              SELECT a.file_key, a.file_name, coalesce(t.name, n.title)
+              FROM attachments a
+              LEFT JOIN transaction_attachments ta ON ta.attachment_id = a.id
+              LEFT JOIN transactions t ON t.id = ta.transaction_id
+              LEFT JOIN note_attachments na ON na.attachment_id = a.id
+              LEFT JOIN notes n ON n.id = na.note_id
+              WHERE a.user_id = ${ana} ORDER BY a.file_key`),
+            [
+              "v1-fixture/note-0001.png | lista.png | Lista de compras",
+              "v1-fixture/receipt-0001.pdf | recibo.pdf | Mercado Central",
+            ],
+          );
+
+          // US4.14: dashboard notification states and establishment logos.
+          assert.deepEqual(
+            await select(`
+              SELECT notification_key, fingerprint, read_at = '2026-03-05T09:00:00Z', archived_at
+              FROM notification_states WHERE user_id = ${ana}`),
+            ["invoice-due:cartao-azul:2026-03 | fp-invoice-0001 | true | null"],
+          );
+          assert.deepEqual(
+            await select(`SELECT name_key, domain FROM establishment_logos WHERE user_id = ${ana}`),
+            ["mercado central | mercado-central.example.test"],
+          );
+
+          // US5.2: a hash V2 cannot verify is not copied; the Google account keeps its subject.
+          assert.deepEqual(
+            await select(`
+              SELECT provider_id,
+                     CASE WHEN account_id = user_id::text THEN 'v2 user id' ELSE account_id END,
+                     password
+              FROM account
+              WHERE user_id = (SELECT id FROM "user" WHERE email = 'bruno@example.test')
+              ORDER BY provider_id`),
+            ["credential | v2 user id | null", "google | google-subject-b | null"],
+          );
+
           // US5.3 to US5.5: no session, Companion token or (without --v1-rp-id) passkey is loaded.
           assert.deepEqual(
             await select(`
@@ -647,7 +747,7 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
               sharedWithEmail: "bruno@example.test",
             },
           ],
-          passwordReset: [],
+          passwordReset: [{ email: "bruno@example.test" }],
           passkeysNotLoaded: [{ email: "ana@example.test", count: 1, reason: "rp-id-mismatch" }],
         });
 
@@ -706,11 +806,32 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
         );
         assert.deepEqual(await storedChecksums(v1Url, target), loaded);
 
-        // US2 independent test: a fresh target stores the same rows.
+        // US2 independent test: `rehearse` into a fresh target validates, loads and reconciles,
+        // and stores the same rows. With --v1-rp-id equal to the target host the passkey loads.
         const fresh = await createV2Target();
-        const freshLoad = await runLoad(v1Url, fresh);
-        assert.equal(freshLoad.code, 0, freshLoad.stderr);
+        const rehearsed = await runRehearse(v1Url, fresh, ["--scratch", "--v1-rp-id", "localhost"]);
+        assert.equal(rehearsed.code, 0, rehearsed.stdout + rehearsed.stderr);
+        assert.deepEqual(findingSet(rehearsed.validate.findings, "blocker"), []);
+        assert.deepEqual(
+          rehearsed.load.users.map((user) => [user.v1UserId, user.status]),
+          [
+            ["v1-user-a", "loaded"],
+            ["v1-user-b", "loaded"],
+          ],
+        );
+        assert.equal(rehearsed.reconcile.global.rehearsalReady, true);
+        assert.deepEqual(rehearsed.load.repairList.passkeysNotLoaded, []);
         assert.deepEqual(await storedChecksums(v1Url, fresh), loaded);
+        const freshDb = new Pool({ connectionString: fresh, max: 1 });
+        try {
+          const passkeys = await freshDb.query({
+            text: `SELECT p.credential_id, u.email FROM passkey p JOIN "user" u ON u.id = p.user_id`,
+            rowMode: "array",
+          });
+          assert.deepEqual(passkeys.rows, [["synthetic-credential-id", "ana@example.test"]]);
+        } finally {
+          await freshDb.end();
+        }
 
         // US3.5: a one-cent drift in V2 fails reconcile naming the user, figure and difference.
         const drift = new Pool({ connectionString: target, max: 1 });
@@ -806,6 +927,16 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           });
           assert.deepEqual(leftovers.rows, [["0", "0", "0", "0"]]);
 
+          // US3: a V1 user without a load row fails reconcile, so the rehearsal is not ready.
+          const partial = await runReconcile(v1Url, target);
+          assert.equal(partial.code, 1, partial.stderr);
+          const brunoResult = partial.report?.users.find((user) => user.v1UserId === "v1-user-b");
+          assert.deepEqual(
+            [brunoResult?.pass, brunoResult?.informational],
+            [false, [{ reason: "user-not-loaded", rows: 1 }]],
+          );
+          assert.equal(partial.report?.global.rehearsalReady, false);
+
           await db.query("DROP TRIGGER refuse_conta_b ON financial_accounts");
         } finally {
           await db.end();
@@ -872,6 +1003,11 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
           assert.match(run.stderr, reason);
           assert.equal(await userCount(), before, String(reason));
         }
+
+        // Reconcile refuses a target loaded from another V1 dump.
+        const otherReconcile = await runReconcile(otherDump, loaded);
+        assert.equal(otherReconcile.code, 2, otherReconcile.stderr);
+        assert.match(otherReconcile.stderr, /holds no load of this V1 dump/);
       });
     });
   } finally {
