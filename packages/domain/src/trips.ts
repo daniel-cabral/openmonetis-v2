@@ -1,4 +1,9 @@
-import type { TransactionCondition, TransactionOrigin, TransactionType } from "./transactions";
+import {
+  addMonthsToPeriod,
+  type TransactionCondition,
+  type TransactionOrigin,
+  type TransactionType,
+} from "./transactions";
 
 export const tripNameMaxLength = 60;
 export const tripNoteMaxLength = 500;
@@ -6,6 +11,7 @@ export const tripSuggestionsPageSize = 20;
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const transactionLinkPattern = new RegExp(`^(${uuidPattern})$`, "i");
+const tripIdPattern = new RegExp(`^${uuidPattern}$`, "i");
 const occurrenceLinkPattern = new RegExp(`^(${uuidPattern}):(\\d{4}-\\d{2}-\\d{2})$`, "i");
 
 export type TripPeriod = { id: string; startDate: string; endDate: string };
@@ -17,6 +23,11 @@ export type TripLinkChange =
   | { kind: "linkRow"; tripId: string }
   | { kind: "linkSeries"; tripId: string }
   | { kind: "unlinkRow" };
+
+export type TripFilter =
+  | { mode: "all" }
+  | { mode: "none" }
+  | { mode: "trip"; tripId: string };
 
 export type TripLedgerShare = {
   personName: string | null;
@@ -109,6 +120,41 @@ export function parseTripLinkTarget(id: string): TripLinkTarget | null {
     };
   }
   return null;
+}
+
+export function parseTripFilter(raw?: string | null): TripFilter {
+  if (raw === "none") return { mode: "none" };
+  if (raw && tripIdPattern.test(raw)) return { mode: "trip", tripId: raw };
+  return { mode: "all" };
+}
+
+export function matchesTripFilter(
+  tripId: string | null | undefined,
+  filter: TripFilter,
+): boolean {
+  switch (filter.mode) {
+    case "all":
+      return true;
+    case "none":
+      return !tripId;
+    case "trip":
+      return tripId === filter.tripId;
+  }
+}
+
+export function resolveTripPeriodRange(input: {
+  periods: readonly string[];
+  maxMonths?: number;
+}): { startPeriod: string; endPeriod: string } | null {
+  if (input.periods.length === 0) return null;
+  const startPeriod = input.periods.reduce((min, period) => (period < min ? period : min));
+  const latestPeriod = input.periods.reduce((max, period) => (period > max ? period : max));
+  if (input.maxMonths === undefined) return { startPeriod, endPeriod: latestPeriod };
+  const cappedPeriod = addMonthsToPeriod(startPeriod, input.maxMonths - 1);
+  return {
+    startPeriod,
+    endPeriod: latestPeriod < cappedPeriod ? latestPeriod : cappedPeriod,
+  };
 }
 
 function addToBreakdown(
