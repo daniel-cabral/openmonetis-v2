@@ -76,24 +76,26 @@ const INVOICE_SQL = `
     FROM keys k
    ORDER BY 1, 2`;
 
-// Dashboard category totals: admin payer, no invoice auto-payment rows, expense rows on expense
-// categories and income rows on income categories; the "saldo inicial" income row is left out when
-// its account sets `excluir_saldo_inicial_receitas`. Subcategories roll up into `categoria_id`.
-// V2 sign: expense categories report the spent amount (negated sum), income categories the sum.
+// Category totals as V2 category trends reads the loaded rows (always positive): admin payer;
+// transfers, invoice payments and credits (`AUTO_FATURA:`) and the excluded "saldo inicial" row do
+// not count. Expense categories sum the expense impact (negative rows add their magnitude, a refund
+// `AUTO_REEMBOLSO:` reduces it, other positive rows add 0); income categories sum the magnitude.
+// Subcategories roll up into `categoria_id`.
 const CATEGORY_SQL = `
   WITH ${TX_CTE}
   SELECT tx.categoria_id::text AS category, tx.period, cat.tipo AS category_type,
-         round(CASE WHEN cat.tipo = 'despesa' THEN -sum(tx.valor) ELSE sum(tx.valor) END * 100)::bigint::text AS total
+         sum(CASE WHEN cat.tipo <> 'despesa' THEN round(abs(tx.valor) * 100)
+                  WHEN starts_with(tx.anotacao, 'AUTO_REEMBOLSO:') THEN -round(abs(tx.valor) * 100)
+                  WHEN tx.valor < 0 THEN round(-tx.valor * 100)
+                  ELSE 0 END)::bigint::text AS total
     FROM tx
     JOIN public.categorias cat ON cat.id = tx.categoria_id
     LEFT JOIN public.contas c ON c.id = tx.conta_id
    WHERE tx.pagador_id = $3
+     AND cat.tipo IN ('despesa', 'receita')
+     AND tx.transfer_id IS NULL
      AND (tx.anotacao IS NULL OR NOT starts_with(tx.anotacao, 'AUTO_FATURA:'))
-     AND (
-       (tx.tipo_transacao = 'Despesa' AND cat.tipo = 'despesa')
-       OR (tx.tipo_transacao = 'Receita' AND cat.tipo = 'receita'
-           AND (tx.anotacao IS DISTINCT FROM 'saldo inicial' OR c.excluir_saldo_inicial_receitas IS NOT TRUE))
-     )
+     AND (tx.anotacao IS DISTINCT FROM 'saldo inicial' OR c.excluir_saldo_inicial_receitas IS NOT TRUE)
    GROUP BY tx.categoria_id, tx.period, cat.tipo
    ORDER BY 1, 2, 3`;
 
@@ -199,7 +201,8 @@ export async function computeV1Figures(
     addTo(categoryTotals, { period: row.period, rootCategory, type }, Number(row.total));
   }
   for (const { key, cents } of categoryTotals.values()) {
-    figures.push({ kind: "categoryTotal", key, value: cents });
+    // V2 lists only non-zero category periods.
+    if (cents !== 0) figures.push({ kind: "categoryTotal", key, value: cents });
   }
 
   const personTotals = new Map<string, { key: FigureKey; cents: number }>();
