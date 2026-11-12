@@ -146,7 +146,7 @@ export function PreferencesTransactionsListSection({
   );
 }
 
-function PreferenceSwitchRow({
+export function PreferenceSwitchRow({
   id,
   label,
   description,

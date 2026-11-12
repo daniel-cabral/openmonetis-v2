@@ -1,3 +1,4 @@
+import { resolveAttachmentSizeLimit } from "@openmonetis/domain/attachments";
 import {
   dateOnlyToSafeInstant,
   formatDateInBrazil,
@@ -75,14 +76,17 @@ export function attachmentTypeLabel(mimeType: string) {
   return mimeType === "application/pdf" ? "PDF" : "Imagem";
 }
 
-export function validateAttachmentFile(file: File) {
+export function validateAttachmentFile(file: File, limitMb = maximumAttachmentSizeMb) {
   if (!PrepareAttachmentInputSchema.shape.mimeType.safeParse(file.type).success) {
     return "Tipo de arquivo não suportado. Use PDF ou imagem (JPEG, PNG, WebP).";
   }
 
-  if (!PrepareAttachmentInputSchema.shape.fileSize.safeParse(file.size).success) {
+  if (
+    !PrepareAttachmentInputSchema.shape.fileSize.safeParse(file.size).success ||
+    file.size > resolveAttachmentSizeLimit(limitMb)
+  ) {
     if (file.size <= 0) return "O arquivo está vazio.";
-    return `O arquivo deve ter no máximo ${maximumAttachmentSizeMb} MB.`;
+    return `O arquivo deve ter no máximo ${limitMb} MB.`;
   }
   if (!PrepareAttachmentInputSchema.shape.fileName.safeParse(file.name).success) {
     return "Use um nome de arquivo mais curto.";

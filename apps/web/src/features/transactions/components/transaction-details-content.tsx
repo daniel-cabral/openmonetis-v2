@@ -1,4 +1,5 @@
 import type { TransactionOutput } from "@openmonetis/validators/transactions";
+import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
   Clock3,
@@ -14,6 +15,7 @@ import { MoneyValue } from "@/components/money-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TransactionAttachments } from "@/features/attachments/components/transaction-attachments";
 import { CategoryIcon } from "@/features/categories/category-icons";
+import { userPreferencesQueryOptions } from "@/features/preferences/preferences.queries";
 import { TransactionTags } from "@/features/tags/components/transaction-tags";
 import { formatPeriod } from "@/lib/period-presentation";
 import {
@@ -50,6 +52,9 @@ export function TransactionDetailsContent({
   setInstallmentDeleteOpen: Dispatch<SetStateAction<boolean>>;
   setRecurringAction: Dispatch<SetStateAction<"pause" | "stop" | "skip" | null>>;
 }) {
+  const preferences = useQuery(userPreferencesQueryOptions());
+  const showSummary = preferences.data?.showTransactionSummary ?? true;
+
   return (
     <div className="grid gap-6 p-5 pt-3 sm:gap-5 sm:p-4">
       {detailQuery.isError ? (
@@ -61,7 +66,7 @@ export function TransactionDetailsContent({
         </div>
       ) : null}
 
-      <TransactionSummary transaction={detail} />
+      {showSummary ? <TransactionSummary transaction={detail} /> : null}
 
       <TransactionDetailsActions
         detail={detail}

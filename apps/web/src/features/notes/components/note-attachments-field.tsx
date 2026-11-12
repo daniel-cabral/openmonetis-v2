@@ -1,8 +1,10 @@
 import type { NoteOutput } from "@openmonetis/validators/notes";
 import { X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AttachmentFilePicker } from "@/features/attachments/components/attachment-file-picker";
 import { NoteAttachments } from "@/features/attachments/components/note-attachments";
+import { userPreferencesQueryOptions } from "@/features/preferences/preferences.queries";
 
 type NoteAttachmentsFieldProps = {
   note?: NoteOutput | null;
@@ -19,6 +21,8 @@ export function NoteAttachmentsField({
   onPendingFilesChange,
   onBusyChange,
 }: NoteAttachmentsFieldProps) {
+  const preferences = useQuery(userPreferencesQueryOptions());
+
   return (
     <div className="grid gap-2">
       <span className="font-medium text-sm">Anexos</span>
@@ -46,7 +50,10 @@ export function NoteAttachmentsField({
             </div>
           ))}
           {canAdd ? (
-            <AttachmentFilePicker onAdd={(file) => onPendingFilesChange([...pendingFiles, file])} />
+            <AttachmentFilePicker
+              maxSizeMb={preferences.data?.attachmentMaxSizeMb}
+              onAdd={(file) => onPendingFilesChange([...pendingFiles, file])}
+            />
           ) : null}
         </>
       )}
