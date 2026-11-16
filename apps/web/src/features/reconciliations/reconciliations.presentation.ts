@@ -176,3 +176,17 @@ export function formatInvoiceClosureSummary(closure: InvoiceClosure) {
         text: `${totals} · diferença de ${formatCents(Math.abs(closure.differenceCents))}`,
       };
 }
+
+export type ReconciliationSearch = { cardId?: string; period?: string };
+
+export function validateReconciliationSearch(
+  search: Record<string, unknown>,
+): ReconciliationSearch {
+  return {
+    cardId: typeof search.cardId === "string" && search.cardId ? search.cardId : undefined,
+    period:
+      typeof search.period === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(search.period)
+        ? search.period
+        : undefined,
+  };
+}

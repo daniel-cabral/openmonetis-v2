@@ -40,3 +40,6 @@ todos.json
 /coverage/
 /playwright-report/
 /test-results/
+
+# V1 to V2 ETL reports
+.v1-etl/

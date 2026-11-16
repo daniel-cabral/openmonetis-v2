@@ -8,6 +8,7 @@ import { cardsQueryOptions } from "@/features/cards/cards.queries";
 import { categoriesQueryOptions } from "@/features/categories/categories.queries";
 import { peopleQueryOptions } from "@/features/people/people.queries";
 import { TransactionImportUpload } from "@/features/transactions/components/transaction-import-upload";
+import type { ReconciliationSearch } from "../reconciliations.presentation";
 import { useReconciliationReview } from "../useReconciliationReview";
 import { ReconciliationApplyBar } from "./reconciliation-apply-bar";
 import { ReconciliationBuckets } from "./reconciliation-buckets";
@@ -15,7 +16,7 @@ import { ReconciliationOriginStep } from "./reconciliation-origin-step";
 import { buildClosureView, buildProjectionView } from "./reconciliation-review";
 import { ReconciliationSummary } from "./reconciliation-summary";
 
-export function ReconciliationScreen() {
+export function ReconciliationScreen({ preset }: { preset: ReconciliationSearch }) {
   const [accounts, cards, categories, people] = useQueries({
     queries: [
       accountsQueryOptions(),
@@ -59,6 +60,7 @@ export function ReconciliationScreen() {
 
       {review.file && review.detection ? (
         <ReconciliationOriginStep
+          preset={preset}
           accounts={accounts.data?.filter((account) => !account.isArchived) ?? []}
           cards={cards.data?.filter((card) => card.status === "active") ?? []}
           detection={review.detection}

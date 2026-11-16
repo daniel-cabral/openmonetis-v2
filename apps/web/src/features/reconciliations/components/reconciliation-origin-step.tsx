@@ -34,19 +34,13 @@ import {
   TextOption,
 } from "@/features/transactions/components/transaction-import-options";
 import type { ReconciliationOrigin } from "../reconciliations.api";
-import { defaultProfileId } from "./reconciliation-review";
+import type { ReconciliationSearch } from "../reconciliations.presentation";
+import { defaultProfileId, defaultTargetId } from "./reconciliation-review";
 
 type Detection = ReconciliationDetection;
 
 function destinationTypeOf(detection: Detection, profileId: string) {
   return detection.profiles.find((profile) => profile.id === profileId)?.destinationType;
-}
-
-// Only an account profile can use the account suggested by the file.
-function targetIdFor(detection: Detection, profileId: string) {
-  return destinationTypeOf(detection, profileId) === "account"
-    ? (detection.suggestedAccountId ?? "")
-    : "";
 }
 
 function isOriginComplete(
@@ -73,6 +67,7 @@ export function ReconciliationOriginStep({
   onReset,
   invoiceTotalText,
   onInvoiceTotalChange,
+  preset,
 }: {
   file: File;
   detection: Detection;
@@ -84,14 +79,15 @@ export function ReconciliationOriginStep({
   onReset: () => void;
   invoiceTotalText: string;
   onInvoiceTotalChange: (text: string) => void;
+  preset: ReconciliationSearch;
 }) {
   const [periodOpen, setPeriodOpen] = useState(false);
   const initialProfileId = defaultProfileId(detection) ?? "";
   const form = useForm({
     defaultValues: {
       profileId: initialProfileId,
-      targetId: targetIdFor(detection, initialProfileId),
-      invoicePeriod: getCurrentPeriodInBrazil(),
+      targetId: defaultTargetId(detection, initialProfileId, preset.cardId),
+      invoicePeriod: preset.period ?? getCurrentPeriodInBrazil(),
     },
     onSubmit: ({ value }) => {
       const targetType = destinationTypeOf(detection, value.profileId);
@@ -138,7 +134,10 @@ export function ReconciliationOriginStep({
                   <Select
                     onValueChange={(value) => {
                       field.handleChange(value as string);
-                      form.setFieldValue("targetId", targetIdFor(detection, value as string));
+                      form.setFieldValue(
+                        "targetId",
+                        defaultTargetId(detection, value as string, preset.cardId),
+                      );
                       onOriginChange();
                     }}
                     value={field.state.value}

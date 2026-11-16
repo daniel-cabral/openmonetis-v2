@@ -10,6 +10,7 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc --noEmit",
     "db:seed": "tsx --env-file-if-exists=../../.env src/scripts/mock-data.ts",
+    "etl:v1": "tsx --env-file-if-exists=../../.env src/scripts/v1-etl/cli.ts",
     "worker:recurring-external-expenses": "tsx --env-file-if-exists=../../.env src/scripts/recurring-external-expenses.worker.ts",
     "typecheck": "tsc --noEmit"
   },
