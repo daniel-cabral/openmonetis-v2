@@ -16,7 +16,7 @@ export MSYS_NO_PATHCONV=1
 
 ```bash
 docker run -d --name openmonetis-v1-source -e POSTGRES_PASSWORD=<local admin password> \
-  -p 127.0.0.1:7001:5432 postgres:18
+  -p 127.0.0.1:7011:5432 postgres:18
 docker cp E:/Downloads/v1.dump openmonetis-v1-source:/tmp/v1.dump
 docker exec openmonetis-v1-source createdb -U postgres openmonetis_v1
 docker exec openmonetis-v1-source pg_restore -U postgres -d openmonetis_v1 \
@@ -27,7 +27,7 @@ docker exec openmonetis-v1-source psql -U postgres -d openmonetis_v1 -c "
   grant usage on schema public to v1_reader;
   grant select on all tables in schema public to v1_reader;
   alter role v1_reader set default_transaction_read_only = on;"
-export V1_DATABASE_URL=postgres://v1_reader:v1reader@127.0.0.1:7001/openmonetis_v1
+export V1_DATABASE_URL=postgres://v1_reader:v1reader@127.0.0.1:7011/openmonetis_v1
 ```
 
 The V2 container is PG 16 and cannot restore a PG 18 archive; the ETL reads V1 over a connection
