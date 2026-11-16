@@ -661,8 +661,13 @@ test("v1 etl", { skip: process.env.V1_ETL_INTEGRATION_TEST !== "1" }, async (t) 
             ["Alimentação | 800.00 | 2026-03"],
           );
           assert.deepEqual(
-            await select(`SELECT name, brand FROM cards WHERE user_id = ${ana} ORDER BY name`),
-            ["Cartao Azul | mastercard", "Cartao Verde | other"],
+            await select(
+              `SELECT name, brand, logo FROM cards WHERE user_id = ${ana} ORDER BY name`,
+            ),
+            [
+              "Cartao Azul | mastercard | /logos/card.png",
+              "Cartao Verde | other | /logos/card.png",
+            ],
           );
 
           // US4.15: preferences split into user and dashboard preferences.

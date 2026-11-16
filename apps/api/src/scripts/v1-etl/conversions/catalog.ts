@@ -49,6 +49,7 @@ const CREDENTIAL_PROVIDER = "credential";
 // Default Better Auth scrypt shape `salt:key` in hex, the only one V2 verifies (research R13).
 const SCRYPT_HASH = /^[0-9a-f]{32}:[0-9a-f]{128}$/;
 const PASSKEY_NAME_MAX = 120;
+const LOGOS_PATH = "/logos/";
 
 type Row = Record<string, unknown>;
 
@@ -152,7 +153,7 @@ export function convertCatalog(x: ExtractedUser, r: Resolutions["resolutions"]):
       userId,
       name: account.nome,
       type: mapped.type,
-      logo: account.logo,
+      logo: toV2Logo(account.logo),
       note: account.anotacao,
       excludeFromBalance: account.excluir_do_saldo,
       isArchived: PERSON_STATUS_MAP[account.status] === "inactive",
@@ -211,7 +212,7 @@ export function convertCatalog(x: ExtractedUser, r: Resolutions["resolutions"]):
       closingDay,
       dueDay,
       limit: card.limite,
-      logo: card.logo,
+      logo: toV2Logo(card.logo),
       note: card.anotacao,
       createdAt: card.created_at,
     });
@@ -669,4 +670,11 @@ function toWidgetPreferences(value: unknown): { order: string[]; hidden: string[
     order: Array.isArray(order) ? order.filter((id) => typeof id === "string") : [],
     hidden: Array.isArray(hidden) ? hidden.filter((id) => typeof id === "string") : [],
   };
+}
+
+// V1 stores the bundled logo as a bare file name; V2 serves it from /logos/.
+function toV2Logo(logo: string): string;
+function toV2Logo(logo: string | null): string | null;
+function toV2Logo(logo: string | null): string | null {
+  return logo === null || logo.includes("/") ? logo : `${LOGOS_PATH}${logo}`;
 }
