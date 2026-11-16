@@ -1,3 +1,4 @@
+import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import type { PoolClient } from "pg";
 import { convertCatalog } from "../conversions/catalog";
 import { v2Id } from "../ids";
@@ -208,6 +209,8 @@ export async function computeV1Figures(
   for (const row of categories.rows) {
     const rootCategory = refs.categoryByV1.get(row.category);
     if (rootCategory === undefined) throw new Error("v1-etl: unmapped category");
+    // V2 category trends leave the system invoice-payment category out (expected difference).
+    if (rootCategory === refs.systemCategory(invoicePaymentCategoryName, "expense")) continue;
     const type = row.category_type === "despesa" ? "expense" : "income";
     addTo(categoryTotals, { period: row.period, rootCategory, type }, Number(row.total));
   }

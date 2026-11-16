@@ -62,7 +62,13 @@ Expected on the current production dump:
 - `load`: 1 user loaded; per-table balance lines all close; 256 category and 91 name import
   mappings written; repair list has 1 Companion re-pair.
 - `reconcile`: every figure passes; the resolved row listed under `period-date-resolved`; 2 boleto rows listed under `boleto-posting-month` with month,
-  amount and difference vs raw V1; `rehearsalReady: true`.
+  amount and difference vs raw V1; 7 rows listed under `invoice-payment-category` (V1 "Pagamentos"
+  rows that are not invoice markers: accounting fees, an insurance payment, 2 manual invoice payments;
+  recategorize the non-payment ones in V2 after the cutover); `rehearsalReady: true`.
+- Run time on the 2026-11-12 rehearsal: about 7 s for `rehearse` (SC-005).
+- Paths: `pnpm etl:v1` runs in `apps/api`, so `.v1-etl/` (outputs and `resolutions.json`) lives in
+  `apps/api/.v1-etl/`; the resolution file is `{ "dumpFingerprint": "<from validate.json header>",
+  "resolutions": { ... } }`, not the bare printed template.
 
 ## 4. Idempotency and resume checks
 

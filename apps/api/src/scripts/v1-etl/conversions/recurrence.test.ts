@@ -225,6 +225,29 @@ const cases: {
     recurrenceEndDate: "2026-05-31",
     occurrences: [],
   },
+  {
+    name: "(j) boleto due before the purchase day: deadline is the last purchase date",
+    rows: [
+      row("j1", "2026-01-11", { forma_pagamento: "Boleto", data_vencimento: "2026-01-10" }),
+      row("j2", "2026-02-11", { forma_pagamento: "Boleto", data_vencimento: "2026-02-10" }),
+      row("j3", "2026-03-11", {
+        forma_pagamento: "Boleto",
+        data_vencimento: "2026-03-10",
+        valor: "-120.00",
+      }),
+      row("j4", "2026-04-11", {
+        forma_pagamento: "Boleto",
+        data_vencimento: "2026-04-10",
+        valor: "-120.00",
+      }),
+    ],
+    versions: [
+      version("2026-01-11", "2026-02-11", 10000, "2026-01-10"),
+      version("2026-03-11", "2026-04-11", 12000, "2026-03-10"),
+    ],
+    recurrenceEndDate: "2026-04-11",
+    occurrences: [],
+  },
 ];
 
 test("convertRecurrence turns V1 series into reproducible V2 versions", () => {

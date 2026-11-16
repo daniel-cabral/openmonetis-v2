@@ -410,6 +410,11 @@ export type ExpectedDifference =
         amount: string;
         differenceVsRawV1: { periodEnd: string; value: string };
       }[];
+    }
+  | {
+      reason: "invoice-payment-category";
+      kind: "categoryTotal";
+      rows: { v1Id: string; period: string; amount: string }[];
     };
 export type UserReconciliation = {
   v1UserId: string;

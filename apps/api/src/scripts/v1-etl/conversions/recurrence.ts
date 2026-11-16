@@ -330,7 +330,10 @@ export function convertRecurrence(
     const runs = buildRuns(occurrences);
     const last = occurrences.at(-1) as Occurrence;
     const lastRunFirst = (runs.at(-1) as Occurrence[])[0] as Occurrence;
-    const recurrenceEndDate = resolveRecurringDueDate(last.date, lastRunFirst.dueDate) ?? last.date;
+    // The later of the last purchase and its due date: V2 compares the deadline with the due date
+    // in some paths and with the purchase date (getEffectiveRecurringEndDate) in others.
+    const lastDueDate = resolveRecurringDueDate(last.date, lastRunFirst.dueDate) ?? last.date;
+    const recurrenceEndDate = lastDueDate > last.date ? lastDueDate : last.date;
 
     if (!isReproducible(runs, recurrenceEndDate, cardByV2)) {
       const resolutionKey = `${NOT_REPRODUCIBLE_RULE}:${TRANSACTIONS_TABLE}:${seriesId}`;

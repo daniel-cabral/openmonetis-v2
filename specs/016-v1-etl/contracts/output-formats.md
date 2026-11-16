@@ -146,7 +146,9 @@ the text output prints per table `read = written + merged + skipped + collapsed 
         { "reason": "period-date-resolved", "kind": "transactionCount", "rows": [{ "v1Id": "uuid", "resolution": "use-period", "period": "2026-06" }] },
         { "reason": "boleto-posting-month", "kind": "accountBalance",
           "rows": [{ "v1Id": "uuid", "period": "2026-08", "paymentMonth": "2026-09", "amount": "123.45",
-                     "differenceVsRawV1": { "periodEnd": "2026-08", "value": "123.45" } }] }
+                     "differenceVsRawV1": { "periodEnd": "2026-08", "value": "123.45" } }] },
+        { "reason": "invoice-payment-category", "kind": "categoryTotal",
+          "rows": [{ "v1Id": "uuid", "period": "2026-05", "amount": "-397.00" }] }
       ]
     }
   ],
@@ -156,7 +158,10 @@ the text output prints per table `read = written + merged + skipped + collapsed 
 
 V1 `paidAt` = date of the latest invoice auto-payment row of that card and period, only for paid
 invoices; pending invoices compare `null`. Boleto posting rule: an `accountBalance` figure passes only when `v2 == v1WithV2Posting`; the last
-month end also requires `v2 == v1`. Any difference not listed in `expectedDifferences` fails.
+month end also requires `v2 == v1`. V1 categories merged into the V2 system invoice-payment
+category ("Pagamentos") are left out of V1 `categoryTotal`, as V2 category trends leave that
+category out; their admin rows (other than `AUTO_FATURA:` markers and transfers) are listed under
+`invoice-payment-category` for the operator to recategorize. Any difference not listed in `expectedDifferences` fails.
 Figures are compared in integer cents. `accountBalance` covers every month end from the first to the
 last V1 period (Clarification 3). Transaction counts compare V1 rows with V2 rows plus expanded
 recurrence occurrences. Exit 1 on any `pass: false`.

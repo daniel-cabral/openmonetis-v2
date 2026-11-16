@@ -12,7 +12,7 @@
 
 ### Session 2026-11-12
 
-- Q: V1 recurrences have a fixed count (6 to 48 months); where does the V2 rule end? → A: `recurrenceEndDate` = the last V1 occurrence of the series as V2 compares it: its due date resolved by `resolveRecurringDueDate` when the series has a due date, else its purchase date.
+- Q: V1 recurrences have a fixed count (6 to 48 months); where does the V2 rule end? → A: `recurrenceEndDate` = the last V1 occurrence of the series as V2 compares it: its due date resolved by `resolveRecurringDueDate` when the series has a due date, else its purchase date. Amended 2026-11-12 (T047, real dump): the later of that due date and the purchase date, because a boleto due before the purchase day (due 10, purchase 11) otherwise cuts the last occurrence where V2 caps purchase dates with `getEffectiveRecurringEndDate`.
 - Q: How do zero-amount V1 rows that are recurrence occurrences load, given V2 forbids zero amounts? → A: As a `skip` exception on that occurrence of the rule (severity fixable); the balance effect stays zero.
 - Q: At which cutoff(s) does reconciliation compare account balances, given V1 holds future rows up to 2030? → A: At the end of every month in the V1 data range (first to last period), including the dump month.
 - Q: How does V2 represent V1 recurrence series whose amount, name, category or day changes along the series? → A: A change that holds from some occurrence through the end of the series becomes a new rule version effective from that occurrence; an isolated deviation becomes a one-occurrence version (V2 has no exception table: exceptions are one-occurrence versions, skips are gaps between versions, settlements are occurrence rows).

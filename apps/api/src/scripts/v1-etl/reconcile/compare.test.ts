@@ -64,11 +64,26 @@ const extracted = {
       data_vencimento: "2026-08-30",
       dt_pagamento_boleto: "2026-09-02",
     }),
+    tx("t-fees", { categoria_id: "cat-payments", valor: "-397.00" }),
+    tx("t-invoice", { categoria_id: "cat-payments", anotacao: "AUTO_FATURA:card-1:2026-07" }),
   ],
 } as unknown as ExtractedUser;
 
 const plan = {
   informational: [],
+  batches: [
+    {
+      table: "categories",
+      rows: [
+        { id: "v2-payments", name: "Pagamentos", isSystem: true },
+        { id: "v2-food", name: "Alimentação", isSystem: true },
+      ],
+    },
+  ],
+  idMap: [
+    { v1Table: "categorias", v1Id: "cat-payments", v2Table: "categories", v2Id: "v2-payments" },
+    { v1Table: "categorias", v1Id: "cat-food", v2Table: "categories", v2Id: "v2-food" },
+  ],
   counts: [
     {
       v1Table: "lancamentos",
@@ -110,6 +125,11 @@ test("buildExpectedDifferences lists every expected difference and keeps detache
             differenceVsRawV1: { periodEnd: "2026-08", value: "123.45" },
           },
         ],
+      },
+      {
+        reason: "invoice-payment-category",
+        kind: "categoryTotal",
+        rows: [{ v1Id: "t-fees", period: "2026-07", amount: "-397.00" }],
       },
     ],
     informational: [{ reason: "recurrence-duplicate-detached", rows: 1 }],

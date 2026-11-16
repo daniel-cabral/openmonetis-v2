@@ -1,3 +1,4 @@
+import { invoicePaymentCategoryName } from "@openmonetis/domain/categories";
 import { fromCents } from "@openmonetis/domain/money";
 import { getPeriodFromDate } from "@openmonetis/domain/transactions";
 import { PAYMENT_METHOD_MAP, toTypedAmount } from "../conversions/amounts";
@@ -24,6 +25,8 @@ const ZERO_RECURRENCE_REASON = "zero-recurrence-skip";
 const SPLIT_GROUP_REASON = "split-group";
 const DETACHED_DUPLICATE_REASON = "recurrence-duplicate";
 const COUNT_KIND = "transactionCount" as const;
+const CATEGORIES_TABLE = "categorias";
+const INVOICE_MARKER_PREFIX = "AUTO_FATURA:";
 
 function formatCents(cents: number): string {
   return fromCents(cents).toFixed(2);
@@ -104,6 +107,40 @@ function boletoPostingMonth(x: ExtractedUser): ExpectedDifference | null {
   return rows.length > 0 ? { reason: "boleto-posting-month", kind: "accountBalance", rows } : null;
 }
 
+// V1 categories merged into the V2 system invoice-payment category, which V2 category trends
+// leave out by design. Their admin rows (other than invoice markers and transfers) are listed.
+function invoicePaymentCategory(x: ExtractedUser, plan: UserPlan): ExpectedDifference | null {
+  const systemId = plan.batches
+    .find((batch) => batch.table === "categories")
+    ?.rows.find((row) => row.isSystem === true && row.name === invoicePaymentCategoryName)?.id;
+  const v1Categories = new Set(
+    plan.idMap
+      .filter((item) => item.v1Table === CATEGORIES_TABLE && item.v2Id === systemId)
+      .map((item) => item.v1Id),
+  );
+  const adminPayers = new Set(
+    x.payers.filter((payer) => payer.role === ADMIN_PAYER_ROLE).map((payer) => payer.id),
+  );
+  const rows = x.transactions.flatMap((row) => {
+    if (
+      row.categoria_id === null ||
+      !v1Categories.has(row.categoria_id) ||
+      row.transfer_id !== null ||
+      row.anotacao?.startsWith(INVOICE_MARKER_PREFIX) ||
+      !(row.pagador_id === null || adminPayers.has(row.pagador_id))
+    ) {
+      return [];
+    }
+    const typed = toTypedAmount(row.valor);
+    if (!typed.ok) return [];
+    const cents = typed.type === "expense" ? -typed.amountCents : typed.amountCents;
+    return [{ v1Id: row.id, period: row.periodo, amount: formatCents(cents) }];
+  });
+  return rows.length > 0
+    ? { reason: "invoice-payment-category", kind: "categoryTotal", rows }
+    : null;
+}
+
 export function buildExpectedDifferences(
   x: ExtractedUser,
   plan: UserPlan,
@@ -120,6 +157,7 @@ export function buildExpectedDifferences(
       : null,
     periodDateResolved(x, r),
     boletoPostingMonth(x),
+    invoicePaymentCategory(x, plan),
   ].filter((item): item is ExpectedDifference => item !== null);
 
   const duplicates = detachedRows(plan.counts, DETACHED_DUPLICATE_REASON);

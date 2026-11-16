@@ -156,6 +156,11 @@ function describeExpectedDifference(difference: ExpectedDifference): string[] {
         (row) =>
           `${difference.reason} on ${difference.kind}: ${row.v1Id} ${row.period} paid ${row.paymentMonth}, amount ${row.amount}, raw V1 ${row.differenceVsRawV1.periodEnd} ${row.differenceVsRawV1.value}`,
       );
+    case "invoice-payment-category":
+      return difference.rows.map(
+        (row) =>
+          `${difference.reason} on ${difference.kind}: ${row.v1Id} ${row.period} ${row.amount}`,
+      );
   }
 }
 
