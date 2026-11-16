@@ -302,3 +302,20 @@ export function defaultProfileId(detection: {
 }): string | null {
   return detection.detectedProfileId ?? detection.profiles[0]?.id ?? null;
 }
+
+// A statement uses the account suggested by the file; an invoice uses the card it was opened from.
+export function defaultTargetId(
+  detection: {
+    suggestedAccountId: string | null;
+    profiles: { id: string; destinationType: "account" | "card" }[];
+  },
+  profileId: string,
+  presetCardId: string | undefined,
+): string {
+  const destinationType = detection.profiles.find(
+    (profile) => profile.id === profileId,
+  )?.destinationType;
+  if (destinationType === "account") return detection.suggestedAccountId ?? "";
+  if (destinationType === "card") return presetCardId ?? "";
+  return "";
+}

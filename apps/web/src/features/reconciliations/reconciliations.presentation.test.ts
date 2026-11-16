@@ -9,6 +9,7 @@ import {
   formatProjectionLine,
   formatStatementClosureSummary,
   formatSuspicionReason,
+  validateReconciliationSearch,
 } from "./reconciliations.presentation";
 
 test("suspicion reasons state the dates and amounts in the review copy", () => {
@@ -207,4 +208,15 @@ test("projection and closure copy states the balances and the divergences in PT-
       ),
     },
   );
+});
+
+test("reconciliation search keeps a card id and a valid invoice period only", () => {
+  assert.deepEqual(validateReconciliationSearch({ cardId: "card-1", period: "2026-07" }), {
+    cardId: "card-1",
+    period: "2026-07",
+  });
+  assert.deepEqual(validateReconciliationSearch({ cardId: "", period: "2026-13" }), {
+    cardId: undefined,
+    period: undefined,
+  });
 });

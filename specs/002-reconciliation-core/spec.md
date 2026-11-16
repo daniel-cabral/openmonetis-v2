@@ -270,6 +270,7 @@ Chosen autonomously (mockup-ui, 2026-11-11): **option A**. Previews (local, not 
 - Sticky bottom bar: counts of what Apply will do, suspicious and alignment counts, blocking reason (empty names) in destructive text, primary Button "Aplicar" ("Aplicando…").
 - After Apply: a `sonner` toast "{criados} criados, {conciliados} conciliados, {ignorados} ignorados." with action "Desfazer" (as V1), plus a warning toast for skipped creations; the screen returns to the upload step.
 - Discarded: option B (Tabs per bucket, Apply in the header) hides suspicious and bank-only work behind tabs and breaks the V1 top-to-bottom walk; option C (one dense table with a bucket filter) cannot fit the per-row creation fields and drops the bucket headers that carry "Marcar todas como Criar".
+- Invoice entry point (Daniel, 2026-11-16, preview route `/preview-reconcile-invoice`, removed): **option A**, "Conciliar fatura" as the first item of the invoice page "Mais ações" menu (active cards only), opening `/transactions/reconciliation?cardId=&period=`; an invoice profile then prefills "Cartão de destino" and "Período da fatura". Discarded: option B, a secondary header button next to "Registrar pagamento", adds a third action to the header for an occasional task.
 
 ## Execution decisions (2026-11-11)
 

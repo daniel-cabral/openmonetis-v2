@@ -8,6 +8,7 @@ import {
   candidateOptions,
   consumedEntryKeys,
   defaultProfileId,
+  defaultTargetId,
   hasApplicableDecision,
   initialDecisions,
   linkOptions,
@@ -100,6 +101,25 @@ test("defaultProfileId prefers the detected profile, then the first one, then nu
 
   for (const { detection, expected } of cases) {
     assert.equal(defaultProfileId(detection), expected);
+  }
+});
+
+test("defaultTargetId uses the file's account for statements and the preset card for invoices", () => {
+  const detection = {
+    suggestedAccountId: "account-1",
+    profiles: [
+      { id: "c6-statement", destinationType: "account" as const },
+      { id: "c6-invoice", destinationType: "card" as const },
+    ],
+  };
+  const cases = [
+    { profileId: "c6-statement", presetCardId: "card-1", expected: "account-1" },
+    { profileId: "c6-invoice", presetCardId: "card-1", expected: "card-1" },
+    { profileId: "c6-invoice", presetCardId: undefined, expected: "" },
+  ];
+
+  for (const { profileId, presetCardId, expected } of cases) {
+    assert.equal(defaultTargetId(detection, profileId, presetCardId), expected);
   }
 });
 

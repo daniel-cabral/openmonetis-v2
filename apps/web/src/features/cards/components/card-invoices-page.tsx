@@ -3,6 +3,7 @@ import type { CardOutput, ReplaceCardInput } from "@openmonetis/validators/cards
 import type { AdjustInvoiceInput } from "@openmonetis/validators/invoices";
 import type { PersonOutput } from "@openmonetis/validators/people";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Image } from "@unpic/react";
 import {
   CalendarClock,
@@ -10,6 +11,7 @@ import {
   CircleAlert,
   CircleCheck,
   CreditCard,
+  FileCheck2,
   Pencil,
   RotateCcw,
   Scale,
@@ -242,6 +244,7 @@ function CardInvoiceSummary({
   const isActive = card.status === "active";
   const brandAsset = getCardBrandAsset(card.brand);
   const adjustMutation = useAdjustInvoiceMutation();
+  const navigate = useNavigate();
   const [datesOpen, setDatesOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
@@ -295,6 +298,22 @@ function CardInvoiceSummary({
               ) : null}
               {hasMenuActions ? (
                 <FinancialSummaryMenu disabled={isRefreshing}>
+                  {isActive ? (
+                    <>
+                      <SummaryMenuItem
+                        description="Confere a fatura com o CSV do banco."
+                        icon={<FileCheck2 aria-hidden="true" />}
+                        label="Conciliar fatura"
+                        onClick={() =>
+                          void navigate({
+                            to: "/transactions/reconciliation",
+                            search: { cardId: card.id, period },
+                          })
+                        }
+                      />
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
                   {canAdjustInvoice ? (
                     <SummaryMenuItem
                       description={adjustBlockedReason}

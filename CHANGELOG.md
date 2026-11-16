@@ -86,6 +86,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   carga, carrega de forma idempotente em banco de ensaio e concilia saldos, faturas e totais. O V1
   é lido somente em leitura e a carga grava somente em banco de ensaio. Runbook em
   `docs/fork-v1-migration.md`.
+- Página da fatura do cartão ganha **Conciliar fatura** no menu "Mais ações": abre a conciliação
+  com o cartão e o período da fatura já preenchidos ao ler um CSV de fatura.
 
 ## [0.16.0] - 2026-11-07
 
